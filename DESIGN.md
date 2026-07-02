@@ -275,15 +275,93 @@ the single source of truth for WHAT each control/port is (range, domain,
 target); the SVG says how the module LOOKS and WHERE each tagged element sits;
 the tags are the bridge between them.
 
+### Binding contract (geometry the author and the loader both follow)
+
+The tag identifies a control; this contract says how the host reads its
+geometry and animates it as the user operates it. The SVG author and the host
+loader follow it exactly, or the panel will not track its values.
+
+**Coordinate system.** The viewBox is in millimetres of real panel: origin
+top-left, x to the right, y down. A module's width is its descriptor `hp`
+times 5.08 mm; its height is 128.5 mm (Eurorack 3U). Authoring in true
+millimetres lets modules tile in a rack by their real widths.
+
+**Controls (knobs and switches).** Each is an SVG group carrying
+`data-wcoast-param` = the parameter id. The group holds the static art (skirt,
+cap, tick marks) plus exactly one child marked `data-wcoast-role="indicator"` —
+the pointer of a knob or the lever of a switch, the part that turns. The host
+rotates ONLY that indicator; everything else in the group stays put. The group
+also carries `data-wcoast-cx` and `data-wcoast-cy`: the pivot point, in viewBox
+units. The author draws the indicator in its ZERO pose, pointing straight up;
+the host rotates it about the pivot.
+
+**Value → angle.** The host keeps a normalised position 0..1 for each control
+(0 = min, 1 = max). A knob turns LINEARLY in position; the value is derived
+from position through the descriptor's `curve` (so an exp knob turns evenly
+while its Hz value tapers). Angle is measured clockwise from straight-up.
+Position maps linearly to angle between an angle-min and angle-max, defaulting
+to −150° and +150° (the familiar ~7-o'clock-to-5-o'clock sweep, which puts a
+bipolar control's zero at 12 o'clock). A control may override the sweep with
+`data-wcoast-angle-min` / `data-wcoast-angle-max` — needed for the big
+Frequency and Pitch knobs whose printed scales span a specific arc.
+
+**Switches.** A stepped param's `steps` come from the descriptor, in order. A
+switch shown as a moving lever uses the same indicator + pivot as a knob, with
+a default sweep of −20°..+20°; the host places step *i* at its evenly-spaced
+angle and snaps the lever there. Where the real panel shows the position with
+LAMPS instead of a moving lever (the Range and Waveshape LED rows), the author
+instead marks one element per step with `data-wcoast-role="step-indicator"` and
+`data-wcoast-step` = that step's value; the host lights the active one and dims
+the rest. A switch uses one style or the other, not both.
+
+**Jacks (ports).** Each jack is an element or group carrying
+`data-wcoast-port` = the port id, plus `data-wcoast-cx` / `data-wcoast-cy` — the
+point where a patch cord anchors (the stub-and-droop origin). Jacks do not
+rotate.
+
+**Legends.** Text and scale markings — parameter names, the Hz/note numbers,
+"even/odd", "low/high" — are static faceplate art and are NOT tagged. The
+descriptor already holds the authoritative names for dictation, menus, and save
+files; the SVG legends exist only to look right.
+
+**Operating a control.** The host owns all interaction. When the user drags a
+knob, scrolls it, or sets it by dictation, the host updates the control's
+normalised position, rotates its indicator to the new angle in real time, and
+calls the module's `setParam` with the derived value. Switches snap to the next
+step the same way. Because the indicator is its own rotatable element, this
+live rotation needs no per-frame redraw of the faceplate.
+
+```svg
+<!-- continuous knob: Principal frequency (default sweep) -->
+<g data-wcoast-param="prinFreq" data-wcoast-cx="120" data-wcoast-cy="80">
+  <circle cx="120" cy="80" r="16" class="knob-skirt"/>
+  <line data-wcoast-role="indicator" x1="120" y1="80" x2="120" y2="66"/>
+</g>
+
+<!-- jack: Principal sine output -->
+<g data-wcoast-port="prinSineOut" data-wcoast-cx="60" data-wcoast-cy="40">
+  <circle cx="60" cy="40" r="7" class="jack"/>
+</g>
+
+<!-- lamp switch: Range (low / high) -->
+<g data-wcoast-param="modRange">
+  <circle data-wcoast-role="step-indicator" data-wcoast-step="low"  cx="20" cy="30" r="3"/>
+  <circle data-wcoast-role="step-indicator" data-wcoast-step="high" cx="20" cy="40" r="3"/>
+</g>
+```
+
 ### Loading and validation
 
 The host loads the SVG as the module's appearance and wires interaction to the
-tagged elements: hit-testing controls, turning a knob to its value, drawing
-connection stubs at each port, showing labels. Because the bindings are
-hand-authored rather than generated, the host **validates** them on load —
+tagged elements: hit-testing controls, rotating a knob or switch to its value,
+drawing connection stubs at each port. Because the bindings are hand-authored
+rather than generated, the host **validates** them on load. Identity checks:
 every `data-wcoast-*` tag must resolve to a real descriptor id, and every
-descriptor param/port should have a tagged element — warning on any mismatch or
-omission so a hand-built SVG cannot silently drift from the descriptor. When a
+descriptor param/port must have exactly one tagged element. Geometry checks
+(from the binding contract): every control group has an indicator child and a
+pivot — or, for a lamp switch, one `step-indicator` per descriptor step; every
+jack has an anchor point; and any angle overrides parse as numbers. The host
+warns on anything missing so a hand-built SVG cannot silently misbehave. When a
 descriptor gains a control, its tagged element is added to the SVG (validation
 flags the gap until it is).
 

@@ -68,6 +68,12 @@
       height: 320px; overflow-y: auto; white-space: pre-wrap;
     }
     #log div { margin-bottom: 3px; }
+    #panel {
+      background: #b8bcbe; border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px; margin-bottom: 4px; max-width: 980px;
+    }
+    #panel svg { display: block; }
+    #panel h2 { color: var(--ink); margin: 0 0 8px; }
   </style>
 </head>
 <body>
@@ -80,6 +86,8 @@
     inputs, phase lock) are live but silent until the connection UI exists —
     they're noted inline. Click Start to make sound.
   </p>
+
+  <div id="panel"><h2>259t faceplate (loaded from panel.svg, validated against the schema)</h2></div>
 
   <div class="transport">
     <button id="start">Start</button>

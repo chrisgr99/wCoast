@@ -21,6 +21,7 @@ import { ModuleRegistry } from '../host/registry.js';
 import { SynthHost } from '../host/host.js';
 import descriptor from '../modules/complex-oscillator-259t/descriptor.js';
 import { create } from '../modules/complex-oscillator-259t/factory.js';
+import { loadPanel, showValue } from '../host/panel-loader.js';
 
 // ---- tiny logging helper (same spirit as the spike) ----
 function log(msg) {
@@ -259,12 +260,37 @@ function stop() {
 
 let controls = new Map();
 
+// Load the real faceplate SVG, validate it against the descriptor, insert it,
+// and set every control to its default position (static render — no audio yet).
+async function renderPanel() {
+  try {
+    const panel = await loadPanel('modules/complex-oscillator-259t/panel.svg', descriptor);
+    const host = document.getElementById('panel');
+    const svg = document.adoptNode(panel.svg); // move into this document; bindings stay valid
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+    svg.style.width = '100%';
+    svg.style.height = 'auto';
+    host.textContent = '';
+    host.appendChild(svg);
+    for (const binding of panel.controls.values()) {
+      if (binding.meta.default !== undefined) showValue(binding, binding.meta.default);
+    }
+    log(`Panel loaded and validated: ${panel.controls.size}/21 controls, ` +
+        `${panel.ports.size}/17 ports, ${panel.warnings.length} warnings.`);
+    for (const w of panel.warnings) log(`  panel warning: ${w}`);
+  } catch (e) {
+    log(`PANEL LOAD ERROR: ${e.message}`);
+  }
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   if (window.wcoast && window.wcoast.isElectron) {
     log(`Electron — Chromium ${window.wcoast.versions.chrome}, Node ${window.wcoast.versions.node}.`);
   } else {
     log('Preload bridge not found — running outside Electron?');
   }
+  renderPanel();
   controls = buildControls();
   buildOutputSelector();
 
