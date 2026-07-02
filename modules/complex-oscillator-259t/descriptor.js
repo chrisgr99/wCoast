@@ -54,10 +54,11 @@ export default {
   hp: 34,                  // panel width reference, for faithful layout
 
   // Worklet DSP module paths the host must addModule() before instantiating
-  // this module. Paths are relative to the app:// origin root. The oscillator
-  // core is realized in complex-osc-processor.js; the wavefolder will add its
-  // own processor here when built.
-  worklets: ["worklets/complex-osc-processor.js"],
+  // this module. Paths are relative to the app:// origin root. Per the
+  // one-module-one-worklet rule the whole 259t (both oscillators AND the
+  // Timbre/Harmonics wavefolder) lives in this single processor, which sits
+  // in the module's own folder alongside this descriptor and the factory.
+  worklets: ["modules/complex-oscillator-259t/complex-osc-processor.js"],
 
   // Logical panel sections, used to group controls for faithful layout and
   // for dictation ("the timbre section"). Order is top-of-panel intent.

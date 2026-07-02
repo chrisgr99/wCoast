@@ -26,11 +26,12 @@ full design; this file is the short "where things stand / what's next" state.
     path in `descriptor.worklets` once, instantiates a module via its factory.
     Single instance for now; `instantiate(id, instanceId?)` is the seam for
     the future voice allocator.
-  - `worklets/complex-osc-processor.js` — ONE PolyBLEP processor for both
-    oscillators. Band-limited saw/square, near-free sine/triangle, through-
-    zero FM folded into the phase increment (external FM-in jacks + internal
-    mod→principal pitch mod), ring/AM. Zero-allocation loop; reads real
-    `sampleRate`. Processor name `complex-osc-259t`.
+  - `modules/complex-oscillator-259t/complex-osc-processor.js` — ONE PolyBLEP
+    processor for the WHOLE module (both oscillators now; the wavefolder etc.
+    land here too — one-module-one-worklet). Band-limited saw/square, near-free
+    sine/triangle, through-zero FM folded into the phase increment (external
+    FM-in jacks + internal mod→principal pitch mod), ring/AM. Zero-allocation
+    loop; reads real `sampleRate`. Processor name `complex-osc-259t`.
   - `modules/complex-oscillator-259t/factory.js` — `create(ctx, services)`
     builds the node, derives port→graph-index maps from the descriptor and
     **asserts** they match the processor's assumed order, and returns the
@@ -63,24 +64,33 @@ attenuators) are the deferred DSP, flagged in place.
 
 ## What's next (recommended order)
 
-Implementation milestone 4 — real character, then connectivity:
+**Milestone 4 = FINISH the Complex Oscillator completely** (every 259t feature
+but ART), all in the one module worklet. Three parts:
 
-1. **Wavefolder (Timbre/Harmonics):** add its worklet DSP with CONTAINED
-   internal oversampling (factor as a parameter, not a constant) and a
-   windowed-sinc/polyphase decimator. It consumes the principal's raw saw
-   (currently routed straight to `prinFinalOut`) and drives `timbre/order/
-   symmetry`. Wire those three params + `timbreMod` into the DSP; they are
-   already declared and show disabled on the bench until then.
-2. **Connection UI (DESIGN §3)** — until it exists, the external FM-in / CV-in
-   jacks and their attenuators (`modCvAmount`, `prinCvAmount`, `prinFmAmount`,
-   `modFmAmount` for external sources, `phaseLockAmount`) have nothing to feed
-   them. The instance already exposes `getInput`/`getParam` so host wiring can
-   land without touching the module. Phase-lock DSP pairs with this.
-3. **LPG (292)** and **function generator (281)** — native filter+VCA+decay,
-   and the workhorse envelope/LFO (the only audio-rate mod source).
+1. **Wavefolder (Timbre/Harmonics):** the DSP for `timbre` (fold depth),
+   `order` (shape morph), `symmetry` (DC-offset-into-fold → even harmonics),
+   plus the `timbreMod` switch. It consumes the principal's raw saw (currently
+   routed straight to `prinFinalOut`) and folds it into the real Final output.
+   CONTAINED internal oversampling (factor a parameter, not a constant — an
+   internal quality setting, NOT a faceplate control) with a windowed-sinc/
+   polyphase decimator; keep the oversampled region inside the fold block.
+2. **Phase lock:** the `phaseLockIn` audio input (already wired to worklet
+   input 2) + the `phaseLockAmount` attenuator — the modulation oscillator
+   locking to the incoming signal.
+3. **1V/oct pitch + CV-input DSP:** octave-per-volt summing for `modPitchIn`/
+   `prinPitchIn`, and the CV attenuverter behaviour behind `modCvIn`/`prinCvIn`
+   (`modCvAmount`/`prinCvAmount`). These can't be patched end-to-end until the
+   connection UI exists, but the input DSP is written and verified NOW against
+   the stub harness (feed a 1V/oct ramp → pitch tracks octaves; feed phase-lock
+   → it locks), so the module's DSP is genuinely complete.
 
-Then thicken toward: generated panel SVG (§5), rack, polyphony (§7), GXW
-bridge (§9).
+When those land, every knob on the bench is live and the module is done.
+
+Then, in order: the **faithful panel SVG** for the 259t (§5 — hand-authored
+from faceplate photos, `data-wcoast-param`/`-port` tags, host-validated); the
+**connection UI** (§3) so the input jacks can actually be patched; then the
+next modules — **LPG (292)** and **function generator (281)**. Later: rack,
+polyphony (§7), GXW bridge (§9).
 
 ## Hard rules to respect (from DESIGN.md — don't rediscover these)
 

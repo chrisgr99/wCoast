@@ -180,7 +180,38 @@ A module is up to **three separable artifacts**:
    `getParam(paramId)`, optional trigger method, `dispose()`. The host wires
    by walking netlist edges and asking instances for nodes/params. It never
    reaches inside.
-3. **Panel (SVG, optional):** see §5. Falls back to auto-layout if absent.
+3. **Panel (SVG, optional):** a hand-authored SVG that faithfully depicts the
+   real module's faceplate, tagged so its controls/ports bind to the
+   descriptor — see §5. Absent one, the host auto-lays out a generic (non-
+   faithful but functional) panel from the descriptor so the module still works.
+
+### "Module" = a complete Buchla module
+
+Throughout Wcoast, **"module" ALWAYS means a complete Buchla module** (the 259t
+Complex Oscillator, the 292 Low Pass Gate, the 281 Function Generator, …) —
+never a subpart of one. The 259t's Timbre/Harmonics wavefolder is a *section
+of* the 259t, not a module; a separate dedicated wavefolder would be a
+different complete module. The unit of pluggability is the physical instrument.
+
+### Packaging & discovery (one folder, one worklet)
+
+Each module is a **self-contained folder** under `modules/<module-id>/` holding
+everything that module needs: its `descriptor.js`, its `factory.js`, its
+worklet DSP, and its panel SVG. Nothing about a module lives outside its
+folder, so a module is added or removed as a unit and third-party modules drop
+in exactly the way built-ins do.
+
+A module is realized by **at most one worklet**: the whole Buchla module —
+every section, including internally nonlinear parts like the 259t's wavefolder
+— is DSP inside that single processor, never split across several. (Native-node
+modules such as the LPG may need no worklet at all; the rule is one-module-
+one-worklet, never several worklets per module.)
+
+The **registry** (`host/registry.js`) is the mechanism for adding a module:
+register a `{ descriptor, create }` pair and the host can enumerate, load, and
+instantiate it with no module-specific coupling. Registration is explicit in
+code today; folder auto-discovery (scan `modules/`, register each) is a later
+convenience that changes nothing about the contract.
 
 ### Parameters
 
@@ -218,38 +249,47 @@ the host can adapt/refuse modules gracefully as the contract evolves.
 
 ---
 
-## 5. Panel system (custom appearance, uniform behaviour)
+## 5. Panel system (faithful appearance, uniform behaviour)
 
-Panels are a **custom appearance layer only**, never a behaviour layer. The
-author designs how a module looks (faithful to the real hardware, dense,
-distinctive); the **host owns all connection interaction** (stub-and-droop,
-grid, menus, dictation). This preserves per-module visual character AND
-guarantees every module patches identically — the accessibility win.
+Panels are a **custom appearance layer only**, never a behaviour layer. Each
+module's panel **faithfully emulates the look of the real hardware** (dense,
+distinctive, recognisable); the **host owns all connection interaction**
+(stub-and-droop, grid, menus, dictation). This preserves per-module visual
+character AND guarantees every module patches identically — the accessibility
+win.
 
-### Authoring workflow (correct-by-construction)
+### The SVG is modelled after the real module, NOT generated
 
-1. The host **generates a starter SVG** from the descriptor: a knob for each
-   parameter, a jack for each port, a text label for each, every element
-   tagged with its binding (`data-wcoast-param="..."` / `data-wcoast-port=
-   "..."`) and placed to mirror the real module's layout.
-2. The author (optionally) opens it in an SVG editor and drags things for a
-   better/faithful layout, or refines **by dictation** ("move the FM index
-   knob below the principal pitch") with the host editing the SVG directly.
-   The SVG editor is available but not required.
-3. The host loads the SVG as the panel, **reading positions and faceplate art
-   only** — each control's size/appearance comes from the host's own
-   rendering, so all knobs stay visually uniform across modules.
+A module's panel is a **hand-authored SVG that faithfully depicts the real
+faceplate** — its knobs, ports, and labels laid out and named as on the
+physical module. It is **not** generated from the descriptor. It need not be
+pixel-accurate, but the controls, jacks, and legends must be accurate and
+correctly placed, so the panel reads unmistakably as that module.
 
-Because the starter SVG is generated from the descriptor, bindings always
-match the abstract definition — mismatches are impossible to introduce by
-dragging. If a descriptor gains a control later, regeneration is **additive**:
-the host keeps existing positions and drops any newly-declared control at a
-default spot; it never clobbers a hand-arranged layout. Faithful density is
-encouraged (helps magnified viewing).
+Authoring workflow: work **from photographs of the real faceplate** — Claude
+Code analyses the faceplate photo and constructs the SVG (this is the intended
+route). Every interactive element carries a **binding tag** —
+`data-wcoast-param="<paramId>"` on a knob/switch, `data-wcoast-port="<portId>"`
+on a jack — mapping it to the descriptor entry it drives. The descriptor stays
+the single source of truth for WHAT each control/port is (range, domain,
+target); the SVG says how the module LOOKS and WHERE each tagged element sits;
+the tags are the bridge between them.
 
-Start the panel format at the low-to-middle end (positions, sizes, groups,
-labels, background image, host-drawn knobs). Faceplate art / custom knob skins
-can grow later without changing the principle.
+### Loading and validation
+
+The host loads the SVG as the module's appearance and wires interaction to the
+tagged elements: hit-testing controls, turning a knob to its value, drawing
+connection stubs at each port, showing labels. Because the bindings are
+hand-authored rather than generated, the host **validates** them on load —
+every `data-wcoast-*` tag must resolve to a real descriptor id, and every
+descriptor param/port should have a tagged element — warning on any mismatch or
+omission so a hand-built SVG cannot silently drift from the descriptor. When a
+descriptor gains a control, its tagged element is added to the SVG (validation
+flags the gap until it is).
+
+Absent a faithful SVG, the host can still auto-lay out a generic, functional
+(non-faithful) panel from the descriptor, so a new module is playable before
+its artwork exists. Faithful density is encouraged — it helps magnified viewing.
 
 ---
 
@@ -311,11 +351,14 @@ can grow later without changing the principle.
 ## 8. Module roster & build order
 
 Core voice (build in this order):
-1. **Complex oscillator (259t)** — principal + modulation osc, FM, and the
-   Timbre/Harmonics wavefolder section. Descriptor DONE. (This is the piece
-   most character lives in; build first.)
-2. **Wavefolder** — if not folded into the 259t model, the signature harmonic
-   adder; worklet + oversampling.
+1. **Complex oscillator (259t)** — principal + modulation osc, FM, AND the
+   Timbre/Harmonics wavefolder, all in ONE worklet (§4 one-module-one-worklet).
+   The most character lives here; build first. Descriptor DONE; oscillators +
+   FM DONE; the wavefolder + phase lock + pitch/CV-input DSP are what remains
+   to finish the module.
+2. *(No standalone wavefolder module.)* The 259t's Timbre/Harmonics folder is a
+   **subpart of the 259t**, not a module of its own (§4). A dedicated wavefolder
+   would only ever be a separate complete module if one is added later.
 3. **Low pass gate (292)** — plucky vactrol amplitude+brightness; native
    filter+VCA+decay.
 
@@ -405,9 +448,10 @@ we don't share, rather than modelling dead controls.
    descriptor-generated bench (`debug/debug-surface.js`, `index.html`).
 4. Real band-limited oscillator DSP (PolyBLEP + phase-increment FM).
    **DONE** for the two oscillators + through-zero FM + internal pitch/ampl
-   mod, in `worklets/complex-osc-processor.js`. The Timbre/Harmonics
-   WAVEFOLDER is the remaining part of this module (its own worklet with
-   contained oversampling) — next up.
+   mod, in `modules/complex-oscillator-259t/complex-osc-processor.js`. What
+   remains to FINISH the module (all in that same worklet): the Timbre/
+   Harmonics wavefolder with contained oversampling, phase lock, and the
+   1V/oct pitch + CV-input DSP — next up.
 5. Temporary debug control surface (NOT the rack) to play/hear the module.
    **BUILT**; first audible confirmation pending a live `npm start` run.
 Then thicken: wavefolder, connection UI, LPG, function generator, panel SVG,
@@ -426,8 +470,8 @@ rack, polyphony, GXW bridge.
   (`host/registry.js`, `host/host.js`); the factory
   (`modules/complex-oscillator-259t/factory.js`) builds the DSP and returns the
   realized-instance contract; the PolyBLEP processor
-  (`worklets/complex-osc-processor.js`) runs both oscillators with through-zero
-  FM and internal pitch/amplitude mod; the descriptor-generated bench
+  (`modules/complex-oscillator-259t/complex-osc-processor.js`) runs both
+  oscillators with through-zero FM and internal pitch/amplitude mod; the bench
   (`debug/debug-surface.js`, `index.html`) plays it.
 - **Not yet built:** the Timbre/Harmonics wavefolder DSP (the rest of this
   module); panel SVGs; connection UI (external FM/CV patching, phase lock);
