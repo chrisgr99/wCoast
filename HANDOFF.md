@@ -5,53 +5,82 @@ full design; this file is the short "where things stand / what's next" state.
 
 ## Where things stand (as of this handoff)
 
-- **Spike complete.** Electron shell + custom `app://` scheme (COOP/COEP,
-  crossOriginIsolated confirmed true) + AudioWorklet toolchain proven. Both a
-  native tone and a worklet tone sound. Zero-allocation + destination-glide
-  patterns are established in `worklets/test-tone-processor.js`. Everything in
-  the spike is throwaway scaffolding EXCEPT the Electron/scheme setup and the
-  worklet discipline, which are keepers.
-- **First module descriptor written (data only):** the Complex Oscillator
-  (Buchla & TipTop 259t) at `modules/complex-oscillator-259t/descriptor.js`.
-  It is modelled from the official 259t manual, with the ART system
-  deliberately dropped (see DESIGN.md §10). It also establishes the module
-  **schema** (apiVersion, sections, params-with-curves, ports-with-domains-
-  and-targets) that every future module mirrors — so treat its shape as the
-  reference when adding modules.
+- **Spike complete + committed.** Electron shell + custom `app://` scheme
+  (COOP/COEP, crossOriginIsolated confirmed true) + AudioWorklet toolchain
+  proven. Zero-allocation + destination-glide patterns established in
+  `worklets/test-tone-processor.js`. The old spike UI (`renderer.js` +
+  `test-tone-processor.js`) is retired reference — kept in the tree but no
+  longer loaded; the Electron/scheme setup and the worklet discipline are the
+  keepers.
+- **Module schema** set by the Complex Oscillator (259t) descriptor at
+  `modules/complex-oscillator-259t/descriptor.js` (ART dropped, DESIGN §10).
+  Treat its shape as the reference when adding modules.
+- **Implementation milestone 3 BUILT** — the host reads the descriptor,
+  loads its worklet, instantiates it through its factory, and the resulting
+  instance makes band-limited sound. New files:
+  - `host/registry.js` — registers `{descriptor, create}`, validates the
+    descriptor (unique ids, known domains/dirs, CV `target`/`via` resolve),
+    and enumerates params / output ports / signal-input ports / CV-input
+    ports. Audio-free and Node-importable.
+  - `host/host.js` — `SynthHost`: owns the AudioContext, `addModule()`s each
+    path in `descriptor.worklets` once, instantiates a module via its factory.
+    Single instance for now; `instantiate(id, instanceId?)` is the seam for
+    the future voice allocator.
+  - `worklets/complex-osc-processor.js` — ONE PolyBLEP processor for both
+    oscillators. Band-limited saw/square, near-free sine/triangle, through-
+    zero FM folded into the phase increment (external FM-in jacks + internal
+    mod→principal pitch mod), ring/AM. Zero-allocation loop; reads real
+    `sampleRate`. Processor name `complex-osc-259t`.
+  - `modules/complex-oscillator-259t/factory.js` — `create(ctx, services)`
+    builds the node, derives port→graph-index maps from the descriptor and
+    **asserts** they match the processor's assumed order, and returns the
+    realized instance (`getOutput/getInput/getParam/setParam/supports/
+    dispose/node`).
+  - `debug/debug-surface.js` + rewritten `index.html` — the bench (NOT the
+    rack), generated entirely from the descriptor: a control per param grouped
+    by section, an output-monitor selector, master gain. `setParam` drives
+    everything; params whose DSP is deferred render disabled with the reason.
+- **Validated headlessly:** every ESM imports cleanly under Node; the worklet
+  runs 200 blocks through a stub harness with no NaNs and output within trim;
+  the bench builds all 18 param rows / 6 monitor outputs under a fake DOM.
+  **Not yet run in Electron** — audible confirmation needs `npm start` and a
+  human ear; I did not launch the app window (avoids disrupting the desktop
+  layout). First-sound smoke test is the one open verification.
 
-## FIRST: commit the current work
-
-The descriptor and design docs are not yet committed. Do this first (it is
-data/docs only — nothing executable to test):
+## FIRST: hear it (the one open check)
 
 ```
 cd ~/ProgrammingProjects/Wcoast
-git add . && git commit -m "Add Complex Oscillator 259t descriptor + DESIGN.md/HANDOFF.md; establishes module schema"
+npm start
 ```
 
-(If the repo isn't initialised yet: `git init` first. The spike from the
-prior session may already be committed; if `git log` is empty, the spike files
-will be included in this commit too — fine.)
+Click **Start**. You should get a drone. Move **Principal → Frequency** to
+change pitch. For the complex-oscillator character: **Middle → Pitch Mod (FM)
+= On**, then raise **Middle → Mod Index** and change **Modulation → Frequency**.
+Switch the **Monitor output** to compare Sine / Square / Final / the mod-osc
+outs. The disabled controls (Timbre/Order/Symmetry, Phase Lock, the CV
+attenuators) are the deferred DSP, flagged in place.
 
 ## What's next (recommended order)
 
-Per DESIGN.md §11, implementation milestone 3 is next: **the host reads a
-descriptor and instantiates a module.** Concretely, the sensible next chunk:
+Implementation milestone 4 — real character, then connectivity:
 
-1. **Host/registry skeleton:** load a module's `descriptor.js`, register it,
-   and be able to enumerate its params/ports. No audio yet — just prove the
-   host can consume the descriptor.
-2. **Oscillator DSP factory:** write the `create(ctx, services)` factory and
-   the PolyBLEP worklet for the 259t's oscillators (band-limited saw/square,
-   sine/triangle nearly free, FM in the phase increment). Start with the two
-   oscillators + FM; add the Timbre/Harmonics wavefolder (with a configurable
-   oversampling factor) after the bare oscillators sing. Keep the oversampled
-   region contained to the folder.
-3. **Temporary debug control surface** (NOT the rack) to set params and
-   trigger notes, so the module can be heard. Reuse the spike's approach.
+1. **Wavefolder (Timbre/Harmonics):** add its worklet DSP with CONTAINED
+   internal oversampling (factor as a parameter, not a constant) and a
+   windowed-sinc/polyphase decimator. It consumes the principal's raw saw
+   (currently routed straight to `prinFinalOut`) and drives `timbre/order/
+   symmetry`. Wire those three params + `timbreMod` into the DSP; they are
+   already declared and show disabled on the bench until then.
+2. **Connection UI (DESIGN §3)** — until it exists, the external FM-in / CV-in
+   jacks and their attenuators (`modCvAmount`, `prinCvAmount`, `prinFmAmount`,
+   `modFmAmount` for external sources, `phaseLockAmount`) have nothing to feed
+   them. The instance already exposes `getInput`/`getParam` so host wiring can
+   land without touching the module. Phase-lock DSP pairs with this.
+3. **LPG (292)** and **function generator (281)** — native filter+VCA+decay,
+   and the workhorse envelope/LFO (the only audio-rate mod source).
 
-Then thicken toward: generated panel SVG (§5), LPG, function generator,
-connection UI (§3), rack, polyphony (§7), GXW bridge (§9).
+Then thicken toward: generated panel SVG (§5), rack, polyphony (§7), GXW
+bridge (§9).
 
 ## Hard rules to respect (from DESIGN.md — don't rediscover these)
 

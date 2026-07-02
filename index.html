@@ -2,9 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- The app:// origin already sends COOP/COEP; no CSP needed for the spike.
-       Scripts are same-origin files, loaded as modules. -->
-  <title>Wcoast — audio spike</title>
+  <!-- Served over app:// with COOP/COEP; scripts are same-origin ES modules. -->
+  <title>Wcoast — module bench</title>
   <style>
     :root {
       --bg: #14110d;
@@ -14,102 +13,87 @@
       --accent: #e0a353;
       --accent-ink: #14110d;
       --line: #3a3226;
+      --defer: #8a7f66;
     }
     * { box-sizing: border-box; }
     html, body {
-      margin: 0;
-      height: 100%;
-      background: var(--bg);
-      color: var(--ink);
+      margin: 0; min-height: 100%;
+      background: var(--bg); color: var(--ink);
       font-family: -apple-system, system-ui, sans-serif;
-      font-size: 18px;
-      line-height: 1.5;
+      font-size: 18px; line-height: 1.45;
     }
-    body {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      padding: 28px 32px;
+    body { display: flex; flex-direction: column; gap: 18px; padding: 24px 28px; }
+    h1 { font-size: 24px; margin: 0; font-weight: 650; }
+    p.lead { margin: 0; color: var(--ink-dim); max-width: 70ch; }
+    .transport {
+      display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 12px; padding: 16px 18px;
     }
-    h1 { font-size: 26px; margin: 0; font-weight: 650; }
-    p.lead { margin: 0; color: var(--ink-dim); max-width: 62ch; }
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 20px 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .panel h2 { font-size: 19px; margin: 0; font-weight: 600; }
-    .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
     button {
-      font-size: 18px;
-      font-family: inherit;
-      padding: 12px 20px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: var(--accent);
-      color: var(--accent-ink);
-      font-weight: 600;
-      cursor: pointer;
+      font-size: 18px; font-family: inherit; padding: 10px 18px;
+      border-radius: 10px; border: 1px solid var(--line);
+      background: var(--accent); color: var(--accent-ink);
+      font-weight: 600; cursor: pointer;
     }
-    button.secondary {
-      background: transparent;
-      color: var(--ink);
-    }
-    button:active { transform: translateY(1px); }
+    button.secondary { background: transparent; color: var(--ink); }
+    button:disabled { opacity: 0.4; cursor: default; }
+    button:active:not(:disabled) { transform: translateY(1px); }
     label { color: var(--ink-dim); }
-    input[type=range] { width: 340px; height: 28px; accent-color: var(--accent); }
-    #freqLabel { min-width: 8ch; font-variant-numeric: tabular-nums; color: var(--ink); }
-    #log {
-      background: #0d0b08;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 14px 16px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 15px;
-      color: var(--ink-dim);
-      height: 220px;
-      overflow-y: auto;
-      white-space: pre-wrap;
+    select {
+      font-size: 17px; font-family: inherit; padding: 6px 8px;
+      background: #0d0b08; color: var(--ink);
+      border: 1px solid var(--line); border-radius: 8px;
     }
-    #log div { margin-bottom: 4px; }
+    input[type=range] { width: 260px; height: 26px; accent-color: var(--accent); }
+    #controls h2 {
+      font-size: 17px; margin: 16px 0 8px; font-weight: 600;
+      color: var(--accent); letter-spacing: 0.02em;
+    }
+    /* Right-aligned labels hugging their fields (house convention). */
+    .grid {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 8px 14px; align-items: center;
+    }
+    .label-cell { text-align: right; color: var(--ink-dim); white-space: nowrap; }
+    .ctrl-cell { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .readout { min-width: 8ch; font-variant-numeric: tabular-nums; color: var(--ink); }
+    .deferred { color: var(--defer); font-size: 14px; font-style: italic; }
+    .cols { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+    #log {
+      background: #0d0b08; border: 1px solid var(--line); border-radius: 10px;
+      padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 14px; color: var(--ink-dim);
+      height: 320px; overflow-y: auto; white-space: pre-wrap;
+    }
+    #log div { margin-bottom: 3px; }
   </style>
 </head>
 <body>
-  <h1>Wcoast — audio-generation spike</h1>
+  <h1>Wcoast — Complex Oscillator bench</h1>
   <p class="lead">
-    A throwaway page that proves the audio path and the AudioWorklet
-    toolchain inside Electron before any real synth is built. Play the
-    native tone first, then the worklet tone. The log below reports what
-    happened at each step.
+    A temporary, descriptor-generated bench for hearing one module (not the
+    rack). Every control below is built from the 259t descriptor. Controls
+    whose DSP isn't written yet (the wavefolder, phase lock, the CV
+    attenuators) are shown disabled with the reason. Click Start to make sound.
   </p>
 
-  <div class="panel">
-    <h2>1 · Native oscillator (audio path + click-to-start)</h2>
-    <div class="row">
-      <button id="nativeStart">Play native tone</button>
-      <button id="nativeStop" class="secondary">Stop</button>
-    </div>
+  <div class="transport">
+    <button id="start">Start</button>
+    <button id="stop" class="secondary">Stop</button>
+    <label for="monitor">Monitor output</label>
+    <select id="monitor"></select>
+    <label for="masterGain">Master</label>
+    <input id="masterGain" type="range" min="0" max="1" step="0.01" value="0.3">
+    <span id="masterGainLabel">0.30</span>
   </div>
 
-  <div class="panel">
-    <h2>2 · Worklet tone (the toolchain being de-risked)</h2>
-    <div class="row">
-      <button id="workletStart">Play worklet tone</button>
-      <button id="workletStop" class="secondary">Stop</button>
-    </div>
-    <div class="row">
-      <label for="freq">Frequency</label>
-      <input id="freq" type="range" min="55" max="880" value="220" step="1">
-      <span id="freqLabel">220 Hz</span>
-    </div>
+  <div class="cols">
+    <div id="controls"></div>
+    <div id="log" aria-live="polite"></div>
   </div>
 
-  <div id="log" aria-live="polite"></div>
-
-  <script src="renderer.js"></script>
+  <script type="module" src="debug/debug-surface.js"></script>
 </body>
 </html>

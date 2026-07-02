@@ -400,30 +400,43 @@ we don't share, rather than modelling dead controls.
 1. Electron shell + audio bootstrap (native tone). **DONE** (spike).
 2. Worklet pipeline (trivial sine, proves toolchain). **DONE** (spike).
 3. Module abstraction in code — host reads a descriptor; oscillator is the
-   first concrete module conforming to it. NEXT.
+   first concrete module conforming to it. **DONE** — `host/registry.js`,
+   `host/host.js`, `modules/complex-oscillator-259t/factory.js`, and the
+   descriptor-generated bench (`debug/debug-surface.js`, `index.html`).
 4. Real band-limited oscillator DSP (PolyBLEP + phase-increment FM).
+   **DONE** for the two oscillators + through-zero FM + internal pitch/ampl
+   mod, in `worklets/complex-osc-processor.js`. The Timbre/Harmonics
+   WAVEFOLDER is the remaining part of this module (its own worklet with
+   contained oversampling) — next up.
 5. Temporary debug control surface (NOT the rack) to play/hear the module.
-   ("First module producing sound" in full.)
-Then thicken: panel SVG, wavefolder, LPG, connection UI, rack, polyphony,
-GXW bridge.
+   **BUILT**; first audible confirmation pending a live `npm start` run.
+Then thicken: wavefolder, connection UI, LPG, function generator, panel SVG,
+rack, polyphony, GXW bridge.
 
 ---
 
 ## 12. Current status
 
-- **Spike complete and committed-worthy:** Electron shell; custom `app://`
-  scheme serving the renderer over a secure isolated origin with COOP/COEP;
-  worklet toolchain proven (native tone + worklet tone both sound);
-  crossOriginIsolated confirmed true; zero-allocation + destination-glide
-  patterns established in `worklets/test-tone-processor.js`.
-- **Complex Oscillator 259t descriptor written** (data only, ART dropped) at
-  `modules/complex-oscillator-259t/descriptor.js`. Establishes the module
-  schema (apiVersion, sections, params-with-curves, ports-with-domains-and-
-  targets) that all future modules mirror.
-- **Not yet built:** DSP factories, panel SVGs, connection UI, rack, polyphony,
-  GXW bridge.
+- **Spike + module host in place, committed.** Electron shell; custom `app://`
+  scheme over a secure isolated origin with COOP/COEP; worklet toolchain
+  proven; crossOriginIsolated true; zero-allocation + destination-glide
+  patterns established.
+- **Complex Oscillator 259t is playable** (bar the wavefolder). The descriptor
+  (data, ART dropped) defines the module schema; the host reads it generically
+  (`host/registry.js`, `host/host.js`); the factory
+  (`modules/complex-oscillator-259t/factory.js`) builds the DSP and returns the
+  realized-instance contract; the PolyBLEP processor
+  (`worklets/complex-osc-processor.js`) runs both oscillators with through-zero
+  FM and internal pitch/amplitude mod; the descriptor-generated bench
+  (`debug/debug-surface.js`, `index.html`) plays it.
+- **Not yet built:** the Timbre/Harmonics wavefolder DSP (the rest of this
+  module); panel SVGs; connection UI (external FM/CV patching, phase lock);
+  further modules (LPG, function generator, …); rack; polyphony; GXW bridge.
 
 ### Open / to-verify
+- **First-sound smoke test:** the oscillator chain is written and validated
+  headlessly (ESM imports; worklet stub-harness runs clean; bench builds under
+  a fake DOM) but not yet heard in Electron. `npm start` and listen.
 - 259t fine points to check against a clear panel photo: whether Timbre CV has
   its own attenuator; exact Order/Symmetry end-labels; any second direct FM
   jack. (Marked TODO:verify in the descriptor. None block design.)

@@ -53,9 +53,11 @@ export default {
   scope: "voice",          // one full copy per polyphonic voice
   hp: 34,                  // panel width reference, for faithful layout
 
-  // Worklet DSP module paths, registered before instantiation. Empty until
-  // the oscillator/wavefolder DSP is written; the descriptor stands alone.
-  worklets: [],
+  // Worklet DSP module paths the host must addModule() before instantiating
+  // this module. Paths are relative to the app:// origin root. The oscillator
+  // core is realized in complex-osc-processor.js; the wavefolder will add its
+  // own processor here when built.
+  worklets: ["worklets/complex-osc-processor.js"],
 
   // Logical panel sections, used to group controls for faithful layout and
   // for dictation ("the timbre section"). Order is top-of-panel intent.
