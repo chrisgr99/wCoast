@@ -8,20 +8,23 @@
 // (create()) is a separate concern added when the DSP is implemented; this
 // file is data only, so the module can be fully designed before any sound.
 //
-// SOURCE: modelled from the official Buchla & TipTop Audio 259t manual
-// (tiptopaudio.com/manuals/Buchla_&_Tiptop_Audio_259t.pdf), which is the
-// authoritative panel reference. Every port and control below corresponds to
-// a real jack, knob, or switch on the 259t — EXCEPT the ART system, which is
-// deliberately omitted (see "ART — DROPPED" below).
+// SOURCE: reconciled against a clear faceplate photo of the real module
+// (259t-faceplate-reference.png in this folder; from postmodular.co.uk),
+// cross-checked with the official manual. Every port and control below
+// corresponds to a real jack, knob, or switch on the 259t — EXCEPT the ART
+// system, which is deliberately omitted (see "ART — DROPPED" below).
 //
-// ART — DROPPED. The 259t's ART (Autonomous Reactive Tuning) hardware exists
-// to solve two analog problems we do not have: (1) autotuning oscillator
-// drift — irrelevant because a digital oscillator computes frequency exactly
-// and never drifts; and (2) polyphonic voice allocation over a hardware
-// protocol — handled instead by Wcoast's own per-voice engine and the GXW
-// bridge. So the per-oscillator ART switch, ART input jack, and GATE OUT jack
-// are removed. What remains of that area is the plain 1V/oct pitch input,
-// which our oscillator tracks perfectly with no tuning apparatus behind it.
+// ART — DROPPED (labels and controls both). The 259t's ART (Autonomous
+// Reactive Tuning) hardware solves two analog problems we do not have: (1)
+// autotuning oscillator drift — irrelevant because a digital oscillator
+// computes frequency exactly and never drifts; and (2) polyphonic voice
+// allocation over a hardware protocol — handled instead by Wcoast's own
+// per-voice engine and the GXW bridge. We have better ways to do the same
+// things. So EVERYTHING ART-related is removed: the Range switch's ART
+// position (Range is just low/high here), both "1V/OCT · ART" buttons and
+// their LEDs, the ART input jacks, and the two red GATE OUT jacks. Each
+// oscillator's keyboard input remains as a plain 1V/oct pitch input, which our
+// oscillator tracks perfectly with no tuning apparatus behind it.
 //
 // SIGNAL DOMAINS. Every port declares one of three domains — "audio",
 // "control", "trigger" — which drive cable styling (audio thick, control
@@ -36,14 +39,13 @@
 // and the knob<->jack relationship is explicit. Pure signal jacks (audio FM
 // inputs, the phase-lock input, all outputs) are ports with no target.
 //
-// VERIFY-AGAINST-PANEL (minor, flagged honestly): a few fine points aren't
-// fully resolved by the manual's text and are worth a glance at a clear panel
-// photo before the DSP is built: whether the Timbre CV input has its own
-// attenuator (the manual notes only that Order and Symmetry lack attenuators,
-// implying others may have them); the exact end-labels on Order/Symmetry
-// ("even/odd"); and whether any oscillator exposes a second, direct (un-
-// attenuated) FM jack in addition to the attenuated one. These are marked
-// TODO:verify inline.
+// RESOLVED FROM THE FACEPLATE PHOTO (was TODO:verify): Timbre's CV input DOES
+// have its own attenuverter (Order and Symmetry do not); the end-labels are
+// Order low->high and Symmetry even->odd; there is exactly ONE f.m. in per
+// oscillator (no second direct FM jack). The photo also caught two controls
+// the manual text alone missed and that ARE now included below: Mod Index has
+// its own CV input (attenuverted), and phase lock has an on/off switch (the
+// middle column) in addition to its input jack and "gain" knob.
 
 export default {
   apiVersion: 1,
@@ -121,21 +123,31 @@ export default {
       min: 0, max: 1, default: 0, unit: "", curve: "linear",
       glideMs: 0, modulatable: false },   // attenuator for prinFm input
 
-    // Timbre / Harmonics (shapes the Principal's Final output)
+    // Timbre / Harmonics (shapes the Principal's Final output). Panel legends:
+    // Order runs low->high, Symmetry runs even->odd. Timbre's CV input has its
+    // own attenuverter (timbreCvAmount); Order and Symmetry CV inputs do not.
     { id: "timbre", section: "timbre", name: "Timbre",
       min: 0, max: 1, default: 0.2, unit: "", curve: "linear",
-      glideMs: 20, modulatable: true },   // fold depth / shape crossfade
+      glideMs: 20, modulatable: true },   // fold depth
+    { id: "timbreCvAmount", section: "timbre", name: "Timbre CV Amount",
+      min: -1, max: 1, default: 0, unit: "", curve: "linear",
+      glideMs: 0, modulatable: false },   // attenuverter for the timbre CV input
     { id: "order", section: "timbre", name: "Order",
       min: 0, max: 1, default: 0, unit: "", curve: "linear",
-      glideMs: 20, modulatable: true },   // crossfade folder<->saw<->M shape
+      glideMs: 20, modulatable: true, minLabel: "low", maxLabel: "high" },
     { id: "symmetry", section: "timbre", name: "Symmetry",
       min: -1, max: 1, default: 0, unit: "", curve: "linear",
-      glideMs: 20, modulatable: true },   // DC offset into folder / saw-M xfade
+      glideMs: 20, modulatable: true, minLabel: "even", maxLabel: "odd" },
 
-    // Middle modulation section (Modulation osc -> Principal)
+    // Middle modulation section (Modulation osc -> Principal). Mod Index is the
+    // depth attenuverter for the three mod switches, and it has its own CV
+    // input (modIndexCvIn) with an attenuverter (modIndexCvAmount).
     { id: "modIndex", section: "middle", name: "Mod Index",
       min: -1, max: 1, default: 0, unit: "", curve: "linear",
-      glideMs: 10, modulatable: false },  // attenuverter: depth for the 3 mod switches
+      glideMs: 10, modulatable: true },   // depth for the mod switches; CV-able
+    { id: "modIndexCvAmount", section: "middle", name: "Mod Index CV Amount",
+      min: -1, max: 1, default: 0, unit: "", curve: "linear",
+      glideMs: 0, modulatable: false },   // attenuverter for the mod-index CV input
     { id: "amplMod", section: "middle", name: "Amplitude Mod",
       curve: "stepped", default: "off", modulatable: false,
       steps: [ { value: "off", name: "Off" }, { value: "on", name: "On" } ] },
@@ -145,9 +157,12 @@ export default {
     { id: "timbreMod", section: "middle", name: "Timbre Mod",
       curve: "stepped", default: "off", modulatable: false,
       steps: [ { value: "off", name: "Off" }, { value: "on", name: "On" } ] },
-    { id: "phaseLockAmount", section: "middle", name: "Phase Lock",
+    { id: "phaseLock", section: "middle", name: "Phase Lock",
+      curve: "stepped", default: "off", modulatable: false,
+      steps: [ { value: "off", name: "Off" }, { value: "on", name: "On" } ] },
+    { id: "phaseLockAmount", section: "middle", name: "Phase Lock Gain",
       min: 0, max: 1, default: 0, unit: "", curve: "linear",
-      glideMs: 10, modulatable: false },  // attenuator on the phase-lock input
+      glideMs: 10, modulatable: false },  // panel "gain" on the phase-lock input
   ],
 
   // ---- PORTS (jacks) ----
@@ -185,15 +200,19 @@ export default {
     { id: "prinFinalOut", section: "prinOsc", name: "Final", domain: "audio",
       dir: "out" },                                   // post Timbre/Harmonics
 
-    // Timbre / Harmonics CV inputs (Order & Symmetry have NO attenuator)
+    // Timbre / Harmonics CV inputs. Timbre has its own attenuverter; Order and
+    // Symmetry go straight in (no attenuator) — confirmed from the faceplate.
     { id: "timbreCvIn", section: "timbre", name: "Timbre CV", domain: "control",
-      dir: "in", target: "timbre" },                  // TODO:verify own attenuator
+      dir: "in", target: "timbre", via: "timbreCvAmount" },
     { id: "orderCvIn", section: "timbre", name: "Order CV", domain: "control",
       dir: "in", target: "order" },
     { id: "symmetryCvIn", section: "timbre", name: "Symmetry CV", domain: "control",
       dir: "in", target: "symmetry" },
 
-    // Middle section: phase-lock audio input (attenuated by phaseLockAmount)
+    // Middle section: Mod Index CV (attenuverted) and the phase-lock audio
+    // input (its level set by the phaseLockAmount "gain" knob).
+    { id: "modIndexCvIn", section: "middle", name: "Mod Index CV", domain: "control",
+      dir: "in", target: "modIndex", via: "modIndexCvAmount" },
     { id: "phaseLockIn", section: "middle", name: "Phase Lock In", domain: "audio",
       dir: "in" },
   ],

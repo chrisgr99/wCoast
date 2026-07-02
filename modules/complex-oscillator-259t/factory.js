@@ -55,9 +55,18 @@ const REALIZED_PARAMS = new Set([
   'timbre', 'order', 'symmetry', 'phaseLockAmount',
 ]);
 
-// Stepped params handled by message (their DSP exists, unlike the folder).
+// Stepped params handled by message.
 const REALIZED_SWITCHES = new Set([
-  'modRange', 'modWave', 'pitchMod', 'amplMod', 'timbreMod',
+  'modRange', 'modWave', 'pitchMod', 'amplMod', 'timbreMod', 'phaseLock',
+]);
+
+// Attenuverters for LINEAR CV inputs (Timbre and Mod Index). Unlike the pitch
+// attenuverters (modCvAmount/prinCvAmount, which the worklet sums), these are
+// realized host-side as an inline gain on the cord when the connection UI
+// patches their CV input into the target AudioParam. They are real controls,
+// so supports() reports them true; they just have no effect until patched.
+const REALIZED_HOST_ATTEN = new Set([
+  'timbreCvAmount', 'modIndexCvAmount',
 ]);
 
 function assertOrder(label, got, expected) {
@@ -145,7 +154,8 @@ export function create(ctx, services) {
     return node.parameters.get(paramId) || null;
   }
   function supports(paramId) {
-    return REALIZED_PARAMS.has(paramId) || REALIZED_SWITCHES.has(paramId);
+    return REALIZED_PARAMS.has(paramId) || REALIZED_SWITCHES.has(paramId)
+      || REALIZED_HOST_ATTEN.has(paramId);
   }
 
   // Apply a value the way this param wants it. Numeric params glide to target

@@ -103,7 +103,8 @@ class ComplexOsc259t extends AudioWorkletProcessor {
       { name: 'modFine', defaultValue: 0, minValue: -3.5, maxValue: 3.5, automationRate: 'k-rate' },
       { name: 'modFmAmount', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
       { name: 'modCvAmount', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
-      { name: 'modIndex', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      // a-rate so the Mod Index CV input (modIndexCvIn) can modulate it.
+      { name: 'modIndex', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'a-rate' },
       { name: 'phaseLockAmount', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
     ];
   }
@@ -120,6 +121,7 @@ class ComplexOsc259t extends AudioWorkletProcessor {
     this._pitchMod = 0;
     this._amplMod = 0;
     this._timbreMod = 0;
+    this._phaseLock = 0;   // phase-lock enable switch (middle column)
 
     this._trim = 0.4;
     this._lowRangeFactor = 1 / 128;
@@ -185,6 +187,9 @@ class ComplexOsc259t extends AudioWorkletProcessor {
         case 'timbreMod':
           this._timbreMod = (msg.value === 'on') ? 1 : 0;
           break;
+        case 'phaseLock':
+          this._phaseLock = (msg.value === 'on') ? 1 : 0;
+          break;
         default:
           break;
       }
@@ -223,11 +228,13 @@ class ComplexOsc259t extends AudioWorkletProcessor {
     const pTimbre = parameters.timbre;
     const pOrder = parameters.order;
     const pSymmetry = parameters.symmetry;
+    const pModIndex = parameters.modIndex;
     const prinFreqStride = pPrinFreq.length > 1 ? 1 : 0;
     const modFreqStride = pModFreq.length > 1 ? 1 : 0;
     const timbreStride = pTimbre.length > 1 ? 1 : 0;
     const orderStride = pOrder.length > 1 ? 1 : 0;
     const symStride = pSymmetry.length > 1 ? 1 : 0;
+    const modIndexStride = pModIndex.length > 1 ? 1 : 0;
 
     const prinFine = parameters.prinFine[0];
     const prinFmAmount = parameters.prinFmAmount[0];
@@ -235,7 +242,6 @@ class ComplexOsc259t extends AudioWorkletProcessor {
     const modFine = parameters.modFine[0];
     const modFmAmount = parameters.modFmAmount[0];
     const modCvAmount = parameters.modCvAmount[0];
-    const modIndex = parameters.modIndex[0];
     const plAmt = parameters.phaseLockAmount[0];
 
     const invSr = this._invSampleRate;
@@ -247,6 +253,7 @@ class ComplexOsc259t extends AudioWorkletProcessor {
     const pitchMod = this._pitchMod;
     const amplMod = this._amplMod;
     const timbreMod = this._timbreMod;
+    const phaseLock = this._phaseLock;
 
     const os = this._os;
     const invOs = 1 / os;
@@ -269,12 +276,16 @@ class ComplexOsc259t extends AudioWorkletProcessor {
     const doFold = !!outPrinFinal;
 
     for (let i = 0; i < frameCount; i++) {
-      // ---- Phase lock: rising zero-cross on the input pulls modPhase to 0 ----
+      // ---- Phase lock: when enabled, a rising zero-cross on the input pulls
+      // modPhase to 0 (amt=1 -> hard reset). Gated by the phase-lock switch. ----
       const plSig = phaseLockCh ? phaseLockCh[i] : 0;
-      if (phaseLockCh && plAmt > 0 && plPrev < 0 && plSig >= 0) {
-        modPhase = modPhase * (1 - plAmt); // amt=1 -> hard reset to 0
+      if (phaseLock && phaseLockCh && plAmt > 0 && plPrev < 0 && plSig >= 0) {
+        modPhase = modPhase * (1 - plAmt);
       }
       plPrev = plSig;
+
+      // Mod Index is a-rate (its CV input can modulate it).
+      const mi = pModIndex[i * modIndexStride];
 
       // ---- Modulation oscillator ----
       // 1V/oct: 1.0 of pitch signal = one octave. modCv passes through the
@@ -303,7 +314,7 @@ class ComplexOsc259t extends AudioWorkletProcessor {
       const prinPitchFactor = (prinPitchCh || prinCvCh) ? Math.exp(prinOct * LN2) : 1;
       const prinBaseHz = pPrinFreq[i * prinFreqStride] * prinFineFactor * prinPitchFactor;
       const prinFmSig = prinFmCh ? prinFmCh[i] : 0;
-      const internalFm = pitchMod ? (modSource * modIndex) : 0;
+      const internalFm = pitchMod ? (modSource * mi) : 0;
       const prinHz = prinBaseHz
         + internalFm * prinBaseHz
         + prinFmSig * prinFmAmount * prinBaseHz;
@@ -312,14 +323,14 @@ class ComplexOsc259t extends AudioWorkletProcessor {
 
       const prinSine = Math.sin(prinPhase * TWO_PI);
       const prinSquare = blepSquare(prinPhase, prinDt);
-      const ampFactor = amplMod ? (1 + modSource * modIndex) : 1;
+      const ampFactor = amplMod ? (1 + modSource * mi) : 1;
 
       // ---- Timbre/Harmonics wavefolder (oversampled, contained) ----
       let finalSample = 0;
       if (doFold) {
         // Fold controls for this base sample.
         let tval = pTimbre[i * timbreStride];
-        if (timbreMod) tval += modSource * modIndex; // mod osc -> fold depth
+        if (timbreMod) tval += modSource * mi; // mod osc -> fold depth
         let drive = 1 + tval * TIMBRE_DRIVE;
         if (drive < 0) drive = 0;
         const offset = pSymmetry[i * symStride] * SYMMETRY_RANGE;

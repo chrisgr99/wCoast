@@ -4,3 +4,7 @@ crash.log
 dist/
 out/
 commit-msg.txt
+
+# Downloaded faceplate reference photos (source material for hand-authoring the
+# panel SVGs). The SVGs we build FROM them are committed; the photos are not.
+*-faceplate-reference.*

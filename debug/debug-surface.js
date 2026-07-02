@@ -64,7 +64,8 @@ function fmtValue(meta, value) {
 const INPUT_DEPENDENT = new Set([
   'modFmAmount', 'prinFmAmount',   // scale the external FM-in jacks
   'modCvAmount', 'prinCvAmount',   // attenuvert the external pitch-CV jacks
-  'phaseLockAmount',               // depth of the phase-lock input
+  'timbreCvAmount', 'modIndexCvAmount', // attenuvert the Timbre/Mod-Index CV jacks
+  'phaseLockAmount',               // level of the phase-lock input
 ]);
 
 // If a param the instance doesn't realize ever appears, say why (should be
