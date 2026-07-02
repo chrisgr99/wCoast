@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- The app:// origin already sends COOP/COEP; no CSP needed for the spike.
+       Scripts are same-origin files, loaded as modules. -->
+  <title>Wcoast — audio spike</title>
+  <style>
+    :root {
+      --bg: #14110d;
+      --panel: #211c15;
+      --ink: #f2ead9;
+      --ink-dim: #b6ab93;
+      --accent: #e0a353;
+      --accent-ink: #14110d;
+      --line: #3a3226;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, system-ui, sans-serif;
+      font-size: 18px;
+      line-height: 1.5;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding: 28px 32px;
+    }
+    h1 { font-size: 26px; margin: 0; font-weight: 650; }
+    p.lead { margin: 0; color: var(--ink-dim); max-width: 62ch; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .panel h2 { font-size: 19px; margin: 0; font-weight: 600; }
+    .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    button {
+      font-size: 18px;
+      font-family: inherit;
+      padding: 12px 20px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--accent);
+      color: var(--accent-ink);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: transparent;
+      color: var(--ink);
+    }
+    button:active { transform: translateY(1px); }
+    label { color: var(--ink-dim); }
+    input[type=range] { width: 340px; height: 28px; accent-color: var(--accent); }
+    #freqLabel { min-width: 8ch; font-variant-numeric: tabular-nums; color: var(--ink); }
+    #log {
+      background: #0d0b08;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 15px;
+      color: var(--ink-dim);
+      height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    #log div { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Wcoast — audio-generation spike</h1>
+  <p class="lead">
+    A throwaway page that proves the audio path and the AudioWorklet
+    toolchain inside Electron before any real synth is built. Play the
+    native tone first, then the worklet tone. The log below reports what
+    happened at each step.
+  </p>
+
+  <div class="panel">
+    <h2>1 · Native oscillator (audio path + click-to-start)</h2>
+    <div class="row">
+      <button id="nativeStart">Play native tone</button>
+      <button id="nativeStop" class="secondary">Stop</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>2 · Worklet tone (the toolchain being de-risked)</h2>
+    <div class="row">
+      <button id="workletStart">Play worklet tone</button>
+      <button id="workletStop" class="secondary">Stop</button>
+    </div>
+    <div class="row">
+      <label for="freq">Frequency</label>
+      <input id="freq" type="range" min="55" max="880" value="220" step="1">
+      <span id="freqLabel">220 Hz</span>
+    </div>
+  </div>
+
+  <div id="log" aria-live="polite"></div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

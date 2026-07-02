@@ -1,0 +1,13 @@
+{
+  "name": "wcoast",
+  "version": "0.1.0",
+  "description": "Wcoast - a West Coast (Buchla-style) modular synthesizer for Web Audio, native Mac build via Electron.",
+  "main": "electron-main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "electron": "^42.1.0"
+  }
+}
