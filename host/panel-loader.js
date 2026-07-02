@@ -171,6 +171,39 @@ export function parsePanel(svg, descriptor) {
   return { svg, controls, ports, warnings };
 }
 
+// ---- interaction --------------------------------------------------------
+// Make a control operable. `hooks.get()` returns the control's current raw
+// value; `hooks.set(value)` is called with the new value as the user scrolls
+// or clicks. The host owns interaction uniformly across modules; the panel only
+// supplies geometry. Knobs turn with the scroll wheel (pointer-drag is
+// deliberately NOT used — it fights screen magnification, where the cursor
+// can't be held still); switches cycle their steps on click. The caller's
+// set() updates the visuals via showValue, so there is a single update path.
+
+const WHEEL_STEP = 0.005;  // position change per wheel notch (0..1 over 200 notches)
+
+export function attachControlInteraction(binding, hooks) {
+  const el = binding.group;
+  if (binding.kind === 'knob') {
+    if (!binding.indicator || !binding.pivot) return;
+    // Scroll the wheel over a knob to turn it.
+    el.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const dir = e.deltaY < 0 ? 1 : -1;
+      const pos = clamp01(valueToPosition(binding.meta, hooks.get()) + dir * WHEEL_STEP);
+      hooks.set(positionToValue(binding.meta, pos));
+    }, { passive: false });
+  } else if (binding.kind === 'switch' && binding.stepCount > 1) {
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', () => {
+      const cur = hooks.get();
+      const i = binding.stepValues.indexOf(cur);
+      const next = binding.stepValues[(i + 1) % binding.stepCount];
+      hooks.set(next);
+    });
+  }
+}
+
 // Fetch the panel SVG over the app:// origin, parse it, and bind it. Paths are
 // relative to the origin root (a leading slash resolves against it).
 export async function loadPanel(url, descriptor) {

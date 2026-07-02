@@ -21,7 +21,7 @@ import { ModuleRegistry } from '../host/registry.js';
 import { SynthHost } from '../host/host.js';
 import descriptor from '../modules/complex-oscillator-259t/descriptor.js';
 import { create } from '../modules/complex-oscillator-259t/factory.js';
-import { loadPanel, showValue } from '../host/panel-loader.js';
+import { loadPanel, showValue, attachControlInteraction } from '../host/panel-loader.js';
 
 // ---- tiny logging helper (same spirit as the spike) ----
 function log(msg) {
@@ -95,6 +95,38 @@ let instance = null;
 let master = null;          // GainNode: instance output -> master -> destination
 let monitoredPort = null;   // currently connected output port id
 let started = false;
+let panel = null;           // loaded faceplate binding model (panel-loader)
+
+// Shared value model: the single source of truth for every param, driven by
+// BOTH the faceplate knobs and the debug sliders. `pushValue` is the one sink —
+// it stores the value, drives the live instance, and reflects the change onto
+// whichever surface didn't originate it, so panel and sliders stay in sync.
+const paramValues = new Map(descriptor.params.map((p) => [p.id, p.default]));
+const paramMetaMap = new Map(descriptor.params.map((p) => [p.id, p]));
+
+function pushValue(id, value) {
+  paramValues.set(id, value);
+  const meta = paramMetaMap.get(id);
+  if (instance && instance.supports(id)) instance.setParam(id, value);
+  // Always reflect on BOTH surfaces — the faceplate pointer AND the slider.
+  // Re-applying to the surface that originated the change is harmless (setting
+  // a value programmatically fires no event, so there is no feedback loop) and
+  // is exactly what animates the knob you're dragging.
+  if (panel) {
+    const b = panel.controls.get(id);
+    if (b) showValue(b, value);
+  }
+  const c = controls.get(id);
+  if (c) {
+    if (meta.curve === 'stepped') {
+      c.value = value;
+    } else {
+      c.value = String(valueToPos(meta, value));
+      const ro = c.parentElement && c.parentElement.querySelector('.readout');
+      if (ro) ro.textContent = fmtValue(meta, value);
+    }
+  }
+}
 
 // Build one row (label + control) in the controls grid. Returns the control
 // element so the caller can enable/sync it once an instance exists.
@@ -117,7 +149,7 @@ function addParamRow(grid, meta) {
       control.appendChild(opt);
     }
     control.addEventListener('change', () => {
-      if (instance) instance.setParam(meta.id, control.value);
+      pushValue(meta.id, control.value);
     });
     ctrlCell.appendChild(control);
   } else {
@@ -133,7 +165,7 @@ function addParamRow(grid, meta) {
     control.addEventListener('input', () => {
       const v = posToValue(meta, Number(control.value));
       readout.textContent = fmtValue(meta, v);
-      if (instance) instance.setParam(meta.id, v);
+      pushValue(meta.id, v);
     });
     ctrlCell.appendChild(control);
     ctrlCell.appendChild(readout);
@@ -223,11 +255,9 @@ async function start() {
     if (!control) continue;
     if (instance.supports(meta.id)) {
       control.disabled = false;
-      if (meta.curve === 'stepped') {
-        instance.setParam(meta.id, control.value);
-      } else {
-        instance.setParam(meta.id, posToValue(meta, Number(control.value)));
-      }
+      // Push the current value (from the shared model — reflects any pre-Start
+      // panel/slider moves) into the freshly created instance.
+      instance.setParam(meta.id, paramValues.get(meta.id));
       if (INPUT_DEPENDENT.has(meta.id)) {
         annotate(control, 'needs a patched cord to hear');
       }
@@ -264,20 +294,27 @@ let controls = new Map();
 // and set every control to its default position (static render — no audio yet).
 async function renderPanel() {
   try {
-    const panel = await loadPanel('modules/complex-oscillator-259t/panel.svg', descriptor);
-    const host = document.getElementById('panel');
+    panel = await loadPanel('modules/complex-oscillator-259t/panel.svg', descriptor);
+    const container = document.getElementById('panel');
     const svg = document.adoptNode(panel.svg); // move into this document; bindings stay valid
     svg.removeAttribute('width');
     svg.removeAttribute('height');
     svg.style.width = '100%';
     svg.style.height = 'auto';
-    host.textContent = '';
-    host.appendChild(svg);
+    container.appendChild(svg);
+    // Render each control at its current value, and make it operable — the
+    // knobs and switches drive the shared value model (and the audio once live).
     for (const binding of panel.controls.values()) {
-      if (binding.meta.default !== undefined) showValue(binding, binding.meta.default);
+      const v = paramValues.get(binding.id);
+      if (v !== undefined) showValue(binding, v);
+      attachControlInteraction(binding, {
+        get: () => paramValues.get(binding.id),
+        set: (value) => pushValue(binding.id, value),
+      });
     }
     log(`Panel loaded and validated: ${panel.controls.size}/21 controls, ` +
-        `${panel.ports.size}/17 ports, ${panel.warnings.length} warnings.`);
+        `${panel.ports.size}/17 ports, ${panel.warnings.length} warnings. ` +
+        `Scroll the wheel over a knob to turn it; click a switch.`);
     for (const w of panel.warnings) log(`  panel warning: ${w}`);
   } catch (e) {
     log(`PANEL LOAD ERROR: ${e.message}`);
