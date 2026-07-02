@@ -60,6 +60,11 @@ export default {
   // in the module's own folder alongside this descriptor and the factory.
   worklets: ["modules/complex-oscillator-259t/complex-osc-processor.js"],
 
+  // Internal DSP settings (NOT faceplate controls). oversample is the
+  // wavefolder's oversampling factor — a quality/CPU knob per DESIGN §6, kept
+  // out of the panel because it isn't a real Buchla control.
+  dsp: { oversample: 4 },
+
   // Logical panel sections, used to group controls for faithful layout and
   // for dictation ("the timbre section"). Order is top-of-panel intent.
   sections: [

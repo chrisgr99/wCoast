@@ -34,18 +34,25 @@ const EXPECTED_OUTPUTS = [
   'modTriOut', 'modSigOut', 'modCvOut',
   'prinSineOut', 'prinSquareOut', 'prinFinalOut',
 ];
-const EXPECTED_SIGNAL_INPUTS = ['modFmIn', 'prinFmIn', 'phaseLockIn'];
+// Worklet audio inputs, in descriptor order. These are the pure signal inputs
+// (FM, phase lock) PLUS the exponential 1V/oct pitch/CV inputs — the latter
+// must be summed in the exponent inside the worklet, so they are node inputs,
+// not linear AudioParam targets. (The folder CV inputs, being linear, go to
+// the timbre/order/symmetry AudioParams instead and are NOT worklet inputs.)
+const EXPECTED_WORKLET_INPUTS = [
+  'modPitchIn', 'modCvIn', 'modFmIn',
+  'prinPitchIn', 'prinCvIn', 'prinFmIn',
+  'phaseLockIn',
+];
 
-// Params the processor actually realizes this milestone (must match the
-// worklet's parameterDescriptors). Everything else in the descriptor is
-// declared-but-deferred: attenuators that only bite once a CV is patched
-// (connection UI later), the folder params (timbre/order/symmetry), and the
-// phase-lock amount. setParam() on a deferred numeric is accepted silently so
-// the debug surface and GXW bridge can address every param uniformly; it just
-// has no audible effect yet. `supports()` lets the UI show that honestly.
+// Every numeric param is realized in DSP now (the module is complete but for
+// ART). This set matches the worklet's parameterDescriptors; setParam() on a
+// stepped param routes to REALIZED_SWITCHES instead. `supports()` reports the
+// union so the bench can enable every control.
 const REALIZED_PARAMS = new Set([
-  'prinFreq', 'prinFine', 'prinFmAmount',
-  'modFreq', 'modFine', 'modFmAmount', 'modIndex',
+  'prinFreq', 'prinFine', 'prinFmAmount', 'prinCvAmount',
+  'modFreq', 'modFine', 'modFmAmount', 'modCvAmount', 'modIndex',
+  'timbre', 'order', 'symmetry', 'phaseLockAmount',
 ]);
 
 // Stepped params handled by message (their DSP exists, unlike the folder).
@@ -73,9 +80,22 @@ export function create(ctx, services) {
   const { descriptor, registry } = services;
 
   const outPorts = registry.outputPorts(descriptor.id);
-  const inPorts = registry.signalInputPorts(descriptor.id);
   assertOrder('output-port', outPorts, EXPECTED_OUTPUTS);
-  assertOrder('signal-input', inPorts, EXPECTED_SIGNAL_INPUTS);
+
+  // Worklet audio inputs = pure signal inputs (no target) PLUS exponential CV
+  // inputs (target param has curve "exp", i.e. 1V/oct pitch). Linear CV inputs
+  // (target curve "linear", e.g. the folder's timbre/order/symmetry) are NOT
+  // worklet inputs — they drive AudioParams via getParam(target). This rule is
+  // generic (it reads the target param's curve), not a hardcoded id list.
+  const curveOfTarget = (port) => {
+    if (port.target === undefined) return null;
+    const p = registry.paramById(descriptor.id, port.target);
+    return p ? p.curve : null;
+  };
+  const inPorts = registry.ports(descriptor.id).filter(
+    (p) => p.dir === 'in' && (p.target === undefined || curveOfTarget(p) === 'exp'),
+  );
+  assertOrder('worklet-input', inPorts, EXPECTED_WORKLET_INPUTS);
 
   // Seed the AudioParams with the descriptor defaults so a freshly created
   // instance sounds like the panel's default knob positions.
@@ -86,11 +106,16 @@ export function create(ctx, services) {
     }
   }
 
+  // Internal DSP config from the descriptor (not a faceplate control): the
+  // wavefolder's oversampling factor. Defaults to 4 if the descriptor is silent.
+  const oversample = (descriptor.dsp && descriptor.dsp.oversample) || 4;
+
   const node = new AudioWorkletNode(ctx, PROCESSOR_NAME, {
     numberOfInputs: inPorts.length,
     numberOfOutputs: outPorts.length,
     outputChannelCount: outPorts.map(() => 1),
     parameterData,
+    processorOptions: { oversample },
   });
 
   // Port id -> graph index, straight from descriptor order.

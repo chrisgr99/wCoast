@@ -57,16 +57,30 @@ function fmtValue(meta, value) {
   return `${value.toFixed(digits)}${unit}`;
 }
 
-// Why a given numeric param isn't realized yet, for the disabled note.
-function deferredReason(paramId) {
-  if (paramId === 'timbre' || paramId === 'order' || paramId === 'symmetry') {
-    return 'wavefolder DSP pending';
-  }
-  if (paramId === 'phaseLockAmount') return 'phase-lock DSP pending';
-  if (paramId === 'modCvAmount' || paramId === 'prinCvAmount') {
-    return 'CV attenuator — active once a cord is patched';
-  }
+// Params that ARE realized in DSP but only make sound once an external cord is
+// patched into their input (there is no connection UI yet, so on this bench
+// they're inert though live). Flagged with a subtle note so turning them and
+// hearing nothing isn't confusing. Everything else on the 259t is audible here.
+const INPUT_DEPENDENT = new Set([
+  'modFmAmount', 'prinFmAmount',   // scale the external FM-in jacks
+  'modCvAmount', 'prinCvAmount',   // attenuvert the external pitch-CV jacks
+  'phaseLockAmount',               // depth of the phase-lock input
+]);
+
+// If a param the instance doesn't realize ever appears, say why (should be
+// empty now that the module is complete but for ART).
+function deferredReason() {
   return 'not yet realized';
+}
+
+// Append a subtle italic note beside a control (once).
+function annotate(control, text) {
+  const cell = control.closest('.ctrl-cell');
+  if (!cell || cell.querySelector('.deferred')) return;
+  const note = document.createElement('span');
+  note.className = 'deferred';
+  note.textContent = `— ${text}`;
+  cell.appendChild(note);
 }
 
 // ---- app state ----
@@ -199,8 +213,9 @@ async function start() {
   instance = res.instance;
   log(`Instantiated ${descriptor.name} as "${res.instanceId}".`);
 
-  // Enable the controls the instance actually realizes, sync current values,
-  // and annotate the deferred ones with why they're inert.
+  // Enable the controls the instance realizes and sync current values. Add a
+  // subtle note to the input-dependent knobs (realized but silent until a cord
+  // is patched), and to anything not realized (should be none now but ART).
   for (const meta of registry.params(descriptor.id)) {
     const control = controls.get(meta.id);
     if (!control) continue;
@@ -211,14 +226,11 @@ async function start() {
       } else {
         instance.setParam(meta.id, posToValue(meta, Number(control.value)));
       }
-    } else {
-      const cell = control.closest('.ctrl-cell');
-      if (cell && !cell.querySelector('.deferred')) {
-        const note = document.createElement('span');
-        note.className = 'deferred';
-        note.textContent = `— ${deferredReason(meta.id)}`;
-        cell.appendChild(note);
+      if (INPUT_DEPENDENT.has(meta.id)) {
+        annotate(control, 'needs a patched cord to hear');
       }
+    } else {
+      annotate(control, deferredReason(meta.id));
     }
   }
 
@@ -228,8 +240,11 @@ async function start() {
   started = true;
   document.getElementById('start').disabled = true;
   document.getElementById('stop').disabled = false;
-  log('Sound on. Move Principal Frequency to play; try Pitch Mod (FM) On with ' +
-      'Mod Index up for the complex-oscillator character.');
+  log('Sound on. Move Principal Frequency to play. Turn up Timbre (with the ' +
+      'monitor on Final) to hear the wavefolder; add Order and Symmetry for ' +
+      'more harmonics. For the complex-osc character, Pitch Mod (FM) On with ' +
+      'Mod Index up. Knobs marked "needs a patched cord" wait on the ' +
+      'connection UI.');
 }
 
 function stop() {

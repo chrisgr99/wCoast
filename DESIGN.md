@@ -447,15 +447,16 @@ we don't share, rather than modelling dead controls.
    `host/host.js`, `modules/complex-oscillator-259t/factory.js`, and the
    descriptor-generated bench (`debug/debug-surface.js`, `index.html`).
 4. Real band-limited oscillator DSP (PolyBLEP + phase-increment FM).
-   **DONE** for the two oscillators + through-zero FM + internal pitch/ampl
-   mod, in `modules/complex-oscillator-259t/complex-osc-processor.js`. What
-   remains to FINISH the module (all in that same worklet): the Timbre/
-   Harmonics wavefolder with contained oversampling, phase lock, and the
-   1V/oct pitch + CV-input DSP — next up.
+   **DONE — the whole 259t (but ART)**, all in
+   `modules/complex-oscillator-259t/complex-osc-processor.js`: both oscillators,
+   through-zero FM, internal pitch/ampl mod, the Timbre/Harmonics wavefolder
+   (oversampled + windowed-sinc decimator), phase lock, and the 1V/oct pitch +
+   CV inputs. Harness-verified (folder adds harmonics & stays bounded; +1V =
+   one octave; hard sync resets the mod phase).
 5. Temporary debug control surface (NOT the rack) to play/hear the module.
-   **BUILT**; first audible confirmation pending a live `npm start` run.
-Then thicken: wavefolder, connection UI, LPG, function generator, panel SVG,
-rack, polyphony, GXW bridge.
+   **BUILT**; oscillators confirmed audible, folder etc. pending a live listen.
+Then thicken: the faithful panel SVG (§5), connection UI, LPG, function
+generator, rack, polyphony, GXW bridge.
 
 ---
 
@@ -465,22 +466,28 @@ rack, polyphony, GXW bridge.
   scheme over a secure isolated origin with COOP/COEP; worklet toolchain
   proven; crossOriginIsolated true; zero-allocation + destination-glide
   patterns established.
-- **Complex Oscillator 259t is playable** (bar the wavefolder). The descriptor
-  (data, ART dropped) defines the module schema; the host reads it generically
-  (`host/registry.js`, `host/host.js`); the factory
+- **Complex Oscillator 259t is COMPLETE (every feature but ART).** The
+  descriptor (data, ART dropped) defines the module schema; the host reads it
+  generically (`host/registry.js`, `host/host.js`); the factory
   (`modules/complex-oscillator-259t/factory.js`) builds the DSP and returns the
-  realized-instance contract; the PolyBLEP processor
+  realized-instance contract; the one processor
   (`modules/complex-oscillator-259t/complex-osc-processor.js`) runs both
-  oscillators with through-zero FM and internal pitch/amplitude mod; the bench
-  (`debug/debug-surface.js`, `index.html`) plays it.
-- **Not yet built:** the Timbre/Harmonics wavefolder DSP (the rest of this
-  module); panel SVGs; connection UI (external FM/CV patching, phase lock);
-  further modules (LPG, function generator, …); rack; polyphony; GXW bridge.
+  oscillators (through-zero FM, internal pitch/ampl mod), the oversampled
+  Timbre/Harmonics wavefolder, phase lock, and the 1V/oct pitch + CV inputs;
+  the bench (`debug/debug-surface.js`, `index.html`) plays it. Every knob is
+  live; the external-input knobs wait only on a way to patch a cord.
+- **Not yet built:** the 259t's faithful panel SVG; the connection UI (so the
+  external FM/CV/phase-lock inputs can actually be patched); further modules
+  (LPG, function generator, …); rack; polyphony; GXW bridge.
 
 ### Open / to-verify
-- **First-sound smoke test:** the oscillator chain is written and validated
-  headlessly (ESM imports; worklet stub-harness runs clean; bench builds under
-  a fake DOM) but not yet heard in Electron. `npm start` and listen.
+- **Listen to the finished 259t:** oscillators confirmed audible; the whole
+  module (wavefolder, phase lock, pitch/CV) is harness-verified (folder adds
+  harmonics & stays bounded; +1V = one octave; hard sync resets phase) but the
+  folder etc. not yet heard by ear. `npm start`, monitor Final, turn up Timbre.
+- **Folder fidelity:** the fold is a triangle multi-fold (bright, 259-ish),
+  Order = sine→saw fold-input morph, Symmetry = DC offset; "reasonably
+  realistic," tunable against a panel/recording, not sample-exact.
 - 259t fine points to check against a clear panel photo: whether Timbre CV has
   its own attenuator; exact Order/Symmetry end-labels; any second direct FM
   jack. (Marked TODO:verify in the descriptor. None block design.)
