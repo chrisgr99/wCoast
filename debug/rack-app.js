@@ -146,9 +146,10 @@ async function boot() {
   rebuildMonitor();
   log('Rack ready. Right-click empty space to add a module; right-click a ' +
       'module to delete it; drag a module by its background to move it; scroll ' +
-      'a knob, click a switch. Pinch (or ctrl+scroll) to zoom; double-click a ' +
-      'faceplate (or press "/") to zoom it full-height, and single-click a ' +
-      'zoomed module to restore. Sound: On to hear the monitor.');
+      'a knob, click a switch. Drag from one jack to another to patch a cable; ' +
+      'right-click a jack to disconnect. Pinch (or ctrl+scroll) to zoom; ' +
+      'double-click a faceplate (or press "/") to zoom it full-height, and ' +
+      'single-click a zoomed module to restore. Sound: On to hear the monitor.');
 }
 
 window.addEventListener('DOMContentLoaded', () => {

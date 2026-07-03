@@ -82,6 +82,14 @@
       color: var(--ink-dim); height: 150px; overflow-y: auto; white-space: pre-wrap;
     }
     #log div { margin-bottom: 2px; }
+
+    /* ---- patch cables (SVG overlay; pointer-transparent) ---- */
+    .rack-cables { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 12; overflow: visible; }
+    .rack-cable { fill: none; stroke-linecap: round; opacity: 0.95; }
+    .rack-cable-audio   { stroke-width: 3.2; }
+    .rack-cable-control { stroke-width: 1.6; }
+    .rack-cable-trigger { stroke-width: 2.2; stroke-dasharray: 3 3; }
+    .rack-cable-temp    { stroke: #f4e7c8; stroke-width: 2.4; opacity: 0.8; }
   </style>
 </head>
 <body>

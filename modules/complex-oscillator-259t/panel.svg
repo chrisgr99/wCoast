@@ -49,48 +49,47 @@
       <stop offset="1" stop-color="#00456e"/>
     </radialGradient>
   </defs>
-  <rect x="0" y="0" width="171.3333" height="128.5" rx="0" fill="#cfcfcf" stroke="none" stroke-width="0"/>
-  <rect x="0" y="0" width="171.3333" height="128.5" fill="#d0d0d0" filter="url(#grain)"/>
-  <rect x="5.4429" y="1.6565" width="4.733" height="2.6031" rx="0.9466" fill="#020202" stroke="#000" stroke-width="0.2366"/>
-  <rect x="161.1575" y="1.6565" width="4.733" height="2.6031" rx="0.9466" fill="#020202" stroke="#000" stroke-width="0.2366"/>
-  <rect x="5.4429" y="123.8854" width="4.733" height="2.6031" rx="0.9466" fill="#020202" stroke="#000" stroke-width="0.2366"/>
-  <rect x="161.1575" y="123.8854" width="4.733" height="2.6031" rx="0.9466" fill="#020202" stroke="#000" stroke-width="0.2366"/>
-  <text x="85.6667" y="4.733" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.0764" font-weight="800" font-style="normal" fill="#163a69" text-anchor="middle" style="white-space: pre;">PROGRAMMABLE COMPLEX WAVEFORM GENERATOR MODEL 259t</text>
-  <text x="85.6667" y="123.1754" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.0764" font-weight="800" font-style="normal" fill="#163a69" text-anchor="middle" style="white-space: pre;">BUCHLA &amp; TIPTOP AUDIO</text>
-  <line x1="0" y1="7.0994" x2="171.3333" y2="7.0994" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="0" y1="27.4512" x2="59.1621" y2="27.4512" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="0" y1="48.8679" x2="59.1621" y2="48.8679" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="0" y1="120.6906" x2="171.3333" y2="120.6906" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="31.948" y1="26.829" x2="31.948" y2="49.403" stroke="#163a69" stroke-width="0.355" style=""/>
-  <line x1="60.3453" y1="7.0994" x2="60.3453" y2="120.6906" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="81.8803" y1="7.0994" x2="81.8803" y2="120.6906" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="140.2141" y1="7.0994" x2="140.2141" y2="120.6906" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="81.8803" y1="27.4512" x2="140.2141" y2="27.4512" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="81.8803" y1="48.8679" x2="140.2141" y2="48.8679" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="140.2141" y1="63.895" x2="171.3333" y2="63.895" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="31.948" y1="27.451" x2="31.948" y2="48.556" stroke="#163a69" stroke-width="0.355" style=""/>
-  <line x1="60.3453" y1="7.0994" x2="60.3453" y2="120.6906" stroke="#163a69" stroke-width="0.355"/>
-  <text x="12.779" y="10.6492" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">MODULATION</text>
-  <text x="30.1727" y="10.6492" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">OSC. OUTPUTS</text>
-  <g data-wcoast-port="modTriOut" data-wcoast-cx="12.0691" data-wcoast-cy="16.3287">
+  <rect x="3.9" y="1.036" width="171.333" height="128.5" fill="#cfcfcf" stroke="none" stroke-width="0"/>
+  <rect x="-0.464" y="2.458" width="171.333" height="128.5" fill="#d0d0d0" filter="url(#grain)"/>
+  <rect x="9.343" y="2.692" width="4.733" height="2.603" rx="0.947" fill="#020202" stroke="#000" stroke-width="0.2366"/>
+  <rect x="165.058" y="2.692" width="4.733" height="2.603" rx="0.947" fill="#020202" stroke="#000" stroke-width="0.2366"/>
+  <rect x="9.343" y="124.921" width="4.733" height="2.603" rx="0.947" fill="#020202" stroke="#000" stroke-width="0.2366"/>
+  <rect x="165.058" y="124.921" width="4.733" height="2.603" rx="0.947" fill="#020202" stroke="#000" stroke-width="0.2366"/>
+  <text x="89.567" y="5.769" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.0764" font-weight="800" font-style="normal" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 3.1px;">CWG   259w</text>
+  <line x1="3.9" y1="8.135" x2="175.233" y2="8.135" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="3.9" y1="28.487" x2="63.062" y2="28.487" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="3.9" y1="49.904" x2="63.062" y2="49.904" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="3.9" y1="121.726" x2="175.233" y2="121.726" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="35.848" y1="27.865" x2="35.848" y2="50.439" stroke="#163a69" stroke-width="0.355" style=""/>
+  <line x1="64.245" y1="8.135" x2="64.245" y2="121.726" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="85.78" y1="8.135" x2="85.78" y2="121.726" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="144.114" y1="8.135" x2="144.114" y2="121.726" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="85.78" y1="28.487" x2="144.114" y2="28.487" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="85.78" y1="49.904" x2="144.114" y2="49.904" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="144.114" y1="64.931" x2="175.233" y2="64.931" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="35.848" y1="28.487" x2="35.848" y2="49.592" stroke="#163a69" stroke-width="0.355" style=""/>
+  <line x1="64.245" y1="8.135" x2="64.245" y2="121.726" stroke="#163a69" stroke-width="0.355"/>
+  <text x="16.679" y="11.685" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">MODULATION</text>
+  <text x="34.073" y="11.685" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">OSC. OUTPUTS</text>
+  <g data-wcoast-port="modTriOut" data-wcoast-cx="12.0691" data-wcoast-cy="16.3287" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="12.0691" cy="16.3287" r="4.023" fill="url(#metalRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="12.0691" cy="16.3287" r="2.1298" fill="#1b1b1b" stroke="#000" stroke-width="0.2366"/>
     <rect x="10.7675" y="15.8554" width="2.7215" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <g data-wcoast-port="modCvOut" data-wcoast-cx="24.8481" data-wcoast-cy="16.3287">
+  <g data-wcoast-port="modCvOut" data-wcoast-cx="24.8481" data-wcoast-cy="16.3287" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="24.8481" cy="16.3287" r="4.023" fill="url(#blueRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="24.8481" cy="16.3287" r="2.1298" fill="#1b1b1b" stroke="#000" stroke-width="0.2366"/>
     <rect x="23.5465" y="15.8554" width="2.7215" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <g data-wcoast-port="modSigOut" data-wcoast-cx="37.8637" data-wcoast-cy="16.3287">
+  <g data-wcoast-port="modSigOut" data-wcoast-cx="37.8637" data-wcoast-cy="16.3287" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="37.8637" cy="16.3287" r="4.023" fill="url(#metalRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="37.8637" cy="16.3287" r="2.1298" fill="#1b1b1b" stroke="#000" stroke-width="0.2366"/>
     <rect x="36.5622" y="15.8554" width="2.7215" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <path d="M5.9162,25.6763 L8.2827,22.3633 L10.8858,25.6763 L13.3706,22.3633 L15.9738,25.6763" fill="none" stroke="#163a69" stroke-width="0.355" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="24.8481" y="24.8481" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">c.v.</text>
-  <text x="36.6805" y="24.8481" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">signal</text>
-  <g data-wcoast-param="modRange" transform="translate(7.5,0)">
+  <path d="M 9.816 26.712 L 12.183 23.399 L 14.786 26.712 L 17.271 23.399 L 19.874 26.712" fill="none" stroke="#163a69" stroke-width="0.355" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="28.748" y="25.884" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.6px;">c.v.</text>
+  <text x="40.581" y="25.884" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.6px;">signal</text>
+  <g data-wcoast-param="modRange" transform="matrix(1, 0, 0, 1, 11.400055, 1.035889)">
     <circle cx="7.5727" cy="33.1308" r="1.6565" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="low"/>
     <circle cx="7.0994" cy="32.5391" r="0.4733" fill="#ffb4b4" opacity=".85" pointer-events="none"/>
     <text x="11.2408" y="34.0773" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">low</text>
@@ -98,8 +97,8 @@
     <circle cx="7.0994" cy="37.2721" r="0.4733" fill="#ffb4b4" opacity=".85" pointer-events="none"/>
     <text x="11.2408" y="38.8103" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">high</text>
   </g>
-  <text x="17.3" y="46.6197" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">RANGE</text>
-  <g data-wcoast-param="modWave" transform="translate(4.5,0)">
+  <text x="21.2" y="47.656" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">RANGE</text>
+  <g data-wcoast-param="modWave" transform="matrix(1, 0, 0, 1, 8.400055, 1.035889)">
     <circle cx="35.7339" cy="33.1308" r="1.6565" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="sawtooth"/>
     <circle cx="35.2606" cy="32.5391" r="0.4733" fill="#ffb4b4" opacity=".85" pointer-events="none"/>
     <path d="M37.2721,34.7873 L42.2417,31.4742 L42.2417,34.7873 L47.3297,31.4742 L47.3297,34.7873" fill="none" stroke="#163a69" stroke-width="0.355" stroke-linecap="round" stroke-linejoin="round"/>
@@ -110,8 +109,8 @@
     <circle cx="35.2606" cy="42.5967" r="0.4733" fill="#ffb4b4" opacity=".85" pointer-events="none"/>
     <path d="M37.2721,44.8448 L39.6386,41.5318 L42.2417,44.8448 L44.7265,41.5318 L47.3297,44.8448" fill="none" stroke="#163a69" stroke-width="0.355" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-  <text x="46" y="46.3831" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.4848" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">WAVESHAPE</text>
-  <g data-wcoast-param="modFreq" data-wcoast-cx="24.8481" data-wcoast-cy="68.628">
+  <text x="49.9" y="47.419" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.4848" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.5px;">WAVESHAPE</text>
+  <g data-wcoast-param="modFreq" data-wcoast-cx="24.8481" data-wcoast-cy="68.628" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="24.8481" cy="68.628" r="12.424" fill="url(#blueDial)" stroke="#00507f" stroke-width="0.355" filter="url(#softShadow)"/>
     <circle cx="24.8481" cy="68.628" r="8.046" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="18.3876" y1="72.3552" x2="17.5711" y2="72.8285" stroke="#163a69" stroke-width="0.355"/>
@@ -125,26 +124,26 @@
     <line x1="24.8481" y1="68.628" x2="24.8481" y2="62.7118" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
     <path d="M 23.3099 57.2689 L 24.8481 52.6542 L 26.3863 57.2689 Z" fill="#f0f0f0" stroke="#163a69" stroke-width="0.2366" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-  <text x="9.7026" y="57.5055" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">220</text>
-  <text x="9.7026" y="60.1087" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">2</text>
-  <text x="7.5727" y="64.8416" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">110</text>
-  <text x="7.5727" y="67.4448" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">1</text>
-  <text x="8.8743" y="75.2541" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">55</text>
-  <text x="8.8743" y="77.8573" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">.5</text>
-  <text x="13.6073" y="81.9986" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">27.5</text>
-  <text x="13.6073" y="84.6017" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">.25</text>
-  <text x="24.8481" y="52.6542" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">440</text>
-  <text x="24.8481" y="55.2574" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">4</text>
-  <text x="39.047" y="58.2155" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">880</text>
-  <text x="39.047" y="60.8186" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">8</text>
-  <text x="41.2951" y="66.0249" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">1760</text>
-  <text x="41.2951" y="68.628" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">16</text>
-  <text x="40.4669" y="74.8992" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">3520</text>
-  <text x="40.4669" y="77.5023" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">32</text>
-  <text x="36.0889" y="81.8803" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">7040</text>
-  <text x="36.0889" y="84.4834" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">64</text>
-  <text x="25.106" y="87.915" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.668" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 3.7px;">FREQUENCY (Hz)</text>
-  <g data-wcoast-param="modFine" data-wcoast-cx="50.8794" data-wcoast-cy="61.5285">
+  <text x="13.603" y="58.541" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">220</text>
+  <text x="13.603" y="61.145" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">2</text>
+  <text x="11.473" y="65.877" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">110</text>
+  <text x="11.473" y="68.481" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">1</text>
+  <text x="12.774" y="76.29" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">55</text>
+  <text x="12.774" y="78.893" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">.5</text>
+  <text x="17.507" y="83.034" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">27.5</text>
+  <text x="17.507" y="85.638" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">.25</text>
+  <text x="28.748" y="53.69" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">440</text>
+  <text x="28.748" y="56.293" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">4</text>
+  <text x="42.947" y="59.251" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">880</text>
+  <text x="42.947" y="61.854" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">8</text>
+  <text x="45.195" y="67.061" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">1760</text>
+  <text x="45.195" y="69.664" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">16</text>
+  <text x="44.367" y="75.935" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">3520</text>
+  <text x="44.367" y="78.538" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">32</text>
+  <text x="39.989" y="82.916" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">7040</text>
+  <text x="39.989" y="85.519" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">64</text>
+  <text x="29.006" y="88.951" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.668" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 3.7px;">FREQUENCY (Hz)</text>
+  <g data-wcoast-param="modFine" data-wcoast-cx="50.8794" data-wcoast-cy="61.5285" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="50.8794" cy="61.5285" r="6.9811" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="45.3418" y1="64.7233" x2="44.5254" y2="65.1966" stroke="#163a69" stroke-width="0.355"/>
     <line x1="44.5845" y1="60.4163" x2="43.6498" y2="60.2506" stroke="#163a69" stroke-width="0.355"/>
@@ -156,7 +155,7 @@
     <circle cx="50.8794" cy="61.5285" r="5.4429" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="50.8794" y1="61.5285" x2="50.8794" y2="56.6773" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <g data-wcoast-param="modFmAmount" data-wcoast-cx="11.3591" data-wcoast-cy="95.0143">
+  <g data-wcoast-param="modFmAmount" data-wcoast-cx="11.3591" data-wcoast-cy="95.0143" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="11.3591" cy="95.0143" r="7.2178" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="5.6204" y1="98.3273" x2="4.804" y2="98.8006" stroke="#163a69" stroke-width="0.355"/>
     <line x1="4.8395" y1="93.8665" x2="3.9047" y2="93.7009" stroke="#163a69" stroke-width="0.355"/>
@@ -168,25 +167,25 @@
     <circle cx="11.3591" cy="95.0143" r="5.6796" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="11.3591" y1="95.0143" x2="11.3591" y2="89.9263" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <line x1="11.3591" y1="102.232" x2="11.3591" y2="111.5797" stroke="#163a69" stroke-width="0.355"/>
-  <g data-wcoast-port="modFmIn" data-wcoast-cx="11.3591" data-wcoast-cy="112.7629">
+  <line x1="15.259" y1="103.268" x2="15.259" y2="112.616" stroke="#163a69" stroke-width="0.355"/>
+  <g data-wcoast-port="modFmIn" data-wcoast-cx="11.3591" data-wcoast-cy="112.7629" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="11.3591" cy="112.7629" r="3.5497" fill="url(#blackRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="11.3591" cy="112.7629" r="1.8932" fill="#1b1b1b" stroke="#8a9095" stroke-width="0.4"/>
     <rect x="10.1759" y="112.4079" width="2.4848" height="0.8283" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <text x="6.3895" y="111.4613" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">f.m.</text>
-  <text x="6.3895" y="114.7744" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">in</text>
-  <text x="27.8062" y="92.8844" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">key-</text>
-  <text x="27.8062" y="96.0792" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">board</text>
-  <text x="27.8062" y="99.3923" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">input</text>
-  <g data-wcoast-port="modPitchIn" data-wcoast-cx="33.1308" data-wcoast-cy="111.2247">
+  <text x="10.29" y="112.497" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">f.m.</text>
+  <text x="10.29" y="115.81" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">in</text>
+  <text x="37.159" y="100.156" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.6px;">key-</text>
+  <text x="37.159" y="103.35" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.6px;">board</text>
+  <text x="37.159" y="106.664" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.6px;">input</text>
+  <g data-wcoast-port="modPitchIn" data-wcoast-cx="33.1308" data-wcoast-cy="111.2247" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="33.1308" cy="111.2247" r="3.7864" fill="url(#grayRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="33.1308" cy="111.2247" r="2.0115" fill="#1b1b1b" stroke="#000" stroke-width="0.2366"/>
     <rect x="31.8292" y="110.7514" width="2.6031" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <text x="42.36" y="111.4613" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">c.v.</text>
-  <text x="42.36" y="114.7744" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">in</text>
-  <g data-wcoast-param="modCvAmount" data-wcoast-cx="50.8794" data-wcoast-cy="95.0143">
+  <text x="47.639" y="112.198" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">c.v.</text>
+  <text x="47.639" y="115.511" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">in</text>
+  <g data-wcoast-param="modCvAmount" data-wcoast-cx="50.8794" data-wcoast-cy="95.0143" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="50.8794" cy="95.0143" r="7.2178" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="45.1407" y1="98.3273" x2="44.3242" y2="98.8006" stroke="#163a69" stroke-width="0.355"/>
     <line x1="44.3597" y1="93.8665" x2="43.425" y2="93.7009" stroke="#163a69" stroke-width="0.355"/>
@@ -198,41 +197,41 @@
     <circle cx="50.8794" cy="95.0143" r="5.6796" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="50.8794" y1="95.0143" x2="50.8794" y2="89.9263" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <line x1="50.8794" y1="102.232" x2="50.8794" y2="111.5797" stroke="#163a69" stroke-width="0.355"/>
-  <g data-wcoast-port="modCvIn" data-wcoast-cx="50.8794" data-wcoast-cy="112.7629">
+  <line x1="54.779" y1="103.268" x2="54.779" y2="112.616" stroke="#163a69" stroke-width="0.355"/>
+  <g data-wcoast-port="modCvIn" data-wcoast-cx="50.8794" data-wcoast-cy="112.7629" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="50.8794" cy="112.7629" r="3.5497" fill="url(#blackRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="50.8794" cy="112.7629" r="1.8932" fill="#1b1b1b" stroke="#8a9095" stroke-width="0.4"/>
     <rect x="49.6961" y="112.4079" width="2.4848" height="0.8283" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <text x="49.1045" y="85.6667" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">-</text>
-  <text x="56.7956" y="85.6667" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">+</text>
-  <text x="52.6542" y="85.6667" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="4.733" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">↔</text>
-  <text x="69.8112" y="10.4125" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="4.733" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">←</text>
-  <g data-wcoast-param="phaseLock" data-wcoast-cx="77.6206" data-wcoast-cy="15.6188" transform="translate(3.6,0)">
+  <text x="53.005" y="86.703" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">-</text>
+  <text x="60.696" y="86.703" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">+</text>
+  <text x="56.554" y="86.703" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="4.733" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 4.7px;">↔</text>
+  <text x="73.711" y="11.448" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="4.733" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 4.7px;">←</text>
+  <g data-wcoast-param="phaseLock" data-wcoast-cx="77.6206" data-wcoast-cy="15.6188" transform="matrix(1, 0, 0, 1, 7.500055, 1.035889)">
     <circle cx="63.895" cy="15.6188" r="1.6565" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
     <circle cx="63.4217" cy="15.0272" r="0.4733" fill="#ffb4b4" opacity=".85" pointer-events="none"/>
     <text x="66.2615" y="15.0272" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">phase</text>
     <text x="66.2615" y="17.9853" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">lock</text>
   </g>
-  <g data-wcoast-param="amplMod" data-wcoast-cx="77.6206" data-wcoast-cy="27.8062" transform="translate(3.6,0)">
+  <g data-wcoast-param="amplMod" data-wcoast-cx="77.6206" data-wcoast-cy="27.8062" transform="matrix(1, 0, 0, 1, 7.500055, 1.035889)">
     <circle cx="63.895" cy="27.8062" r="1.6565" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
     <circle cx="63.4217" cy="27.2145" r="0.4733" fill="#ffb4b4" opacity=".85" pointer-events="none"/>
     <text x="66.2615" y="27.2145" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">ampl.</text>
     <text x="66.2615" y="30.1727" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">mod.</text>
   </g>
-  <g data-wcoast-param="pitchMod" data-wcoast-cx="77.6206" data-wcoast-cy="40.2302" transform="translate(3.6,0)">
+  <g data-wcoast-param="pitchMod" data-wcoast-cx="77.6206" data-wcoast-cy="40.2302" transform="matrix(1, 0, 0, 1, 7.500055, 1.035889)">
     <circle cx="63.895" cy="40.2302" r="1.6565" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
     <circle cx="63.4217" cy="39.6386" r="0.4733" fill="#ffb4b4" opacity=".85" pointer-events="none"/>
     <text x="66.2615" y="39.6386" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">pitch</text>
     <text x="66.2615" y="42.5967" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">mod.</text>
   </g>
-  <g data-wcoast-param="timbreMod" data-wcoast-cx="77.6206" data-wcoast-cy="52.6542" transform="translate(3.6,0)">
+  <g data-wcoast-param="timbreMod" data-wcoast-cx="77.6206" data-wcoast-cy="52.6542" transform="matrix(1, 0, 0, 1, 7.500055, 1.035889)">
     <circle cx="63.895" cy="52.6542" r="1.6565" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
     <circle cx="63.4217" cy="52.0626" r="0.4733" fill="#ffb4b4" opacity=".85" pointer-events="none"/>
     <text x="66.2615" y="52.0626" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">timbre</text>
     <text x="66.2615" y="55.0207" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">mod.</text>
   </g>
-  <g data-wcoast-param="modIndex" data-wcoast-cx="69.8112" data-wcoast-cy="69.8112">
+  <g data-wcoast-param="modIndex" data-wcoast-cx="69.8112" data-wcoast-cy="69.8112" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="69.8112" cy="69.8112" r="7.6911" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="63.6584" y1="73.361" x2="62.8419" y2="73.8343" stroke="#163a69" stroke-width="0.355"/>
     <line x1="62.8183" y1="68.5807" x2="61.8835" y2="68.415" stroke="#163a69" stroke-width="0.355"/>
@@ -244,8 +243,8 @@
     <circle cx="69.8112" cy="69.8112" r="6.1529" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="69.8112" y1="69.8112" x2="69.8112" y2="64.25" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <text x="69.8112" y="80.6971" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.1948" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">MOD. INDEX</text>
-  <g data-wcoast-param="modIndexCvAmount" data-wcoast-cx="69.8112" data-wcoast-cy="94.6593">
+  <text x="73.711" y="81.733" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.1948" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 3.2px;">MOD. INDEX</text>
+  <g data-wcoast-param="modIndexCvAmount" data-wcoast-cx="69.8112" data-wcoast-cy="94.6593" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="69.8112" cy="94.6593" r="7.2178" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="64.0725" y1="97.9724" x2="63.2561" y2="98.4457" stroke="#163a69" stroke-width="0.355"/>
     <line x1="63.2916" y1="93.5116" x2="62.3568" y2="93.3459" stroke="#163a69" stroke-width="0.355"/>
@@ -257,46 +256,46 @@
     <circle cx="69.8112" cy="94.6593" r="5.6796" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="69.8112" y1="94.6593" x2="69.8112" y2="89.5714" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <line x1="69.8112" y1="101.8771" x2="69.8112" y2="111.2247" stroke="#163a69" stroke-width="0.355"/>
-  <g data-wcoast-port="modIndexCvIn" data-wcoast-cx="69.8112" data-wcoast-cy="112.4079">
+  <line x1="73.711" y1="102.913" x2="73.711" y2="112.261" stroke="#163a69" stroke-width="0.355"/>
+  <g data-wcoast-port="modIndexCvIn" data-wcoast-cx="69.8112" data-wcoast-cy="112.4079" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="69.8112" cy="112.4079" r="3.5497" fill="url(#blackRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="69.8112" cy="112.4079" r="1.8932" fill="#1b1b1b" stroke="#8a9095" stroke-width="0.4"/>
     <rect x="68.628" y="112.0529" width="2.4848" height="0.8283" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <text x="62.9484" y="111.4613" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">c.v.</text>
-  <text x="62.9484" y="114.7744" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">in</text>
-  <text x="64.4866" y="85.6667" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">-</text>
-  <text x="77.5023" y="85.6667" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">+</text>
-  <text x="70.9945" y="85.6667" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="4.733" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">↔</text>
-  <text x="93.1211" y="10.6492" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">PRINCIPAL</text>
-  <text x="112.1713" y="10.6492" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">OSC. OUTPUTS</text>
-  <g data-wcoast-port="prinSineOut" data-wcoast-cx="90.518" data-wcoast-cy="16.3287">
+  <text x="66.848" y="112.497" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">c.v.</text>
+  <text x="66.848" y="115.81" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">in</text>
+  <text x="68.387" y="86.703" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">-</text>
+  <text x="81.402" y="86.703" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">+</text>
+  <text x="74.895" y="86.703" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="4.733" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 4.7px;">↔</text>
+  <text x="97.021" y="11.685" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">PRINCIPAL</text>
+  <text x="116.071" y="11.685" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">OSC. OUTPUTS</text>
+  <g data-wcoast-port="prinSineOut" data-wcoast-cx="90.518" data-wcoast-cy="16.3287" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="90.518" cy="16.3287" r="4.023" fill="url(#metalRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="90.518" cy="16.3287" r="2.1298" fill="#1b1b1b" stroke="#000" stroke-width="0.2366"/>
     <rect x="89.2164" y="15.8554" width="2.7215" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <g data-wcoast-port="prinSquareOut" data-wcoast-cx="103.8886" data-wcoast-cy="16.3287">
+  <g data-wcoast-port="prinSquareOut" data-wcoast-cx="103.8886" data-wcoast-cy="16.3287" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="103.8886" cy="16.3287" r="4.023" fill="url(#metalRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="103.8886" cy="16.3287" r="2.1298" fill="#1b1b1b" stroke="#000" stroke-width="0.2366"/>
     <rect x="102.587" y="15.8554" width="2.7215" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <g data-wcoast-port="prinFinalOut" data-wcoast-cx="117.1409" data-wcoast-cy="16.3287">
+  <g data-wcoast-port="prinFinalOut" data-wcoast-cx="117.1409" data-wcoast-cy="16.3287" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="117.1409" cy="16.3287" r="4.023" fill="url(#metalRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="117.1409" cy="16.3287" r="2.1298" fill="#1b1b1b" stroke="#000" stroke-width="0.2366"/>
     <rect x="115.8393" y="15.8554" width="2.7215" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <path d="M83.4185,24.2564 C85.1934,21.4167 86.8499,21.4167 88.5064,24.2564 C90.163,27.0962 91.8195,27.0962 93.4761,24.2564" fill="none" stroke="#163a69" stroke-width="0.355" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M97.7357,24.2564 L99.3923,24.2564 L99.3923,21.2983 L101.7587,21.2983 L101.7587,24.2564 L104.1252,24.2564 L104.1252,21.2983 L106.0184,21.2983" fill="none" stroke="#163a69" stroke-width="0.355" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="117.1409" y="24.8481" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">final</text>
-  <text x="111.2247" y="31.7109" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">input</text>
-  <g data-wcoast-port="phaseLockIn" data-wcoast-cx="110.6331" data-wcoast-cy="38.4553">
+  <path d="M 87.319 25.292 C 89.093 22.453 90.75 22.453 92.406 25.292 C 94.063 28.132 95.72 28.132 97.376 25.292" fill="none" stroke="#163a69" stroke-width="0.355" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 101.636 25.292 L 103.292 25.292 L 103.292 22.334 L 105.659 22.334 L 105.659 25.292 L 108.025 25.292 L 108.025 22.334 L 109.918 22.334" fill="none" stroke="#163a69" stroke-width="0.355" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="121.041" y="25.884" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">final</text>
+  <text x="115.125" y="32.747" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">input</text>
+  <g data-wcoast-port="phaseLockIn" data-wcoast-cx="110.6331" data-wcoast-cy="38.4553" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="110.6331" cy="38.4553" r="4.023" fill="url(#metalRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="110.6331" cy="38.4553" r="2.1298" fill="#1b1b1b" stroke="#000" stroke-width="0.2366"/>
     <rect x="109.3315" y="37.982" width="2.7215" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <text x="111.2247" y="46.3831" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">PHASE LOCK</text>
-  <text x="128.9733" y="31.7109" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">gain</text>
-  <g data-wcoast-param="phaseLockAmount" data-wcoast-cx="128.9733" data-wcoast-cy="40.4669">
+  <text x="115.125" y="47.419" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">PHASE LOCK</text>
+  <text x="132.873" y="32.747" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">gain</text>
+  <g data-wcoast-param="phaseLockAmount" data-wcoast-cx="128.9733" data-wcoast-cy="40.4669" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="128.9733" cy="40.4669" r="7.4544" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="123.0334" y1="43.8983" x2="122.2052" y2="44.3715" stroke="#163a69" stroke-width="0.355"/>
     <line x1="122.217" y1="39.2718" x2="121.2822" y2="39.1061" stroke="#163a69" stroke-width="0.355"/>
@@ -308,7 +307,7 @@
     <circle cx="128.9733" cy="40.4669" r="5.9162" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="128.9733" y1="40.4669" x2="128.9733" y2="35.1423" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <g data-wcoast-param="prinFreq" data-wcoast-cx="102.942" data-wcoast-cy="68.628">
+  <g data-wcoast-param="prinFreq" data-wcoast-cx="102.942" data-wcoast-cy="68.628" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="102.942" cy="68.628" r="12.424" fill="url(#blueDial)" stroke="#00507f" stroke-width="0.355" filter="url(#softShadow)"/>
     <circle cx="102.942" cy="68.628" r="8.046" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="96.4815" y1="72.3552" x2="95.6651" y2="72.8285" stroke="#163a69" stroke-width="0.355"/>
@@ -322,26 +321,26 @@
     <line x1="102.942" y1="68.628" x2="102.942" y2="62.7118" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
     <path d="M 101.4038 57.2689 L 102.942 52.6542 L 104.4802 57.2689 Z" fill="#f0f0f0" stroke="#163a69" stroke-width="0.2366" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-  <text x="87.7965" y="57.5055" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">220</text>
-  <text x="87.7965" y="60.1087" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">A4</text>
-  <text x="85.6667" y="64.8416" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">110</text>
-  <text x="85.6667" y="67.4448" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">A3</text>
-  <text x="86.9682" y="75.2541" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">55</text>
-  <text x="86.9682" y="77.8573" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">A2</text>
-  <text x="91.7012" y="81.9986" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">27.5</text>
-  <text x="91.7012" y="84.6017" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">A1</text>
-  <text x="102.942" y="52.6542" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">440</text>
-  <text x="102.942" y="55.2574" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">A5</text>
-  <text x="117.1409" y="58.2155" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">880</text>
-  <text x="117.1409" y="60.8186" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">A6</text>
-  <text x="119.389" y="66.0249" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">1760</text>
-  <text x="119.389" y="68.628" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">A7</text>
-  <text x="118.5608" y="74.8992" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">3520</text>
-  <text x="118.5608" y="77.5023" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">A8</text>
-  <text x="114.1828" y="81.8803" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">7040</text>
-  <text x="114.1828" y="84.4834" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">A9</text>
-  <text x="102.942" y="88.7431" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.668" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">PITCH (Hz)</text>
-  <g data-wcoast-param="prinFine" data-wcoast-cx="128.9733" data-wcoast-cy="61.5285">
+  <text x="91.697" y="58.541" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">220</text>
+  <text x="91.697" y="61.145" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">A4</text>
+  <text x="89.567" y="65.877" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">110</text>
+  <text x="89.567" y="68.481" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">A3</text>
+  <text x="90.868" y="76.29" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">55</text>
+  <text x="90.868" y="78.893" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">A2</text>
+  <text x="95.601" y="83.034" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">27.5</text>
+  <text x="95.601" y="85.638" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">A1</text>
+  <text x="106.842" y="53.69" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">440</text>
+  <text x="106.842" y="56.293" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">A5</text>
+  <text x="121.041" y="59.251" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">880</text>
+  <text x="121.041" y="61.854" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">A6</text>
+  <text x="123.289" y="67.061" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">1760</text>
+  <text x="123.289" y="69.664" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">A7</text>
+  <text x="122.461" y="75.935" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">3520</text>
+  <text x="122.461" y="78.538" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">A8</text>
+  <text x="118.083" y="82.916" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">7040</text>
+  <text x="118.083" y="85.519" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.1298" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.1px;">A9</text>
+  <text x="106.842" y="89.779" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.668" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 3.7px;">PITCH (Hz)</text>
+  <g data-wcoast-param="prinFine" data-wcoast-cx="128.9733" data-wcoast-cy="61.5285" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="128.9733" cy="61.5285" r="6.9811" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="123.4357" y1="64.7233" x2="122.6193" y2="65.1966" stroke="#163a69" stroke-width="0.355"/>
     <line x1="122.6785" y1="60.4163" x2="121.7437" y2="60.2506" stroke="#163a69" stroke-width="0.355"/>
@@ -353,7 +352,7 @@
     <circle cx="128.9733" cy="61.5285" r="5.4429" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="128.9733" y1="61.5285" x2="128.9733" y2="56.6773" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <g data-wcoast-param="prinFmAmount" data-wcoast-cx="90.518" data-wcoast-cy="95.0143">
+  <g data-wcoast-param="prinFmAmount" data-wcoast-cx="90.518" data-wcoast-cy="95.0143" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="90.518" cy="95.0143" r="7.2178" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="84.7792" y1="98.3273" x2="83.9628" y2="98.8006" stroke="#163a69" stroke-width="0.355"/>
     <line x1="83.9983" y1="93.8665" x2="83.0635" y2="93.7009" stroke="#163a69" stroke-width="0.355"/>
@@ -365,25 +364,25 @@
     <circle cx="90.518" cy="95.0143" r="5.6796" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="90.518" y1="95.0143" x2="90.518" y2="89.9263" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <line x1="90.518" y1="102.232" x2="90.518" y2="111.5797" stroke="#163a69" stroke-width="0.355"/>
-  <g data-wcoast-port="prinFmIn" data-wcoast-cx="90.518" data-wcoast-cy="112.7629">
+  <line x1="94.418" y1="103.268" x2="94.418" y2="112.616" stroke="#163a69" stroke-width="0.355"/>
+  <g data-wcoast-port="prinFmIn" data-wcoast-cx="90.518" data-wcoast-cy="112.7629" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="90.518" cy="112.7629" r="3.5497" fill="url(#blackRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="90.518" cy="112.7629" r="1.8932" fill="#1b1b1b" stroke="#8a9095" stroke-width="0.4"/>
     <rect x="89.3347" y="112.4079" width="2.4848" height="0.8283" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <text x="84.8384" y="111.4613" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">f.m.</text>
-  <text x="84.8384" y="114.7744" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">in</text>
-  <text x="107.675" y="92.8844" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">key-</text>
-  <text x="107.675" y="96.0792" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">board</text>
-  <text x="107.675" y="99.3923" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">input</text>
-  <g data-wcoast-port="prinPitchIn" data-wcoast-cx="112.9995" data-wcoast-cy="111.2247">
+  <text x="88.738" y="112.497" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">f.m.</text>
+  <text x="88.738" y="115.81" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">in</text>
+  <text x="116.974" y="100.214" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.6px;">key-</text>
+  <text x="116.974" y="103.409" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.6px;">board</text>
+  <text x="116.974" y="106.722" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.6px;">input</text>
+  <g data-wcoast-port="prinPitchIn" data-wcoast-cx="112.9995" data-wcoast-cy="111.2247" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="112.9995" cy="111.2247" r="3.7864" fill="url(#grayRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="112.9995" cy="111.2247" r="2.0115" fill="#1b1b1b" stroke="#000" stroke-width="0.2366"/>
     <rect x="111.698" y="110.7514" width="2.6031" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <text x="121.4006" y="111.4613" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">c.v.</text>
-  <text x="121.4006" y="114.7744" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">in</text>
-  <g data-wcoast-param="prinCvAmount" data-wcoast-cx="128.9733" data-wcoast-cy="95.0143">
+  <text x="126.11" y="112.772" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">c.v.</text>
+  <text x="126.11" y="116.085" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">in</text>
+  <g data-wcoast-param="prinCvAmount" data-wcoast-cx="128.9733" data-wcoast-cy="95.0143" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="128.9733" cy="95.0143" r="7.2178" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="123.2346" y1="98.3273" x2="122.4181" y2="98.8006" stroke="#163a69" stroke-width="0.355"/>
     <line x1="122.4536" y1="93.8665" x2="121.5189" y2="93.7009" stroke="#163a69" stroke-width="0.355"/>
@@ -395,25 +394,25 @@
     <circle cx="128.9733" cy="95.0143" r="5.6796" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="128.9733" y1="95.0143" x2="128.9733" y2="89.9263" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <line x1="128.9733" y1="102.232" x2="128.9733" y2="111.5797" stroke="#163a69" stroke-width="0.355"/>
-  <g data-wcoast-port="prinCvIn" data-wcoast-cx="128.9733" data-wcoast-cy="112.7629">
+  <line x1="132.873" y1="103.268" x2="132.873" y2="112.616" stroke="#163a69" stroke-width="0.355"/>
+  <g data-wcoast-port="prinCvIn" data-wcoast-cx="128.9733" data-wcoast-cy="112.7629" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="128.9733" cy="112.7629" r="3.5497" fill="url(#blackRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="128.9733" cy="112.7629" r="1.8932" fill="#1b1b1b" stroke="#8a9095" stroke-width="0.4"/>
     <rect x="127.7901" y="112.4079" width="2.4848" height="0.8283" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <text x="123.6487" y="85.6667" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">-</text>
-  <text x="134.2979" y="85.6667" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">+</text>
-  <text x="128.9733" y="85.6667" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="4.733" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">↔</text>
-  <text x="150.035" y="10.6492" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">HARMONICS</text>
-  <circle cx="143.7638" cy="14.1989" r="1.6565" fill="#f6eccf" stroke="#d00000" stroke-width="0.5" filter="url(#softShadow)"/>
-  <text x="146.9586" y="14.1989" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">Sym-</text>
-  <text x="146.9586" y="17.7486" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">metry</text>
-  <g data-wcoast-port="symmetryCvIn" data-wcoast-cx="163.2873" data-wcoast-cy="16.3287">
+  <text x="127.549" y="86.703" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">-</text>
+  <text x="138.198" y="86.703" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">+</text>
+  <text x="132.873" y="86.703" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="4.733" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 4.7px;">↔</text>
+  <text x="153.935" y="11.685" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">HARMONICS</text>
+  <circle cx="147.664" cy="15.235" r="1.656" fill="#f6eccf" stroke="#d00000" stroke-width="0.5" filter="url(#softShadow)"/>
+  <text x="150.859" y="15.235" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre; font-size: 2.8px;">Sym-</text>
+  <text x="150.859" y="18.784" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre; font-size: 2.8px;">metry</text>
+  <g data-wcoast-port="symmetryCvIn" data-wcoast-cx="163.2873" data-wcoast-cy="16.3287" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="163.2873" cy="16.3287" r="4.023" fill="url(#blackRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="163.2873" cy="16.3287" r="2.1298" fill="#1b1b1b" stroke="#8a9095" stroke-width="0.4"/>
     <rect x="161.9857" y="15.8554" width="2.7215" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <g data-wcoast-param="symmetry" data-wcoast-cx="151.4549" data-wcoast-cy="27.8062">
+  <g data-wcoast-param="symmetry" data-wcoast-cx="151.4549" data-wcoast-cy="27.8062" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="151.4549" cy="27.8062" r="8.046" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="144.9944" y1="31.5334" x2="144.1779" y2="32.0067" stroke="#163a69" stroke-width="0.355"/>
     <line x1="144.1188" y1="26.5164" x2="143.184" y2="26.3508" stroke="#163a69" stroke-width="0.355"/>
@@ -425,16 +424,16 @@
     <circle cx="151.4549" cy="27.8062" r="6.5078" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="151.4549" y1="27.8062" x2="151.4549" y2="21.89" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <text x="143.8821" y="36.6805" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.3665" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">even</text>
-  <text x="156.4245" y="36.6805" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.3665" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">odd</text>
-  <circle cx="143.7638" cy="40.2302" r="1.6565" fill="#f6eccf" stroke="#d00000" stroke-width="0.5" filter="url(#softShadow)"/>
-  <text x="148.1418" y="41.4134" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.9581" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre;">Order</text>
-  <g data-wcoast-port="orderCvIn" data-wcoast-cx="163.2873" data-wcoast-cy="40.2302">
+  <text x="147.782" y="37.716" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.3665" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.4px;">even</text>
+  <text x="160.325" y="37.716" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.3665" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.4px;">odd</text>
+  <circle cx="147.664" cy="41.266" r="1.656" fill="#f6eccf" stroke="#d00000" stroke-width="0.5" filter="url(#softShadow)"/>
+  <text x="152.042" y="42.449" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.9581" font-weight="700" font-style="italic" fill="#163a69" text-anchor="start" style="white-space: pre; font-size: 3px;">Order</text>
+  <g data-wcoast-port="orderCvIn" data-wcoast-cx="163.2873" data-wcoast-cy="40.2302" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="163.2873" cy="40.2302" r="4.023" fill="url(#blackRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="163.2873" cy="40.2302" r="2.1298" fill="#1b1b1b" stroke="#8a9095" stroke-width="0.4"/>
     <rect x="161.9857" y="39.7569" width="2.7215" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <g data-wcoast-param="order" data-wcoast-cx="151.4549" data-wcoast-cy="52.6542">
+  <g data-wcoast-param="order" data-wcoast-cx="151.4549" data-wcoast-cy="52.6542" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="151.4549" cy="52.6542" r="8.046" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="144.9944" y1="56.3814" x2="144.1779" y2="56.8547" stroke="#163a69" stroke-width="0.355"/>
     <line x1="144.1188" y1="51.3645" x2="143.184" y2="51.1988" stroke="#163a69" stroke-width="0.355"/>
@@ -446,9 +445,9 @@
     <circle cx="151.4549" cy="52.6542" r="6.5078" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="151.4549" y1="52.6542" x2="151.4549" y2="46.738" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <text x="143.7638" y="62.4751" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">low</text>
-  <text x="157.3711" y="62.4751" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">high</text>
-  <g data-wcoast-param="timbre" data-wcoast-cx="151.4549" data-wcoast-cy="74.5442">
+  <text x="147.664" y="63.511" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.6px;">low</text>
+  <text x="161.271" y="63.511" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.6031" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.6px;">high</text>
+  <g data-wcoast-param="timbre" data-wcoast-cx="151.4549" data-wcoast-cy="74.5442" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="151.4549" cy="74.5442" r="7.4544" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="145.515" y1="77.9756" x2="144.6867" y2="78.4489" stroke="#163a69" stroke-width="0.355"/>
     <line x1="144.6986" y1="73.3491" x2="143.7638" y2="73.1835" stroke="#163a69" stroke-width="0.355"/>
@@ -460,8 +459,8 @@
     <circle cx="151.4549" cy="74.5442" r="5.9162" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="151.4549" y1="74.5442" x2="151.4549" y2="69.2196" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <text x="151.4549" y="86.0216" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.4314" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">TIMBRE</text>
-  <g data-wcoast-param="timbreCvAmount" data-wcoast-cx="151.4549" data-wcoast-cy="95.0143">
+  <text x="155.355" y="87.057" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.4314" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 3.4px;">TIMBRE</text>
+  <g data-wcoast-param="timbreCvAmount" data-wcoast-cx="151.4549" data-wcoast-cy="95.0143" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="151.4549" cy="95.0143" r="6.9811" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
     <line x1="145.9173" y1="98.209" x2="145.1009" y2="98.6823" stroke="#163a69" stroke-width="0.355"/>
     <line x1="145.16" y1="93.902" x2="144.2253" y2="93.7364" stroke="#163a69" stroke-width="0.355"/>
@@ -473,21 +472,21 @@
     <circle cx="151.4549" cy="95.0143" r="5.4429" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="151.4549" y1="95.0143" x2="151.4549" y2="90.163" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <text x="147.9052" y="102.942" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">-</text>
-  <text x="160.6842" y="102.942" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">+</text>
-  <line x1="151.4549" y1="102.3504" x2="151.4549" y2="105.9001" stroke="#163a69" stroke-width="0.355"/>
-  <g data-wcoast-port="timbreCvIn" data-wcoast-cx="151.4549" data-wcoast-cy="111.2247">
+  <text x="151.805" y="103.978" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;" transform="matrix(-3.196148, 0, 0, 1.175532, 635.389832, -17.790737)">-</text>
+  <text x="160.22" y="105.4" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">+</text>
+  <line x1="155.355" y1="103.386" x2="155.355" y2="106.936" stroke="#163a69" stroke-width="0.355"/>
+  <g data-wcoast-port="timbreCvIn" data-wcoast-cx="151.4549" data-wcoast-cy="111.2247" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="151.4549" cy="111.2247" r="3.7864" fill="url(#blackRing)" stroke="#555" stroke-width="0.1775" filter="url(#softShadow)"/>
     <circle cx="151.4549" cy="111.2247" r="2.0115" fill="#1b1b1b" stroke="#8a9095" stroke-width="0.4"/>
     <rect x="150.1533" y="110.7514" width="2.6031" height="0.9466" rx="0.355" fill="#35443a" opacity=".75"/>
   </g>
-  <text x="147.3135" y="111.4613" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">c.v.</text>
-  <text x="147.3135" y="114.7744" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre;">in</text>
-  <circle cx="143.7638" cy="70.4029" r="0.7099" fill="#163a69"/>
-  <circle cx="146.7219" cy="66.2615" r="0.7099" fill="#163a69"/>
-  <circle cx="151.4549" cy="65.0783" r="0.7099" fill="#163a69"/>
-  <circle cx="156.1878" cy="66.2615" r="0.7099" fill="#163a69"/>
-  <circle cx="159.1459" cy="70.4029" r="0.7099" fill="#163a69"/>
-  <circle cx="143.7638" cy="78.0939" r="0.7099" fill="#163a69"/>
-  <circle cx="159.1459" cy="78.0939" r="0.7099" fill="#163a69"/>
+  <text x="149.014" y="112.221" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">c.v.</text>
+  <text x="149.014" y="115.534" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.7215" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.7px;">in</text>
+  <circle cx="147.664" cy="71.439" r="0.71" fill="#163a69"/>
+  <circle cx="150.622" cy="67.297" r="0.71" fill="#163a69"/>
+  <circle cx="155.355" cy="66.114" r="0.71" fill="#163a69"/>
+  <circle cx="160.088" cy="67.297" r="0.71" fill="#163a69"/>
+  <circle cx="163.046" cy="71.439" r="0.71" fill="#163a69"/>
+  <circle cx="147.664" cy="79.13" r="0.71" fill="#163a69"/>
+  <circle cx="163.046" cy="79.13" r="0.71" fill="#163a69"/>
 </svg>

@@ -18,11 +18,22 @@
 //     with a normal two-finger scroll (which turns a knob instead when the
 //     pointer is over one). 1 HP = 5.08 mm; a module occupies descriptor.hp HP.
 
-import { loadPanel, showValue, attachControlInteraction, FACE_H_MM } from './panel-loader.js';
+import { loadPanel, showValue, attachControlInteraction, FACE_H_MM, FACE_TOP_MM } from './panel-loader.js';
+import { Patchbay } from './patchbay.js';
 
 const HP_MM = 5.08;
 const PANEL_H_MM = FACE_H_MM;   // modules display only the cropped functional face
 const GAP_MM = 4;               // gap between rows / around the case, in mm (scales too)
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// Cord identity colours (DESIGN §3): auto-assigned, need not be globally unique.
+// Cycled per new edge; contrast within a source's fan-out is good enough here.
+const CABLE_COLORS = [
+  '#e0b341', '#4bb3e6', '#e0674b', '#7bd44b',
+  '#c86be0', '#e0a94b', '#4be0c0', '#e0518f',
+];
+
+function r2(x) { return Math.round(x * 100) / 100; }
 
 export class Rack {
   // opts: { host, moduleTypes:[{descriptorId,name,hp,panelUrl,descriptor}], rowCount, onChange }
@@ -46,11 +57,22 @@ export class Rack {
     this._rowEls = [];
     this._menuEl = null;
     this._ghostEl = null;
+    this._colorSeq = 0;
+    this._tempCable = null;
+    this._contentWmm = 0;
+    this._contentHmm = 0;
+
+    // The connection layer: the netlist + audio wiring (host/patchbay.js), and
+    // an SVG overlay the cords are drawn onto (pointer-transparent, so it never
+    // steals clicks from the jacks and knobs beneath it).
+    this.patchbay = new Patchbay(this.host.ctx, this.host.registry);
 
     this.container.classList.add('rack');
     this.content = document.createElement('div');
     this.content.className = 'rack-content';
     this.container.appendChild(this.content);
+    this.cables = document.createElementNS(SVG_NS, 'svg');
+    this.cables.setAttribute('class', 'rack-cables');
     this._buildRows();
 
     window.addEventListener('resize', () => this.relayout());
@@ -168,6 +190,7 @@ export class Rack {
       this._rowEls.push(row);
     }
     for (const rec of this.records.values()) this._rowEls[rec.row].appendChild(rec.el);
+    this.content.appendChild(this.cables);   // cords paint above the panels
   }
 
   // ---- geometry / scaling ----
@@ -182,6 +205,8 @@ export class Rack {
     let maxRightMm = 0;
     for (const r of this.rows) for (const rec of r) maxRightMm = Math.max(maxRightMm, (rec.hp + rec.hpWidth) * HP_MM);
     const contentWmm = Math.max(maxRightMm + GAP_MM, vpW / s);
+    this._contentWmm = contentWmm;
+    this._contentHmm = contentHmm;
 
     this.content.style.width = (contentWmm * s) + 'px';
     this.content.style.height = (contentHmm * s) + 'px';
@@ -192,6 +217,7 @@ export class Rack {
       el.style.width = (contentWmm * s) + 'px';
     }
     for (const rec of this.records.values()) this._placeEl(rec);
+    this._drawCables();
   }
 
   _placeEl(rec) {
@@ -199,6 +225,133 @@ export class Rack {
     rec.el.style.left = (rec.hp * HP_MM * s) + 'px';
     rec.el.style.width = (rec.panelWmm * s) + 'px';
     rec.el.style.height = (PANEL_H_MM * s) + 'px';
+  }
+
+  // ---- cables (netlist rendered onto the panel) ----
+  // A jack's anchor is in panel-viewBox mm; convert to content mm (which the
+  // overlay's viewBox uses, so cords line up at any zoom). Everything is mm here
+  // and the overlay is px-sized in _drawCables, so a zoom needs no path rework.
+  _jackPosMm(key, portId) {
+    const rec = this.records.get(key);
+    if (!rec) return null;
+    const port = rec.panel.ports.get(portId);
+    if (!port || !port.anchor) return null;
+    return {
+      x: rec.hp * HP_MM + port.anchor.x,
+      y: GAP_MM + rec.row * (PANEL_H_MM + GAP_MM) + (port.anchor.y - FACE_TOP_MM),
+    };
+  }
+
+  _clientToMm(clientX, clientY) {
+    const r = this.content.getBoundingClientRect();
+    const s = this.pxPerMm || 1;
+    return { x: (clientX - r.left) / s, y: (clientY - r.top) / s };
+  }
+
+  // A drooping cord between two content-mm points, as a cubic hanging under its
+  // own (virtual) weight — sag grows with span, previewing distance-as-droop.
+  _cablePathD(a, b) {
+    const dx = b.x - a.x;
+    const sag = Math.min(34, 7 + Math.hypot(dx, b.y - a.y) * 0.22);
+    return `M${r2(a.x)},${r2(a.y)} C${r2(a.x + dx * 0.33)},${r2(a.y + sag)} `
+      + `${r2(a.x + dx * 0.66)},${r2(b.y + sag)} ${r2(b.x)},${r2(b.y)}`;
+  }
+
+  _drawCables() {
+    if (!this.cables) return;
+    const s = this.pxPerMm;
+    this.cables.setAttribute('viewBox', `0 0 ${r2(this._contentWmm)} ${r2(this._contentHmm)}`);
+    this.cables.style.width = (this._contentWmm * s) + 'px';
+    this.cables.style.height = (this._contentHmm * s) + 'px';
+    this.cables.textContent = '';
+    for (const e of this.patchbay.list()) {
+      const a = this._jackPosMm(e.src.key, e.src.portId);
+      const b = this._jackPosMm(e.dst.key, e.dst.portId);
+      if (!a || !b) continue;
+      const p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d', this._cablePathD(a, b));
+      p.setAttribute('class', `rack-cable rack-cable-${e.style}`);
+      p.setAttribute('stroke', e.color || '#e0b341');
+      p.setAttribute('vector-effect', 'non-scaling-stroke');
+      this.cables.appendChild(p);
+    }
+    if (this._tempCable) this.cables.appendChild(this._tempCable);
+  }
+
+  _pickColor() { return CABLE_COLORS[this._colorSeq++ % CABLE_COLORS.length]; }
+
+  // ---- drag-to-patch ----
+  // Resolve the DOM element under the cursor to a { key, portId } jack.
+  _jackFromPoint(clientX, clientY) {
+    const el = document.elementFromPoint(clientX, clientY);
+    const jack = el && el.closest && el.closest('[data-wcoast-port]');
+    if (!jack) return null;
+    const modEl = jack.closest('.rack-module');
+    if (!modEl || !this.records.has(modEl.dataset.key)) return null;
+    return { key: modEl.dataset.key, portId: jack.getAttribute('data-wcoast-port') };
+  }
+
+  _startCable(e, rec, portId) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const start = { key: rec.key, portId };
+    const a = this._jackPosMm(rec.key, portId);
+    const tmp = document.createElementNS(SVG_NS, 'path');
+    tmp.setAttribute('class', 'rack-cable rack-cable-temp');
+    tmp.setAttribute('vector-effect', 'non-scaling-stroke');
+    this._tempCable = tmp;
+    this.cables.appendChild(tmp);
+
+    const onMove = (ev) => {
+      const m = this._clientToMm(ev.clientX, ev.clientY);
+      tmp.setAttribute('d', this._cablePathD(a, m));
+    };
+    const onUp = (ev) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      tmp.remove();
+      this._tempCable = null;
+      const drop = this._jackFromPoint(ev.clientX, ev.clientY);
+      if (drop && !(drop.key === start.key && drop.portId === start.portId)) {
+        this._tryConnect(start, drop);
+      }
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }
+
+  // Orient the two jacks into (output -> input) and make the edge.
+  _tryConnect(jackA, jackB) {
+    const recA = this.records.get(jackA.key);
+    const recB = this.records.get(jackB.key);
+    if (!recA || !recB) return;
+    const dirA = recA.panel.ports.get(jackA.portId).meta.dir;
+    const dirB = recB.panel.ports.get(jackB.portId).meta.dir;
+    let src, dst;
+    if (dirA === 'out' && dirB === 'in') { src = { rec: recA, portId: jackA.portId }; dst = { rec: recB, portId: jackB.portId }; }
+    else if (dirA === 'in' && dirB === 'out') { src = { rec: recB, portId: jackB.portId }; dst = { rec: recA, portId: jackA.portId }; }
+    else return;   // output-to-output or input-to-input: not a valid cord
+
+    const dstMeta = dst.rec.panel.ports.get(dst.portId).meta;
+    const initialDepth = dstMeta.via ? dst.rec.values.get(dstMeta.via) : undefined;
+    const res = this.patchbay.connect(
+      { key: src.rec.key, instance: src.rec.instance, descriptorId: src.rec.descriptorId, portId: src.portId },
+      { key: dst.rec.key, instance: dst.rec.instance, descriptorId: dst.rec.descriptorId, portId: dst.portId },
+      initialDepth,
+    );
+    if (res.ok) { res.edge.color = this._pickColor(); this._drawCables(); this.onChange(); }
+  }
+
+  _onJackContextMenu(e, rec, portId) {
+    const edges = this.patchbay.edgesAtJack(rec.key, portId);
+    if (!edges.length) return;   // empty jack: fall through to the module menu
+    e.preventDefault();
+    e.stopPropagation();
+    const label = edges.length > 1 ? `Disconnect ${edges.length} cords` : 'Disconnect';
+    this._openMenu(e.clientX, e.clientY, [{
+      label,
+      action: () => { for (const ed of edges) this.patchbay.disconnect(ed); this._drawCables(); this.onChange(); },
+    }]);
   }
 
   _onPinch(e) {
@@ -251,6 +404,7 @@ export class Rack {
       hp: Math.max(0, Math.round(hp || 0)), hpWidth: type.hp, row: rowIndex,
       instanceId, instance, panel, el, panelWmm, values: new Map(),
     };
+    el.dataset.key = rec.key;
     for (const p of type.descriptor.params) rec.values.set(p.id, p.default);
     for (const b of panel.controls.values()) {
       const v = rec.values.get(b.id);
@@ -260,6 +414,13 @@ export class Rack {
         set: (val) => this._setParam(rec, b.id, val),
       });
       b.group.addEventListener('pointerdown', (e) => e.stopPropagation());
+    }
+    // Jacks: pointerdown drags a cord (patching); right-click offers disconnect.
+    // stopPropagation keeps a jack press from starting a module drag.
+    for (const [portId, port] of panel.ports) {
+      port.element.style.cursor = 'crosshair';
+      port.element.addEventListener('pointerdown', (e) => { e.stopPropagation(); this._startCable(e, rec, portId); });
+      port.element.addEventListener('contextmenu', (e) => this._onJackContextMenu(e, rec, portId));
     }
     for (const [id, v] of rec.values) if (instance.supports(id)) instance.setParam(id, v);
 
@@ -282,17 +443,20 @@ export class Rack {
     if (rec.instance.supports(id)) rec.instance.setParam(id, value);
     const b = rec.panel.controls.get(id);
     if (b) showValue(b, value);
+    this.patchbay.setDepth(rec.key, id, value);   // if this knob is a cord's depth control
   }
 
   deleteModule(rec) {
     if (this._hoverRec === rec) this._hoverRec = null;
     if (this._focusRec === rec) { this._focusRec = null; this.zoom = 1; }
+    this.patchbay.disconnectModule(rec.key);   // pull its cords before the nodes go
     const row = this.rows[rec.row];
     const i = row.indexOf(rec);
     if (i >= 0) row.splice(i, 1);
     rec.el.remove();
     this.host.dispose(rec.instanceId);
     this.records.delete(rec.key);
+    this._drawCables();
     this.onChange();
   }
 
