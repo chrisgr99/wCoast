@@ -29,10 +29,16 @@ const SWITCH_SPAN = 20;
 // bounds are the shared convention for every module panel (the 259t frame).
 export const FACE_TOP_MM = 7.0994;
 export const FACE_H_MM = 113.5912;
+// This panel's faceplate art is offset +3.9mm from the viewBox origin (an
+// authoring quirk), so the drawn panel runs x=3.9..175.2, not 0..171.3. Crop the
+// viewBox to the faceplate's left edge so a module FILLS its box — otherwise it
+// carries a transparent left margin that shows as a dark seam between butted
+// modules. Width is unchanged, so the right edge lands on the faceplate's right.
+export const FACE_LEFT_MM = 3.9;
 
 function cropToFace(svg) {
   const vb = (svg.getAttribute('viewBox') || '').trim().split(/\s+/).map(Number);
-  if (vb.length === 4) svg.setAttribute('viewBox', `0 ${FACE_TOP_MM} ${vb[2]} ${FACE_H_MM}`);
+  if (vb.length === 4) svg.setAttribute('viewBox', `${FACE_LEFT_MM} ${FACE_TOP_MM} ${vb[2]} ${FACE_H_MM}`);
 }
 
 function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }

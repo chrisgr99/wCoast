@@ -16,18 +16,19 @@
 //   - Pinch (trackpad, or ctrl+wheel) zooms the whole rack toward the cursor;
 //     zoomed in, the case overflows the window on purpose and you pan around it
 //     with a normal two-finger scroll (which turns a knob instead when the
-//     pointer is over one). 1 HP = 5.08 mm; a module occupies descriptor.hp HP.
+//     pointer is over one). Modules are placed and sized by their real panel
+//     width in mm (no HP grid); neighbours butt together edge to edge.
 
-import { loadPanel, showValue, attachControlInteraction, FACE_H_MM, FACE_TOP_MM } from './panel-loader.js';
+import { loadPanel, showValue, attachControlInteraction, FACE_H_MM, FACE_TOP_MM, FACE_LEFT_MM } from './panel-loader.js';
 import { Patchbay, canConnect, DENY } from './patchbay.js';
 
 // Friendly section prefixes so duplicate port names (two "FM In", two "CV In")
 // read unambiguously in the connect menu.
 const SECTION_LABEL = { modOsc: 'Mod osc', prinOsc: 'Principal', timbre: 'Timbre', middle: 'Center' };
 
-const HP_MM = 5.08;
 const PANEL_H_MM = FACE_H_MM;   // modules display only the cropped functional face
-const GAP_MM = 4;               // gap between rows / around the case, in mm (scales too)
+const ROW_GAP_MM = 0;           // vertical gap between rows (0 = flush, faceplates touch)
+const GAP_MM = 4;               // horizontal margin at the right of the case, in mm
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 // Cable colour encodes DOMAIN (matching the port bodies), not identity: audio
@@ -110,13 +111,13 @@ export class Rack {
   _focusModule(rec) {
     const vpH = this.container.clientHeight || 600;
     const vpW = this.container.clientWidth || 800;
-    const contentHmm = this.rowCount * PANEL_H_MM + (this.rowCount + 1) * GAP_MM;
+    const contentHmm = this.rowCount * PANEL_H_MM + (this.rowCount - 1) * ROW_GAP_MM;
     const fit = vpH / contentHmm;
     const targetZoom = (vpH / PANEL_H_MM) / fit;   // module height == window height
     const s = fit * targetZoom;                     // pxPerMm at the target zoom
-    const rowTopMm = GAP_MM + rec.row * (PANEL_H_MM + GAP_MM);
+    const rowTopMm = rec.row * (PANEL_H_MM + ROW_GAP_MM);
     const targetTop = Math.max(0, rowTopMm * s);
-    const targetLeft = Math.max(0, rec.hp * HP_MM * s + rec.panelWmm * s / 2 - vpW / 2);
+    const targetLeft = Math.max(0, rec.x * s + rec.panelWmm * s / 2 - vpW / 2);
     this._focusRec = rec;
     this._animateZoom(targetZoom, targetLeft, targetTop);
   }
@@ -204,14 +205,16 @@ export class Rack {
   relayout() {
     const vpH = this.container.clientHeight || 600;
     const vpW = this.container.clientWidth || 800;
-    const contentHmm = this.rowCount * PANEL_H_MM + (this.rowCount + 1) * GAP_MM;
+    // No top/bottom padding — the first row sits flush under the toolbar; rows
+    // are separated only by ROW_GAP_MM (0 = touching).
+    const contentHmm = this.rowCount * PANEL_H_MM + (this.rowCount - 1) * ROW_GAP_MM;
     const fit = vpH / contentHmm;           // fill the viewport height at zoom 1
     this._fit = fit;                        // px-per-mm at zoom 1 (for cord thickness)
     this.pxPerMm = fit * this.zoom;
     const s = this.pxPerMm;
 
     let maxRightMm = 0;
-    for (const r of this.rows) for (const rec of r) maxRightMm = Math.max(maxRightMm, (rec.hp + rec.hpWidth) * HP_MM);
+    for (const r of this.rows) for (const rec of r) maxRightMm = Math.max(maxRightMm, rec.x + rec.panelWmm);
     const contentWmm = Math.max(maxRightMm + GAP_MM, vpW / s);
     this._contentWmm = contentWmm;
     this._contentHmm = contentHmm;
@@ -220,7 +223,7 @@ export class Rack {
     this.content.style.height = (contentHmm * s) + 'px';
     for (let i = 0; i < this.rowCount; i++) {
       const el = this._rowEls[i];
-      el.style.top = ((GAP_MM + i * (PANEL_H_MM + GAP_MM)) * s) + 'px';
+      el.style.top = (i * (PANEL_H_MM + ROW_GAP_MM) * s) + 'px';
       el.style.height = (PANEL_H_MM * s) + 'px';
       el.style.width = (contentWmm * s) + 'px';
     }
@@ -230,7 +233,7 @@ export class Rack {
 
   _placeEl(rec) {
     const s = this.pxPerMm;
-    rec.el.style.left = (rec.hp * HP_MM * s) + 'px';
+    rec.el.style.left = (rec.x * s) + 'px';
     rec.el.style.width = (rec.panelWmm * s) + 'px';
     rec.el.style.height = (PANEL_H_MM * s) + 'px';
   }
@@ -245,8 +248,8 @@ export class Rack {
     const port = rec.panel.ports.get(portId);
     if (!port || !port.anchor) return null;
     return {
-      x: rec.hp * HP_MM + port.anchor.x,
-      y: GAP_MM + rec.row * (PANEL_H_MM + GAP_MM) + (port.anchor.y - FACE_TOP_MM),
+      x: rec.x + (port.anchor.x - FACE_LEFT_MM),
+      y: rec.row * (PANEL_H_MM + ROW_GAP_MM) + (port.anchor.y - FACE_TOP_MM),
       r: port.holeR || 0,
     };
   }
@@ -624,16 +627,19 @@ export class Rack {
     this.container.scrollTop = cy * ratio - py;
   }
 
-  // ---- placement / push-right collision ----
+  // ---- placement: push-right collision (all in mm) ----
+  // Sort by x; a module that overlaps its left neighbour is pushed flush against
+  // it, but a module dropped in open space keeps its x — so you can leave gaps
+  // and drop another module between two others.
   _resolveRow(row) {
-    row.sort((a, b) => a.hp - b.hp);
+    row.sort((a, b) => a.x - b.x);
     for (let i = 1; i < row.length; i++) {
-      const prevEnd = row[i - 1].hp + row[i - 1].hpWidth;
-      if (row[i].hp < prevEnd) row[i].hp = prevEnd;
+      const prevEnd = row[i - 1].x + row[i - 1].panelWmm;
+      if (row[i].x < prevEnd) row[i].x = prevEnd;
     }
   }
 
-  async addModule(descriptorId, rowIndex, hp) {
+  async addModule(descriptorId, rowIndex, xMm) {
     const type = this.moduleTypes.find((t) => t.descriptorId === descriptorId);
     if (!type) return null;
     rowIndex = Math.max(0, Math.min(this.rowCount - 1, rowIndex | 0));
@@ -655,7 +661,7 @@ export class Rack {
 
     const rec = {
       key: 'm' + (this._seq++), descriptorId, name: type.name,
-      hp: Math.max(0, Math.round(hp || 0)), hpWidth: type.hp, row: rowIndex,
+      x: Math.max(0, xMm || 0), row: rowIndex,
       instanceId, instance, panel, el, panelWmm, values: new Map(),
     };
     el.dataset.key = rec.key;
@@ -714,12 +720,12 @@ export class Rack {
     this.onChange();
   }
 
-  _moveModule(rec, newRow, newHp) {
+  _moveModule(rec, newRow, newX) {
     const old = this.rows[rec.row];
     const i = old.indexOf(rec);
     if (i >= 0) old.splice(i, 1);
     rec.row = newRow;
-    rec.hp = Math.max(0, Math.round(newHp));
+    rec.x = Math.max(0, newX);
     this.rows[newRow].push(rec);
     this._resolveRow(this.rows[newRow]);
     if (rec.el.parentElement !== this._rowEls[newRow]) this._rowEls[newRow].appendChild(rec.el);
@@ -734,9 +740,9 @@ export class Rack {
     const s = this.pxPerMm;
     const startX = e.clientX, startY = e.clientY;
     const rect0 = this._rowEls[rec.row].getBoundingClientRect();
-    const grabDx = e.clientX - (rect0.left + rec.hp * HP_MM * s);
+    const grabDx = e.clientX - (rect0.left + rec.x * s);
     let moved = false;
-    let dropRow = rec.row, dropHp = rec.hp;
+    let dropRow = rec.row, dropX = rec.x;
     const ghost = this._ensureGhost();
 
     const onMove = (ev) => {
@@ -746,11 +752,11 @@ export class Rack {
       dropRow = this._rowFromY(ev.clientY);
       const rEl = this._rowEls[dropRow];
       const rRect = rEl.getBoundingClientRect();
-      dropHp = Math.max(0, Math.round((ev.clientX - rRect.left - grabDx) / (HP_MM * s)));
+      dropX = Math.max(0, (ev.clientX - rRect.left - grabDx) / s);
       rEl.appendChild(ghost);
       ghost.style.display = 'block';
-      ghost.style.left = (dropHp * HP_MM * s) + 'px';
-      ghost.style.width = (rec.hpWidth * HP_MM * s) + 'px';
+      ghost.style.left = (dropX * s) + 'px';
+      ghost.style.width = (rec.panelWmm * s) + 'px';
       ghost.style.height = (PANEL_H_MM * s) + 'px';
     };
     const onUp = () => {
@@ -758,7 +764,7 @@ export class Rack {
       document.removeEventListener('pointerup', onUp);
       rec.el.classList.remove('dragging');
       ghost.style.display = 'none';
-      if (moved) this._moveModule(rec, dropRow, dropHp);
+      if (moved) this._moveModule(rec, dropRow, dropX);
       else this._handleClick(rec);
     };
     document.addEventListener('pointermove', onMove);
@@ -784,18 +790,18 @@ export class Rack {
   }
 
   // ---- context menus ----
-  _hpUnderCursor(rowEl, clientX) {
+  _xUnderCursor(rowEl, clientX) {
     const rRect = rowEl.getBoundingClientRect();
-    return Math.max(0, Math.round((clientX - rRect.left) / (HP_MM * this.pxPerMm)));
+    return Math.max(0, (clientX - rRect.left) / this.pxPerMm);
   }
 
   _onRowContextMenu(e, rowIndex) {
     if (e.target.closest('.rack-module')) return;
     e.preventDefault();
-    const hp = this._hpUnderCursor(this._rowEls[rowIndex], e.clientX);
+    const xMm = this._xUnderCursor(this._rowEls[rowIndex], e.clientX);
     const items = this.moduleTypes.map((t) => ({
       label: `Add ${t.name}`,
-      action: () => this.addModule(t.descriptorId, rowIndex, hp),
+      action: () => this.addModule(t.descriptorId, rowIndex, xMm),
     }));
     this._openMenu(e.clientX, e.clientY, items);
   }

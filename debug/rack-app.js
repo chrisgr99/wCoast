@@ -1,14 +1,14 @@
 // rack-app.js — the rack front end (bootstrap).
 //
-// Wires the module registry, the audio host, and the Rack together, and hosts
-// the small floating window of transport/global controls (audio on/off, master
-// level, an output monitor, the row count, and a log). Every per-parameter
-// control now lives on the module faceplates, so there are no sliders here.
+// Wires the module registry, the audio host, and the Rack together. The top
+// toolbar holds only the essentials for now — a start/stop toggle and a master
+// level; more tools will be added there later. Every per-parameter control
+// lives on the module faceplates.
 //
 // The AudioContext is created up front (suspended is fine) so modules can be
 // placed and instantiated before any sound; the On button resumes it. Sound is
-// deliberately minimal for now — you monitor one chosen module output — with
-// the general multi-module audio question deferred to the next phase.
+// deliberately minimal for now — audio auto-routes from the first module's Final
+// output (no picker yet) — with output selection deferred to a later phase.
 
 import { ModuleRegistry } from '../host/registry.js';
 import { SynthHost } from '../host/host.js';
@@ -16,14 +16,7 @@ import { Rack } from '../host/rack.js';
 import descriptor from '../modules/complex-oscillator-259t/descriptor.js';
 import { create } from '../modules/complex-oscillator-259t/factory.js';
 
-function log(msg) {
-  const el = document.getElementById('log');
-  if (!el) return;
-  const d = document.createElement('div');
-  d.textContent = msg;
-  el.appendChild(d);
-  el.scrollTop = el.scrollHeight;
-}
+function log(msg) { console.log('[wcoast]', msg); }
 
 const registry = new ModuleRegistry();
 registry.register({ descriptor, create });
@@ -68,29 +61,19 @@ function routeMonitor(key, portId) {
   monitor = { key, portId, node: out.node, index: out.index };
 }
 
-// Rebuild the monitor picker whenever modules change; keep the current choice
-// if it still exists, else default to the first module's Final output.
+// Route audio to the master whenever modules change: keep the current monitor
+// if its module survives, else default to the first module's Final output.
+// (No picker in the UI yet — output selection comes later.)
 function rebuildMonitor() {
-  const sel = document.getElementById('monitor');
-  if (!sel) return;
-  const prev = `${monitor.key}|${monitor.portId}`;
-  sel.textContent = '';
   const recs = rack.moduleRecords();
-  for (const rec of recs) {
-    const d = registry.descriptor(rec.descriptorId);
-    for (const p of d.ports) {
-      if (p.dir !== 'out') continue;
-      const opt = document.createElement('option');
-      opt.value = `${rec.key}|${p.id}`;
-      opt.textContent = `${rec.key} · ${p.name}`;
-      sel.appendChild(opt);
-    }
+  if (monitor.key && monitor.portId && recs.some((r) => r.key === monitor.key)) {
+    routeMonitor(monitor.key, monitor.portId);
+  } else if (recs.length) {
+    routeMonitor(recs[0].key, 'prinFinalOut');
+  } else {
+    disconnectMonitor();
+    monitor = { key: null, portId: null, node: null, index: 0 };
   }
-  let target = null;
-  for (const o of sel.options) if (o.value === prev) { target = prev; break; }
-  if (!target && recs.length) target = `${recs[0].key}|prinFinalOut`;
-  if (target) { sel.value = target; const [k, pid] = target.split('|'); routeMonitor(k, pid); }
-  else { disconnectMonitor(); monitor = { key: null, portId: null, node: null, index: 0 }; }
 }
 
 async function boot() {
@@ -103,53 +86,31 @@ async function boot() {
   });
   rack.relayout();
 
-  // Transport / global controls (floating window).
+  // Global controls (top toolbar): start/stop + master level.
   const onoff = document.getElementById('onoff');
   const masterSlider = document.getElementById('master');
   const masterLabel = document.getElementById('masterLabel');
-  const rowsInput = document.getElementById('rows');
-  const monitorSel = document.getElementById('monitor');
-  const toggle = document.getElementById('controls-toggle');
-  const controls = document.getElementById('controls');
 
   onoff.addEventListener('click', async () => {
     if (!started) {
       await audioCtx.resume();
       master.gain.setTargetAtTime(Number(masterSlider.value), audioCtx.currentTime, 0.02);
       started = true;
-      onoff.textContent = 'Sound: On';
+      onoff.classList.add('on');       // show the stop icon
     } else {
       master.gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
       started = false;
-      onoff.textContent = 'Sound: Off';
+      onoff.classList.remove('on');    // show the play icon
     }
   });
   masterSlider.addEventListener('input', () => {
     masterLabel.textContent = Number(masterSlider.value).toFixed(2);
     if (started) master.gain.setTargetAtTime(Number(masterSlider.value), audioCtx.currentTime, 0.02);
   });
-  rowsInput.addEventListener('change', () => {
-    rack.setRowCount(Number(rowsInput.value));
-    rack.relayout();
-  });
-  monitorSel.addEventListener('change', () => {
-    const [k, pid] = monitorSel.value.split('|');
-    routeMonitor(k, pid);
-    log(`Monitoring ${monitorSel.value}.`);
-  });
-  toggle.addEventListener('click', () => {
-    controls.classList.toggle('hidden');
-  });
 
   // Start with one module so there's something in the rack.
   await rack.addModule(descriptor.id, 0, 0);
   rebuildMonitor();
-  log('Rack ready. Right-click empty space to add a module; right-click a ' +
-      'module to delete it; drag a module by its background to move it; scroll ' +
-      'a knob, click a switch. Drag from one jack to another to patch a cable; ' +
-      'right-click a jack to disconnect. Pinch (or ctrl+scroll) to zoom; ' +
-      'double-click a faceplate (or press "/") to zoom it full-height, and ' +
-      'single-click a zoomed module to restore. Sound: On to hear the monitor.');
 }
 
 window.addEventListener('DOMContentLoaded', () => {

@@ -16,15 +16,33 @@
       height: 100vh; display: flex; flex-direction: column; overflow: hidden;
     }
 
+    /* ---- top toolbar (full width; global controls live here) ---- */
+    #toolbar {
+      flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
+      padding: 3px 12px; background: var(--rail);
+      border-top: 1px solid #fff; border-bottom: 1px solid #fff;
+      z-index: 30;
+    }
+    #onoff {
+      width: 26px; height: 26px; padding: 0; display: inline-flex;
+      align-items: center; justify-content: center; cursor: pointer;
+      background: var(--accent); border: 1px solid var(--line); border-radius: 6px;
+    }
+    #onoff svg { width: 14px; height: 14px; fill: var(--accent-ink); }
+    #onoff .ico-stop { display: none; }
+    #onoff.on .ico-play { display: none; }
+    #onoff.on .ico-stop { display: inline; }
+    #toolbar label { color: var(--ink-dim); font-size: 13px; }
+    #toolbar #masterLabel { font-size: 13px; color: var(--ink-dim); }
+    #toolbar input[type=range] { width: 130px; height: 14px; accent-color: var(--accent); }
+
     /* ---- rack (single scrolling viewport with a scaled content area) ---- */
     #rack { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; background: var(--bg); }
-    #rack::-webkit-scrollbar { width: 10px; height: 10px; }
-    #rack::-webkit-scrollbar-thumb { background: #3a3226; border-radius: 5px; }
     .rack-content { position: relative; }
     .rack-row {
       position: absolute; left: 0;
       background: var(--rail);
-      border: 1px solid #0b0906; border-radius: 4px;
+      border: 1px solid #0b0906;
       overflow: visible;
       box-shadow: inset 0 0 12px rgba(0,0,0,0.5);
     }
@@ -48,73 +66,31 @@
       padding: 4px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
     }
     .rack-menu-header { padding: 8px 12px 3px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-dim); }
+    .rack-menu-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; color: var(--ink); }
+    .rack-menu-item:hover { background: var(--accent); color: var(--accent-ink); }
     .rack-menu-item.dim { color: var(--ink-dim); }
     .rack-menu-item.dim:hover { color: var(--accent-ink); }
     .rack-menu-check { display: inline-block; width: 1.2em; margin-right: 2px; color: var(--accent); }
-    .rack-menu-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; color: var(--ink); }
-    .rack-menu-item:hover { background: var(--accent); color: var(--accent-ink); }
-
-    /* ---- floating controls ---- */
-    #controls-toggle {
-      position: fixed; top: 10px; right: 10px; z-index: 1100;
-      font: inherit; padding: 8px 12px; border-radius: 8px; cursor: pointer;
-      background: var(--accent); color: var(--accent-ink); border: 1px solid var(--line); font-weight: 600;
-    }
-    #controls {
-      position: fixed; top: 52px; right: 10px; z-index: 1050; width: 320px;
-      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-      padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-    }
-    #controls.hidden { display: none; }
-    #controls h2 { margin: 0; font-size: 16px; font-weight: 600; }
-    .ctl-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    #controls label { color: var(--ink-dim); }
-    #controls button {
-      font: inherit; padding: 8px 14px; border-radius: 8px; cursor: pointer;
-      background: var(--accent); color: var(--accent-ink); border: 1px solid var(--line); font-weight: 600;
-    }
-    #controls button.secondary { background: transparent; color: var(--ink); }
-    #controls select, #controls input[type=number] {
-      font: inherit; padding: 5px 7px; background: #0d0b08; color: var(--ink);
-      border: 1px solid var(--line); border-radius: 7px;
-    }
-    input[type=range] { accent-color: var(--accent); }
-    #log {
-      background: #0d0b08; border: 1px solid var(--line); border-radius: 8px;
-      padding: 8px 10px; font-family: ui-monospace, Menlo, monospace; font-size: 12px;
-      color: var(--ink-dim); height: 150px; overflow-y: auto; white-space: pre-wrap;
-    }
-    #log div { margin-bottom: 2px; }
 
     /* ---- patch cables (SVG overlay; pointer-transparent) ---- */
     .rack-cables { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 12; overflow: visible; }
-    .rack-cable { fill: none; stroke-linecap: round; opacity: 0.95; }   /* stroke-width set per-cord (scales with zoom) */
+    .rack-cable { fill: none; stroke-linecap: round; opacity: 0.95; }
     .rack-cable-temp { opacity: 0.8; stroke-dasharray: 4 3; }
   </style>
 </head>
 <body>
-  <div id="rack"></div>
-
-  <button id="controls-toggle">Controls</button>
-  <div id="controls">
-    <h2>Transport</h2>
-    <div class="ctl-row">
-      <button id="onoff">Sound: Off</button>
-      <label for="master">Master</label>
-      <input id="master" type="range" min="0" max="1" step="0.01" value="0.3">
-      <span id="masterLabel">0.30</span>
-    </div>
-    <div class="ctl-row">
-      <label for="monitor">Monitor</label>
-      <select id="monitor"></select>
-    </div>
-    <div class="ctl-row">
-      <label for="rows">Rows</label>
-      <input id="rows" type="number" min="1" max="6" value="2" style="width:56px">
-    </div>
-    <div id="log" aria-live="polite"></div>
+  <div id="toolbar">
+    <button id="onoff" aria-label="Sound on/off" title="Sound on/off">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <polygon class="ico-play" points="7,5 19,12 7,19"/>
+        <rect class="ico-stop" x="6" y="6" width="12" height="12" rx="2"/>
+      </svg>
+    </button>
+    <label for="master">Master</label>
+    <input id="master" type="range" min="0" max="1" step="0.01" value="0.3">
+    <span id="masterLabel">0.30</span>
   </div>
+  <div id="rack"></div>
 
   <script type="module" src="debug/rack-app.js"></script>
 </body>
