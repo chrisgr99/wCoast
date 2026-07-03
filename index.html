@@ -2,108 +2,111 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- Served over app:// with COOP/COEP; scripts are same-origin ES modules. -->
-  <title>Wcoast — module bench</title>
+  <title>Wcoast — rack</title>
   <style>
     :root {
-      --bg: #14110d;
-      --panel: #211c15;
-      --ink: #f2ead9;
-      --ink-dim: #b6ab93;
-      --accent: #e0a353;
-      --accent-ink: #14110d;
-      --line: #3a3226;
-      --defer: #8a7f66;
+      --bg: #14110d; --rail: #1c1811; --ink: #f2ead9; --ink-dim: #b6ab93;
+      --accent: #e0a353; --accent-ink: #14110d; --line: #3a3226; --panel: #211c15;
     }
     * { box-sizing: border-box; }
-    html, body {
-      margin: 0; min-height: 100%;
+    html, body { margin: 0; height: 100%; }
+    body {
       background: var(--bg); color: var(--ink);
-      font-family: -apple-system, system-ui, sans-serif;
-      font-size: 18px; line-height: 1.45;
+      font-family: -apple-system, system-ui, sans-serif; font-size: 15px;
+      height: 100vh; display: flex; flex-direction: column; overflow: hidden;
     }
-    body { display: flex; flex-direction: column; gap: 18px; padding: 24px 28px; }
-    h1 { font-size: 24px; margin: 0; font-weight: 650; }
-    p.lead { margin: 0; color: var(--ink-dim); max-width: 70ch; }
-    .transport {
-      display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
-      background: var(--panel); border: 1px solid var(--line);
-      border-radius: 12px; padding: 16px 18px;
+
+    /* ---- rack (single scrolling viewport with a scaled content area) ---- */
+    #rack { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; background: var(--bg); }
+    #rack::-webkit-scrollbar { width: 10px; height: 10px; }
+    #rack::-webkit-scrollbar-thumb { background: #3a3226; border-radius: 5px; }
+    .rack-content { position: relative; }
+    .rack-row {
+      position: absolute; left: 0;
+      background: var(--rail);
+      border: 1px solid #0b0906; border-radius: 4px;
+      overflow: visible;
+      box-shadow: inset 0 0 12px rgba(0,0,0,0.5);
     }
-    button {
-      font-size: 18px; font-family: inherit; padding: 10px 18px;
-      border-radius: 10px; border: 1px solid var(--line);
-      background: var(--accent); color: var(--accent-ink);
-      font-weight: 600; cursor: pointer;
+    .rack-module {
+      position: absolute; top: 0; cursor: default;
+      user-select: none; -webkit-user-select: none; touch-action: none;
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
     }
-    button.secondary { background: transparent; color: var(--ink); }
-    button:disabled { opacity: 0.4; cursor: default; }
-    button:active:not(:disabled) { transform: translateY(1px); }
-    label { color: var(--ink-dim); }
-    select {
-      font-size: 17px; font-family: inherit; padding: 6px 8px;
-      background: #0d0b08; color: var(--ink);
-      border: 1px solid var(--line); border-radius: 8px;
+    .rack-module.dragging { opacity: 0.85; z-index: 20; }
+    .rack-module svg { display: block; width: 100%; height: 100%; }
+    .rack-ghost {
+      position: absolute; top: 0; pointer-events: none; z-index: 15;
+      border: 2px dashed var(--accent); border-radius: 4px;
+      background: rgba(224,163,83,0.12);
     }
-    input[type=range] { width: 260px; height: 26px; accent-color: var(--accent); }
-    #controls h2 {
-      font-size: 17px; margin: 16px 0 8px; font-weight: 600;
-      color: var(--accent); letter-spacing: 0.02em;
+
+    /* ---- context menu ---- */
+    .rack-menu {
+      position: fixed; z-index: 1000; min-width: 180px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+      padding: 4px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
     }
-    /* Right-aligned labels hugging their fields (house convention). */
-    .grid {
-      display: grid;
-      grid-template-columns: max-content 1fr;
-      gap: 8px 14px; align-items: center;
+    .rack-menu-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; color: var(--ink); }
+    .rack-menu-item:hover { background: var(--accent); color: var(--accent-ink); }
+
+    /* ---- floating controls ---- */
+    #controls-toggle {
+      position: fixed; top: 10px; right: 10px; z-index: 1100;
+      font: inherit; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+      background: var(--accent); color: var(--accent-ink); border: 1px solid var(--line); font-weight: 600;
     }
-    .label-cell { text-align: right; color: var(--ink-dim); white-space: nowrap; }
-    .ctrl-cell { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .readout { min-width: 8ch; font-variant-numeric: tabular-nums; color: var(--ink); }
-    .deferred { color: var(--defer); font-size: 14px; font-style: italic; }
-    .cols { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+    #controls {
+      position: fixed; top: 52px; right: 10px; z-index: 1050; width: 320px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    #controls.hidden { display: none; }
+    #controls h2 { margin: 0; font-size: 16px; font-weight: 600; }
+    .ctl-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    #controls label { color: var(--ink-dim); }
+    #controls button {
+      font: inherit; padding: 8px 14px; border-radius: 8px; cursor: pointer;
+      background: var(--accent); color: var(--accent-ink); border: 1px solid var(--line); font-weight: 600;
+    }
+    #controls button.secondary { background: transparent; color: var(--ink); }
+    #controls select, #controls input[type=number] {
+      font: inherit; padding: 5px 7px; background: #0d0b08; color: var(--ink);
+      border: 1px solid var(--line); border-radius: 7px;
+    }
+    input[type=range] { accent-color: var(--accent); }
     #log {
-      background: #0d0b08; border: 1px solid var(--line); border-radius: 10px;
-      padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 14px; color: var(--ink-dim);
-      height: 320px; overflow-y: auto; white-space: pre-wrap;
+      background: #0d0b08; border: 1px solid var(--line); border-radius: 8px;
+      padding: 8px 10px; font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+      color: var(--ink-dim); height: 150px; overflow-y: auto; white-space: pre-wrap;
     }
-    #log div { margin-bottom: 3px; }
-    #panel {
-      background: #b8bcbe; border: 1px solid var(--line); border-radius: 8px;
-      padding: 10px; margin-bottom: 4px; max-width: 980px;
-    }
-    #panel svg { display: block; }
-    #panel h2 { color: var(--ink); margin: 0 0 8px; }
+    #log div { margin-bottom: 2px; }
   </style>
 </head>
 <body>
-  <h1>Wcoast — Complex Oscillator bench</h1>
-  <p class="lead">
-    A temporary, descriptor-generated bench for hearing one module (not the
-    rack). Every control below is built from the 259t descriptor. The whole
-    module is realized (every feature but ART): turn up Timbre with the monitor
-    on Final to hear the wavefolder. Knobs that need an external cord (FM/CV
-    inputs, phase lock) are live but silent until the connection UI exists —
-    they're noted inline. Click Start to make sound.
-  </p>
+  <div id="rack"></div>
 
-  <div id="panel"><h2>259t faceplate (loaded from panel.svg, validated against the schema)</h2></div>
-
-  <div class="transport">
-    <button id="start">Start</button>
-    <button id="stop" class="secondary">Stop</button>
-    <label for="monitor">Monitor output</label>
-    <select id="monitor"></select>
-    <label for="masterGain">Master</label>
-    <input id="masterGain" type="range" min="0" max="1" step="0.01" value="0.3">
-    <span id="masterGainLabel">0.30</span>
-  </div>
-
-  <div class="cols">
-    <div id="controls"></div>
+  <button id="controls-toggle">Controls</button>
+  <div id="controls">
+    <h2>Transport</h2>
+    <div class="ctl-row">
+      <button id="onoff">Sound: Off</button>
+      <label for="master">Master</label>
+      <input id="master" type="range" min="0" max="1" step="0.01" value="0.3">
+      <span id="masterLabel">0.30</span>
+    </div>
+    <div class="ctl-row">
+      <label for="monitor">Monitor</label>
+      <select id="monitor"></select>
+    </div>
+    <div class="ctl-row">
+      <label for="rows">Rows</label>
+      <input id="rows" type="number" min="1" max="6" value="2" style="width:56px">
+    </div>
     <div id="log" aria-live="polite"></div>
   </div>
 
-  <script type="module" src="debug/debug-surface.js"></script>
+  <script type="module" src="debug/rack-app.js"></script>
 </body>
 </html>

@@ -22,6 +22,19 @@
 const KNOB_SPAN = 150;
 const SWITCH_SPAN = 20;
 
+// Panels are authored at the full 128.5 mm Eurorack height, but only the
+// functional FACE — the region between the top and bottom frame rails — is
+// displayed; the mounting-rail rim (screw ears and title strip) is cropped so
+// no vertical space is wasted, and modules can be scaled a little larger. These
+// bounds are the shared convention for every module panel (the 259t frame).
+export const FACE_TOP_MM = 7.0994;
+export const FACE_H_MM = 113.5912;
+
+function cropToFace(svg) {
+  const vb = (svg.getAttribute('viewBox') || '').trim().split(/\s+/).map(Number);
+  if (vb.length === 4) svg.setAttribute('viewBox', `0 ${FACE_TOP_MM} ${vb[2]} ${FACE_H_MM}`);
+}
+
 function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 function round2(x) { return Math.round(x * 100) / 100; }
 function numAttr(el, name) {
@@ -74,16 +87,37 @@ export function showPosition(binding, pos) {
     'transform', `rotate(${round2(a)} ${binding.pivot.x} ${binding.pivot.y})`);
 }
 
-// Show a stepped param's current step: light the matching lamp (dim the rest),
-// or, for a lever-style switch, rotate the lever to that step's angle.
+// Show a stepped param's current step: light the matching lamp(s) (dim the
+// rest) AND displace the blade/lever to its position — an on/off toggle throws
+// left for on and right for off; a multi-position selector fans across its
+// positions.
 export function showStep(binding, stepValue) {
-  if (binding.stepIndicators.size) {
-    for (const [val, el] of binding.stepIndicators) {
-      el.setAttribute('opacity', val === stepValue ? '1' : '0.18');
+  for (const [val, el] of binding.stepIndicators) {
+    const on = val === stepValue;
+    // On: a glowing red lamp. Off: a cream centre with a red ring (the same red
+    // it glows) so an off lamp stays clearly visible against the light panel.
+    el.setAttribute('fill', on ? 'url(#redLed)' : '#f6eccf');
+    el.setAttribute('stroke', on ? '#7c0000' : '#d00000');
+    el.setAttribute('stroke-width', on ? '0.2366' : '0.5');
+    el.setAttribute('opacity', '1');
+    const hi = el.nextElementSibling;   // the little glossy highlight
+    if (hi && hi.getAttribute && hi.getAttribute('fill') === '#ffb4b4') {
+      hi.setAttribute('opacity', on ? '0.85' : '0');
     }
-  } else if (binding.indicator && binding.stepCount > 1) {
-    const i = binding.stepValues.indexOf(stepValue);
-    showPosition(binding, (i < 0 ? 0 : i) / (binding.stepCount - 1));
+  }
+  if (binding.indicator && binding.pivot) {
+    let angle = 0;
+    if (binding.switchStyle === 'toggle') {
+      const on = binding.stepValues.includes('on') ? 'on' : binding.stepValues[0];
+      angle = (stepValue === on) ? -70 : 70;          // on -> left, off -> right
+    } else {
+      const n = binding.stepCount;
+      const i = binding.stepValues.indexOf(stepValue);
+      const spread = 55;
+      angle = n > 1 ? -spread + (i < 0 ? 0 : i) * (2 * spread / (n - 1)) : 0;
+    }
+    binding.indicator.setAttribute('transform',
+      `rotate(${round2(angle)} ${binding.pivot.x} ${binding.pivot.y})`);
   }
 }
 
@@ -122,6 +156,8 @@ export function parsePanel(svg, descriptor) {
       kind: stepped ? 'switch' : 'knob',
       pivot: (cx != null && cy != null) ? { x: cx, y: cy } : null,
       indicator: el.querySelector('[data-wcoast-role="indicator"]'),
+      operator: el.querySelector('[data-wcoast-role="operator"]'),
+      switchStyle: el.getAttribute('data-wcoast-switch') || null,
       stepIndicators: new Map(),
       stepValues: (meta.steps || []).map((s) => s.value),
       stepCount: (meta.steps || []).length,
@@ -135,16 +171,15 @@ export function parsePanel(svg, descriptor) {
     if (!stepped) {
       if (!binding.indicator) warnings.push(`knob "${id}" has no indicator element`);
       if (!binding.pivot) warnings.push(`knob "${id}" has no pivot (data-wcoast-cx/cy)`);
-    } else if (binding.stepIndicators.size) {
-      for (const s of meta.steps) {
-        if (!binding.stepIndicators.has(s.value)) {
-          warnings.push(`switch "${id}" has no lamp for step "${s.value}"`);
-        }
+    } else {
+      // A switch needs SOMETHING to operate/show it. Lamps needn't cover every
+      // step (an on/off toggle has one "on" lamp; "off" is all-dark).
+      for (const [val] of binding.stepIndicators) {
+        if (!binding.stepValues.includes(val)) warnings.push(`switch "${id}" has a lamp for unknown step "${val}"`);
       }
-    } else if (!binding.indicator) {
-      warnings.push(`switch "${id}" has neither step-indicators nor a lever indicator`);
-    } else if (!binding.pivot) {
-      warnings.push(`switch "${id}" lever has no pivot`);
+      if (!binding.indicator && !binding.operator && !binding.stepIndicators.size) {
+        warnings.push(`switch "${id}" has no operator, lever, or lamps`);
+      }
     }
     controls.set(id, binding);
   }
@@ -180,27 +215,76 @@ export function parsePanel(svg, descriptor) {
 // can't be held still); switches cycle their steps on click. The caller's
 // set() updates the visuals via showValue, so there is a single update path.
 
-const WHEEL_STEP = 0.005;  // position change per wheel notch (0..1 over 200 notches)
+// Momentum smoothing for knob scrolling: a wheel/trackpad pulse adds velocity,
+// which decays with drag while an animation loop integrates it into position.
+const KNOB_STEP = 0.04;    // position move per normalised notch, pointer at centre
+const KNOB_DRAG = 6;       // velocity decay per second (coast ~ 1/DRAG seconds)
+const KNOB_MAXV = 8;       // clamp runaway velocity (position units / second)
 
 export function attachControlInteraction(binding, hooks) {
   const el = binding.group;
   if (binding.kind === 'knob') {
     if (!binding.indicator || !binding.pivot) return;
-    // Scroll the wheel over a knob to turn it.
+    // Momentum: each scroll pulse adds velocity (scaled by the actual scroll
+    // amount AND the radial fine-control factor); an animation loop integrates
+    // it while drag bleeds it off, so the discrete pulses become smooth motion
+    // and a gentle two-finger scroll makes very small, smooth changes.
+    let vel = 0;      // position units per second
+    let raf = null;
+    let last = 0;
+    const tick = (t) => {
+      const now = t || performance.now();
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const next = clamp01(valueToPosition(binding.meta, hooks.get()) + vel * dt);
+      hooks.set(positionToValue(binding.meta, next));
+      vel *= Math.exp(-KNOB_DRAG * dt);
+      // Stop only when the velocity is spent, or when we're pushing INTO a
+      // boundary (not when velocity would carry us away from it — that's how you
+      // leave the edge again).
+      const pinned = (next <= 0 && vel < 0) || (next >= 1 && vel > 0);
+      if (Math.abs(vel) > 1e-3 && !pinned) raf = requestAnimationFrame(tick);
+      else { raf = null; vel = 0; }
+    };
     el.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) return;   // ctrl+wheel is a pinch-zoom for the rack, not a knob turn
       e.preventDefault();
-      const dir = e.deltaY < 0 ? 1 : -1;
-      const pos = clamp01(valueToPosition(binding.meta, hooks.get()) + dir * WHEEL_STEP);
-      hooks.set(positionToValue(binding.meta, pos));
+      // Normalise the scroll amount across devices (px / lines / pages).
+      const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+      // Radial fine control: full rate at the centre, a quarter at the rim.
+      let factor = 1;
+      const ctm = el.getScreenCTM && el.getScreenCTM();
+      if (ctm && binding.pivot) {
+        const cx = ctm.a * binding.pivot.x + ctm.c * binding.pivot.y + ctm.e;
+        const cy = ctm.b * binding.pivot.x + ctm.d * binding.pivot.y + ctm.f;
+        const R = (el.getBoundingClientRect().width / 2) || 1;
+        const r = Math.hypot(e.clientX - cx, e.clientY - cy);
+        factor = Math.max(0.25, 1 - 0.75 * Math.min(1, r / R));
+      }
+      vel += (-d / 100) * KNOB_STEP * KNOB_DRAG * factor;   // up (negative delta) raises
+      if (vel > KNOB_MAXV) vel = KNOB_MAXV; else if (vel < -KNOB_MAXV) vel = -KNOB_MAXV;
+      if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); }
     }, { passive: false });
   } else if (binding.kind === 'switch' && binding.stepCount > 1) {
-    el.style.cursor = 'pointer';
-    el.addEventListener('click', () => {
-      const cur = hooks.get();
-      const i = binding.stepValues.indexOf(cur);
-      const next = binding.stepValues[(i + 1) % binding.stepCount];
-      hooks.set(next);
-    });
+    // Operate a switch by clicking its LAMPS. A multi-position switch (Range,
+    // Waveshape) jumps to whichever lamp you click; a single-lamp on/off switch
+    // (the centre mod switches) flips between its two states when clicked.
+    const lamps = [...binding.stepIndicators.entries()];
+    if (lamps.length >= 2) {
+      for (const [val, lamp] of lamps) {
+        lamp.style.cursor = 'pointer';
+        lamp.addEventListener('click', (e) => { e.stopPropagation(); hooks.set(val); });
+      }
+    } else if (lamps.length === 1) {
+      const lamp = lamps[0][1];
+      lamp.style.cursor = 'pointer';
+      lamp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cur = hooks.get();
+        const other = binding.stepValues.find((v) => v !== cur);
+        if (other !== undefined) hooks.set(other);
+      });
+    }
   }
 }
 
@@ -214,5 +298,7 @@ export async function loadPanel(url, descriptor) {
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
   const err = doc.querySelector('parsererror');
   if (err) throw new Error(`panel SVG parse error: ${err.textContent.trim()}`);
-  return parsePanel(doc.documentElement, descriptor);
+  const svg = doc.documentElement;
+  cropToFace(svg);   // show only the functional face; crop the mounting rim
+  return parsePanel(svg, descriptor);
 }

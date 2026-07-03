@@ -371,6 +371,48 @@ its artwork exists. Faithful density is encouraged — it helps magnified viewin
 
 ---
 
+## 5A. Rack — spatial model, placement, interaction
+
+The rack is the instrument's front end: a case that holds module faceplates and
+lets the author place, move, and remove them. It is the reason the panels are
+authored in true millimetres — modules tile at their real physical width.
+
+- **Rows.** The rack is a vertical stack of rows (count is a setting, default
+  two). Each row is open-ended to the right and scrolls horizontally; you place
+  freely in any visible row rather than waiting for a wrap.
+- **Scale.** Each module's height is the window height divided by the row count,
+  **capped at 300 px** so modules never grow ridiculously tall; width follows
+  from the panel's real proportions. The rack is responsive — resizing the
+  window rescales everything (still capped). Row count + window size set the
+  scale; there is no separate zoom.
+- **HP grid.** Modules sit on the Eurorack width grid (1 HP = 5.08 mm). A module
+  occupies `descriptor.hp` whole units (the 259t is 34). Positions snap to HP,
+  so sliding one module against another leaves them cleanly adjacent.
+- **Face crop.** Panels are authored at the full 128.5 mm height, but only the
+  functional FACE between the top and bottom frame rails is shown — the mounting
+  rim (screw ears, title strip) is cropped by the loader (`FACE_TOP_MM` /
+  `FACE_H_MM`) so no vertical space is wasted. A shared convention for all
+  modules, so they stay the same height and the HP grid aligns.
+- **Place.** Right-click an empty spot → a menu of module types → an instance
+  drops there. If it doesn't fit because a module sits to its right, the ones to
+  the right are **pushed right** to make room (cascading). Multiple instances of
+  the same module are allowed.
+- **Move.** Left-drag a module by its faceplate background — within a row or
+  between rows — snapping to HP as you go, with a **ghost outline** showing the
+  footprint it will occupy on drop. Dropping onto occupied space pushes the
+  neighbours right (same as insert).
+- **Delete.** Right-click a module's faceplate background → Delete.
+- **Controls stay on the faceplate.** The knobs and switches keep their own
+  behaviour (scroll a knob, click a switch), so grabbing the *background* is
+  what moves a module; controls stop the drag from starting.
+- **Transport lives in a floating window** (toggle to show/hide): audio on/off,
+  master level, an output monitor (choose which module you hear), the row-count
+  setting, and the log. No per-parameter sliders — every parameter is a control
+  on the faceplate now.
+- **No cables yet.** This is placement and appearance only; patching (the
+  connection interface, §3) and multi-module audio come after.
+- Layout persistence across sessions is deferred.
+
 ## 6. Audio engine architecture
 
 - **Band-limited from the start.** The whole DSP architecture is committed to
