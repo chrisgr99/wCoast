@@ -44,6 +44,45 @@ function numAttr(el, name) {
   return Number.isFinite(n) ? n : null;
 }
 
+// Resolve a point given in an element's LOCAL coordinates up to the SVG root's
+// user space (viewBox mm), composing every `transform` from the element to the
+// root. Port anchors need this: an authored panel may wrap its jacks in a
+// translated group, so raw data-wcoast-cx/cy is local, not absolute, and a
+// cable drawn to the raw value lands off-centre. (Knob pivots deliberately stay
+// LOCAL — their rotation is applied inside that same transformed group.)
+function matMul(A, B) { // 2x3 affine [a,b,c,d,e,f]; result applies B then A
+  return [
+    A[0] * B[0] + A[2] * B[1], A[1] * B[0] + A[3] * B[1],
+    A[0] * B[2] + A[2] * B[3], A[1] * B[2] + A[3] * B[3],
+    A[0] * B[4] + A[2] * B[5] + A[4], A[1] * B[4] + A[3] * B[5] + A[5],
+  ];
+}
+function parseTransform(str) {
+  let M = [1, 0, 0, 1, 0, 0];
+  const re = /(\w+)\s*\(([^)]*)\)/g;
+  let m;
+  while ((m = re.exec(str))) {
+    const a = m[2].split(/[\s,]+/).map(Number).filter((v) => Number.isFinite(v));
+    let T = null;
+    if (m[1] === 'matrix' && a.length === 6) T = a;
+    else if (m[1] === 'translate') T = [1, 0, 0, 1, a[0] || 0, a[1] || 0];
+    else if (m[1] === 'scale') T = [a[0] || 1, 0, 0, a.length > 1 ? a[1] : (a[0] || 1), 0, 0];
+    if (T) M = matMul(M, T);
+  }
+  return M;
+}
+export function resolveToRoot(el, x, y) {
+  let M = [1, 0, 0, 1, 0, 0];
+  let node = el;
+  while (node && node.nodeType === 1) {
+    const t = node.getAttribute('transform');
+    if (t) M = matMul(parseTransform(t), M);
+    if (node.tagName && node.tagName.toLowerCase() === 'svg') break;
+    node = node.parentNode;
+  }
+  return { x: M[0] * x + M[2] * y + M[4], y: M[1] * x + M[3] * y + M[5] };
+}
+
 // ---- value <-> normalised position (0..1) -------------------------------
 // A knob turns LINEARLY in position; the value comes from position through the
 // descriptor's curve (so an exp knob turns evenly while its Hz value tapers).
@@ -192,7 +231,17 @@ export function parsePanel(svg, descriptor) {
     const cx = numAttr(el, 'data-wcoast-cx');
     const cy = numAttr(el, 'data-wcoast-cy');
     if (cx == null || cy == null) warnings.push(`port "${id}" has no anchor (data-wcoast-cx/cy)`);
-    ports.set(id, { id, meta, element: el, anchor: (cx != null && cy != null) ? { x: cx, y: cy } : null });
+    // Resolve to root user space so cords land on the jack's true centre even
+    // when the panel wraps the jack in a transformed group.
+    const anchor = (cx != null && cy != null) ? resolveToRoot(el, cx, cy) : null;
+    // The inner-hole radius (smallest circle) so a cord can start on the hole's
+    // rim rather than the dead centre.
+    let holeR = 0;
+    for (const c of el.querySelectorAll('circle')) {
+      const r = numAttr(c, 'r');
+      if (r != null && (holeR === 0 || r < holeR)) holeR = r;
+    }
+    ports.set(id, { id, meta, element: el, anchor, holeR });
   }
 
   // Coverage: every descriptor param/port must have exactly one element.

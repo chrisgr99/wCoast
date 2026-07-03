@@ -43,10 +43,14 @@
 
     /* ---- context menu ---- */
     .rack-menu {
-      position: fixed; z-index: 1000; min-width: 180px;
+      position: fixed; z-index: 1000; min-width: 180px; max-height: 72vh; overflow-y: auto;
       background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
       padding: 4px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
     }
+    .rack-menu-header { padding: 8px 12px 3px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-dim); }
+    .rack-menu-item.dim { color: var(--ink-dim); }
+    .rack-menu-item.dim:hover { color: var(--accent-ink); }
+    .rack-menu-check { display: inline-block; width: 1.2em; margin-right: 2px; color: var(--accent); }
     .rack-menu-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; color: var(--ink); }
     .rack-menu-item:hover { background: var(--accent); color: var(--accent-ink); }
 
@@ -85,11 +89,8 @@
 
     /* ---- patch cables (SVG overlay; pointer-transparent) ---- */
     .rack-cables { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 12; overflow: visible; }
-    .rack-cable { fill: none; stroke-linecap: round; opacity: 0.95; }
-    .rack-cable-audio   { stroke-width: 3.2; }
-    .rack-cable-control { stroke-width: 1.6; }
-    .rack-cable-trigger { stroke-width: 2.2; stroke-dasharray: 3 3; }
-    .rack-cable-temp    { stroke: #f4e7c8; stroke-width: 2.4; opacity: 0.8; }
+    .rack-cable { fill: none; stroke-linecap: round; opacity: 0.95; }   /* stroke-width set per-cord (scales with zoom) */
+    .rack-cable-temp { opacity: 0.8; stroke-dasharray: 4 3; }
   </style>
 </head>
 <body>
