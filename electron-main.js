@@ -24,9 +24,50 @@
 // browser deployment these headers are a hosting hassle; in Electron we
 // control how the page reaches the renderer, so it's trivial.
 
-const { app, BrowserWindow, protocol } = require('electron');
+const { app, BrowserWindow, protocol, ipcMain, dialog, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+
+// Patch save/load lives in the app's own hamburger menu, not the native menu.
+// The main process owns the native dialogs and the file writes; the renderer
+// reaches them over the preload bridge (window.wcoast.patch).
+const PATCH_FILTER = [{ name: 'Wcoast Patch', extensions: ['wcoast'] }];
+function registerPatchIpc() {
+  ipcMain.handle('patch:open', async () => {
+    const r = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: PATCH_FILTER });
+    if (r.canceled || !r.filePaths[0]) return null;
+    const filePath = r.filePaths[0];
+    return { path: filePath, text: await fs.promises.readFile(filePath, 'utf8') };
+  });
+  ipcMain.handle('patch:save', async (_e, arg) => {
+    let filePath = arg && arg.path;
+    if (!filePath) {
+      const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath: 'patch.wcoast' });
+      if (r.canceled || !r.filePath) return null;
+      filePath = r.filePath;
+    }
+    await fs.promises.writeFile(filePath, arg.text, 'utf8');
+    return { path: filePath };
+  });
+  ipcMain.handle('patch:saveAs', async (_e, arg) => {
+    const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath: 'patch.wcoast' });
+    if (r.canceled || !r.filePath) return null;
+    await fs.promises.writeFile(r.filePath, arg.text, 'utf8');
+    return { path: r.filePath };
+  });
+}
+
+// Minimal application menu: keep the app menu (Quit/About) and Edit (so
+// dictation and copy/paste survive), but no File menu — file actions live only
+// in the in-window hamburger.
+function applyMinimalMenu() {
+  const template = [
+    ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
+    { role: 'editMenu' },
+    { role: 'windowMenu' },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
 
 // --- Crash safety net (borrowed from the GXW main process) ---
 //
@@ -174,6 +215,8 @@ function applyDockIcon() {
 
 app.whenReady().then(() => {
   registerAppProtocol();
+  registerPatchIpc();
+  applyMinimalMenu();
   applyDockIcon();
   createWindow();
 });

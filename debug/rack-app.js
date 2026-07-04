@@ -19,6 +19,7 @@ import lpgDescriptor from '../modules/lpg-292/descriptor.js';
 import { create as lpgCreate } from '../modules/lpg-292/factory.js';
 import { MixerPanel } from '../host/mixer-panel.js';
 import { serialize, restore } from '../host/patch-io.js';
+import { createStorage } from '../host/storage.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
 
@@ -152,13 +153,39 @@ async function boot() {
     setParams: (vals) => { for (const [id, v] of Object.entries(vals)) panel.setValue(id, v); },
   };
 
-  // Save/load core, wired to this rack + mixer. The hamburger menu and the
-  // storage adapters (Electron / browser) build on top of these next; exposed
-  // here so a round-trip can also be driven from the console meanwhile.
-  window.wcoastPatch = {
-    serialize: () => serialize(rack, mixerIO),
-    restore: (obj) => restore(obj, rack, mixerIO),
-  };
+  // Save/load: the environment-chosen storage adapter drives the shared core.
+  const storage = createStorage();
+  const setTitle = (name) => { document.title = name ? `Wcoast — ${name}` : 'Wcoast — rack'; };
+  const patchText = () => JSON.stringify(serialize(rack, mixerIO), null, 2);
+
+  async function newPatch() { rack.clear(); storage.forget(); setTitle(null); }
+  async function openPatch() {
+    let f;
+    try { f = await storage.open(); } catch (e) { log(`open failed: ${e.message}`); return; }
+    if (!f) return;
+    try { await restore(JSON.parse(f.text), rack, mixerIO); setTitle(f.name); }
+    catch (e) { log(`restore failed: ${e.message}`); window.alert(`Could not open patch: ${e.message}`); }
+  }
+  async function savePatch() {
+    try { const name = await storage.save(patchText()); if (name) setTitle(name); }
+    catch (e) { log(`save failed: ${e.message}`); window.alert(`Could not save: ${e.message}`); }
+  }
+  async function saveAsPatch() {
+    try { const name = await storage.saveAs(patchText()); if (name) setTitle(name); }
+    catch (e) { log(`save failed: ${e.message}`); window.alert(`Could not save: ${e.message}`); }
+  }
+
+  // The toolbar hamburger opens the File menu, reusing the rack's pop-up menu.
+  document.getElementById('hamburger').addEventListener('click', (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    rack.openMenu(r.left, r.bottom + 4, [
+      { header: true, label: 'File' },
+      { label: 'New', action: () => newPatch() },
+      { label: 'Open…', action: () => openPatch() },
+      { label: 'Save', action: () => savePatch() },
+      { label: 'Save As…', action: () => saveAsPatch() },
+    ]);
+  });
 
   // Start with one of each so there's something to patch.
   await rack.addModule(oscDescriptor.id, 0, 0);

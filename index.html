@@ -33,6 +33,14 @@
     #onoff .ico-stop { display: none; }
     #onoff.on .ico-play { display: none; }
     #onoff.on .ico-stop { display: inline; }
+    #hamburger {
+      width: 26px; height: 26px; padding: 0; display: inline-flex; margin-bottom: 2px;
+      align-items: center; justify-content: center; cursor: pointer;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    }
+    #hamburger svg { width: 16px; height: 16px; fill: var(--ink); }
+    #hamburger:hover { background: var(--accent); }
+    #hamburger:hover svg { fill: var(--accent-ink); }
 
     /* the mixer strip in the toolbar */
     #mixer { display: flex; align-items: flex-end; gap: 10px; }
@@ -103,6 +111,13 @@
 </head>
 <body>
   <div id="toolbar">
+    <button id="hamburger" title="Menu" aria-label="Menu">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="6" width="16" height="2.4" rx="1"/>
+        <rect x="4" y="11" width="16" height="2.4" rx="1"/>
+        <rect x="4" y="16" width="16" height="2.4" rx="1"/>
+      </svg>
+    </button>
     <button id="onoff" aria-label="Sound on/off" title="Sound on/off">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <polygon class="ico-play" points="7,5 19,12 7,19"/>

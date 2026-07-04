@@ -1,14 +1,12 @@
 // Electron preload script for Wcoast.
 //
-// Runs in a privileged context before the renderer loads. At the spike
-// stage there is nothing to bridge — no persistence, no GXW message
-// channel yet — so this file only exposes a version stamp the renderer
-// can read to confirm the preload ran and it is running inside Electron
-// rather than a bare browser tab. Later stages will add the real bridges
-// (score persistence, the GXW control-message transport) here, following
-// the contextBridge pattern used in the GXW project.
+// Runs in a privileged context before the renderer loads. It exposes a small,
+// explicit surface on window.wcoast: a stamp confirming we're inside Electron
+// (rather than a bare browser tab), and the patch save/load bridge, which
+// forwards to the main process (native dialogs + Node file writes). The GXW
+// control-message transport will join here later, same contextBridge pattern.
 
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('wcoast', {
   isElectron: true,
@@ -16,5 +14,11 @@ contextBridge.exposeInMainWorld('wcoast', {
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     node: process.versions.node,
+  },
+  // Patch files. open() -> { path, text } | null; save/saveAs -> { path } | null.
+  patch: {
+    open: () => ipcRenderer.invoke('patch:open'),
+    save: (state) => ipcRenderer.invoke('patch:save', state),
+    saveAs: (state) => ipcRenderer.invoke('patch:saveAs', state),
   },
 });

@@ -224,6 +224,8 @@ export class Rack {
   // Connect two jacks by { key, portId }; returns the edge (for restoring bow).
   connectPatch(from, to) { return this._tryConnect(from, to); }
   redrawCables() { this._drawCables(); }
+  // Open the shared pop-up menu at (x, y) — reused by the toolbar hamburger.
+  openMenu(x, y, items) { this._openMenu(x, y, items); }
 
   // The rendered height of a module at default zoom (zoom 1), in px — used to
   // size the mixer panel to match a faceplate.
