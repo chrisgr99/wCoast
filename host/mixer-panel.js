@@ -224,6 +224,24 @@ export class MixerPanel {
     this._showFader('master');
   }
 
+  // ---- save/load: read/write every control value by param id ----
+  getValues() {
+    const out = {};
+    for (const [id, r] of this.faders) out[id] = r.value;
+    for (const [id, r] of this.knobs) out[id] = r.value;
+    for (const [id, r] of this.mutes) out[id] = r.on ? 'on' : 'off';
+    return out;
+  }
+
+  setValue(id, v) {
+    const f = this.faders.get(id);
+    if (f) { this._setParam(id, f, (v - f.min) / (f.max - f.min), false); return; }
+    const k = this.knobs.get(id);
+    if (k) { this._setParam(id, k, (v - k.min) / (k.max - k.min), false); return; }
+    const m = this.mutes.get(id);
+    if (m) { m.on = v === 'on'; this.inst.setParam(id, v); this._showMute(id); }
+  }
+
   // ---- VU animation ----
   _tick = () => {
     const m = this.inst.meters ? this.inst.meters() : { l: 0, r: 0 };

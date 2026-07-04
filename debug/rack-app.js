@@ -18,6 +18,7 @@ import { create as mixerCreate } from '../modules/mixer/factory.js';
 import lpgDescriptor from '../modules/lpg-292/descriptor.js';
 import { create as lpgCreate } from '../modules/lpg-292/factory.js';
 import { MixerPanel } from '../host/mixer-panel.js';
+import { serialize, restore } from '../host/patch-io.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
 
@@ -142,6 +143,22 @@ async function boot() {
   });
   masterSlider.addEventListener('input', () => setMasterValue(Number(masterSlider.value), 'toolbar'));
   setMasterValue(masterValue, 'init');
+
+  // The toolbar mixer as a save/load endpoint: it is a fixed endpoint (not a
+  // rack module), so its settings are read/written through this adapter.
+  const mixerIO = {
+    key: 'mixer',   // the fixed mixer endpoint key (see rack.setMixer)
+    getParams: () => ({ ...panel.getValues(), master: masterValue }),
+    setParams: (vals) => { for (const [id, v] of Object.entries(vals)) panel.setValue(id, v); },
+  };
+
+  // Save/load core, wired to this rack + mixer. The hamburger menu and the
+  // storage adapters (Electron / browser) build on top of these next; exposed
+  // here so a round-trip can also be driven from the console meanwhile.
+  window.wcoastPatch = {
+    serialize: () => serialize(rack, mixerIO),
+    restore: (obj) => restore(obj, rack, mixerIO),
+  };
 
   // Start with one of each so there's something to patch.
   await rack.addModule(oscDescriptor.id, 0, 0);

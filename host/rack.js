@@ -216,6 +216,15 @@ export class Rack {
   moduleCount() { return this.records.size; }
   moduleRecords() { return [...this.records.values()]; }
 
+  // ---- save/load support (host/patch-io.js drives these) ----
+  // Remove every module (which pulls its cords first), leaving an empty rack.
+  clear() { for (const rec of [...this.records.values()]) this.deleteModule(rec); }
+  // Apply one module param value (knob/switch), updating DSP and the panel.
+  applyParam(rec, id, value) { this._setParam(rec, id, value); }
+  // Connect two jacks by { key, portId }; returns the edge (for restoring bow).
+  connectPatch(from, to) { return this._tryConnect(from, to); }
+  redrawCables() { this._drawCables(); }
+
   // The rendered height of a module at default zoom (zoom 1), in px — used to
   // size the mixer panel to match a faceplate.
   moduleHeightPx() { return PANEL_H_MM * (this._fit || 1); }
@@ -612,7 +621,8 @@ export class Rack {
       { key: dst.key, instance: dst.instance, descriptorId: dst.descriptorId, portId: dst.portId },
       initialDepth,
     );
-    if (res.ok) { this._drawCables(); this.onChange(); }
+    if (res.ok) { this._drawCables(); this.onChange(); return res.edge; }
+    return null;
   }
 
   _portLabel(port) {
