@@ -15,6 +15,8 @@ import oscDescriptor from '../modules/complex-oscillator-259t/descriptor.js';
 import { create as oscCreate } from '../modules/complex-oscillator-259t/factory.js';
 import mixerDescriptor from '../modules/mixer/descriptor.js';
 import { create as mixerCreate } from '../modules/mixer/factory.js';
+import lpgDescriptor from '../modules/lpg-292/descriptor.js';
+import { create as lpgCreate } from '../modules/lpg-292/factory.js';
 import { MixerPanel } from '../host/mixer-panel.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
@@ -22,6 +24,7 @@ function log(msg) { console.log('[wcoast]', msg); }
 const registry = new ModuleRegistry();
 registry.register({ descriptor: oscDescriptor, create: oscCreate });
 registry.register({ descriptor: mixerDescriptor, create: mixerCreate });
+registry.register({ descriptor: lpgDescriptor, create: lpgCreate });
 
 const MODULE_TYPES = [{
   descriptorId: oscDescriptor.id,
@@ -29,6 +32,12 @@ const MODULE_TYPES = [{
   hp: oscDescriptor.hp || 34,
   panelUrl: 'modules/complex-oscillator-259t/panel.svg',
   descriptor: oscDescriptor,
+}, {
+  descriptorId: lpgDescriptor.id,
+  name: 'Quad Low Pass Gate',
+  hp: 32,
+  panelUrl: 'modules/lpg-292/panel.svg',
+  descriptor: lpgDescriptor,
 }];
 
 let audioCtx = null;
@@ -134,8 +143,9 @@ async function boot() {
   masterSlider.addEventListener('input', () => setMasterValue(Number(masterSlider.value), 'toolbar'));
   setMasterValue(masterValue, 'init');
 
-  // Start with one module so there's something to patch.
+  // Start with one of each so there's something to patch.
   await rack.addModule(oscDescriptor.id, 0, 0);
+  await rack.addModule(lpgDescriptor.id, 1, 0);
 }
 
 window.addEventListener('DOMContentLoaded', () => {
