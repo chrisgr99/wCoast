@@ -27,6 +27,7 @@
 const { app, BrowserWindow, protocol, ipcMain, dialog, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const { initMirror } = require('./electron-mirror');
 
 // Patch save/load lives in the app's own hamburger menu, not the native menu.
 // The main process owns the native dialogs and the file writes; the renderer
@@ -243,6 +244,7 @@ function applyDockIcon() {
 app.whenReady().then(() => {
   registerAppProtocol();
   registerPatchIpc();
+  initMirror();
   applyMinimalMenu();
   applyDockIcon();
   createWindow();

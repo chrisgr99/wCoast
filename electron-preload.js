@@ -24,4 +24,11 @@ contextBridge.exposeInMainWorld('wcoast', {
     saveAs: (state) => ipcRenderer.invoke('patch:saveAs', state),
     setDirty: (v) => ipcRenderer.send('patch:dirty', v),
   },
+  // AI patch mirror. status/setEnabled/reveal round-trip; write projects files.
+  mirror: {
+    status: () => ipcRenderer.invoke('mirror:status'),
+    setEnabled: (v) => ipcRenderer.invoke('mirror:setEnabled', v),
+    write: (files) => ipcRenderer.send('mirror:write', files),
+    reveal: () => ipcRenderer.invoke('mirror:reveal'),
+  },
 });

@@ -20,6 +20,7 @@ import { create as lpgCreate } from '../modules/lpg-292/factory.js';
 import { MixerPanel } from '../host/mixer-panel.js';
 import { serialize, restore } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
+import { buildCatalogue, createMirror } from '../host/mirror.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
 
@@ -71,7 +72,7 @@ function buildJack(portId, label, domain) {
 async function boot() {
   ensureAudio();
   rack = new Rack(document.getElementById('rack'), {
-    host, moduleTypes: MODULE_TYPES, rowCount: 2, onChange: () => markDirty(),
+    host, moduleTypes: MODULE_TYPES, rowCount: 2, onChange: () => onEdit(),
   });
   rack.relayout();
 
@@ -119,16 +120,19 @@ async function boot() {
   // guard the window close.
   let dirty = false;
   let patchName = null;
+  let mirror = null;   // AI patch mirror (created below; null here and in a browser)
   function updateTitle() { document.title = `Wcoast — ${patchName || 'untitled'}${dirty ? ' •' : ''}`; }
-  function setPatchName(n) { patchName = n; updateTitle(); }
+  function setPatchName(n) { patchName = n; updateTitle(); if (mirror) mirror.project(); }
   function markDirty() { if (dirty) return; dirty = true; updateTitle(); window.wcoast?.patch?.setDirty?.(true); }
-  function markClean() { dirty = false; updateTitle(); window.wcoast?.patch?.setDirty?.(false); }
+  function markClean() { dirty = false; updateTitle(); window.wcoast?.patch?.setDirty?.(false); if (mirror) mirror.project(); }
+  // Any patch edit: mark dirty and re-project the mirror.
+  function onEdit() { markDirty(); if (mirror) mirror.project(); }
 
   const panel = new MixerPanel({
     instance: mixer.instance,
     descriptor: mixerDescriptor,
     onMaster: (v) => setMasterValue(v, 'panel'),
-    onChange: () => markDirty(),
+    onChange: () => onEdit(),
   });
   panel.setHeight((rack.moduleHeightPx() / 2 * 0.9));   // match a 259t faceplate's height
   document.getElementById('mixer-open').addEventListener('click', () => {
@@ -147,7 +151,7 @@ async function boot() {
     if (source !== 'toolbar') masterSlider.value = String(masterValue);
     if (source !== 'panel') panel.setMaster(masterValue);
     applyMaster();
-    if (source !== 'init') markDirty();
+    if (source !== 'init') onEdit();
   }
 
   onoff.addEventListener('click', async () => {
@@ -165,6 +169,21 @@ async function boot() {
     getParams: () => ({ ...panel.getValues(), master: masterValue }),
     setParams: (vals) => { for (const [id, v] of Object.entries(vals)) panel.setValue(id, v); },
   };
+
+  // AI patch mirror: project the live patch, the module catalogue, and app state
+  // to a folder on disk (Electron only; a no-op in a browser).
+  mirror = createMirror({
+    getPatch: () => serialize(rack, mixerIO),
+    getActive: () => ({
+      protocolVersion: 1,
+      isLive: true,
+      patch: { name: patchName, dirty },
+      state: { sound: started ? 'on' : 'off', master: masterValue },
+      sync: { lastSyncAt: new Date().toISOString() },
+      files: { roundTrip: ['patch.json'], observationOnly: ['active.json', 'catalogue.json', 'AGENTS.md', 'README.md'] },
+    }),
+    catalogue: buildCatalogue([oscDescriptor, lpgDescriptor], mixerDescriptor),
+  });
 
   // Save/load: the environment-chosen storage adapter drives the shared core.
   const storage = createStorage();
@@ -214,6 +233,11 @@ async function boot() {
     if (storage.hasLast && storage.hasLast()) {
       items.push({ label: `Reopen ${storage.lastName()}`, action: () => reopenPatch() });
     }
+    if (mirror.available()) {
+      items.push({ header: true, label: 'AI Mirror' });
+      items.push({ label: mirror.isEnabled() ? 'Turn mirror off' : 'Turn mirror on', action: () => mirror.setEnabled(!mirror.isEnabled()) });
+      items.push({ label: 'Reveal mirror folder', action: () => mirror.reveal() });
+    }
     const r = e.currentTarget.getBoundingClientRect();
     rack.openMenu(r.left, r.bottom + 4, items);
   });
@@ -239,6 +263,7 @@ async function boot() {
   await rack.addModule(oscDescriptor.id, 0, 0);
   await rack.addModule(lpgDescriptor.id, 1, 0);
   markClean();   // the starting patch is the clean baseline, not unsaved work
+  await mirror.init();   // read enabled state + push the first mirror snapshot
 
   // Re-fit once after the toolbar has claimed its final height. In Electron the
   // ready-to-show gate means this is already correct; a bare browser settles its
