@@ -71,7 +71,7 @@ export default {
   // for dictation ("the timbre section"). Order is top-of-panel intent.
   sections: [
     { id: "modOsc",  name: "Modulation Oscillator" },
-    { id: "middle",  name: "Modulation (center)" },
+    { id: "middle",  name: "Modulation Index / Phase Lock" },
     { id: "timbre",  name: "Timbre / Harmonics" },
     { id: "prinOsc", name: "Principal Oscillator" },
   ],
