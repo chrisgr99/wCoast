@@ -756,9 +756,33 @@ export class Rack {
     const wantDir = here.dir === 'out' ? 'in' : 'out';
     const showCross = e.metaKey;   // Command+right-click widens to cross-domain
     const items = [];
-    const mods = this.moduleRecords();
-    for (let i = 0; i < mods.length; i++) {
-      const m = mods[i];
+    // Candidates: every rack module PLUS the mixer (its jacks live in the
+    // toolbar, but it is a real patch endpoint, so its channels must show here —
+    // checkmarked and removable — like any module). Disambiguate repeated module
+    // names with an ordinal so a header reads as the actual module, not "Module 2".
+    // Order candidates the way the rack reads — row by row, left to right — but
+    // keep instances of the SAME module type together (Complex Oscillator 1, 2, …),
+    // the types ordered by their first (topmost-leftmost) instance and numbered in
+    // that positional order. The mixer, which has no rack position, comes last.
+    const byPos = [...this.moduleRecords()].sort((a, b) => (a.row - b.row) || (a.x - b.x));
+    const buckets = new Map();
+    for (const m of byPos) {
+      if (!buckets.has(m.descriptorId)) buckets.set(m.descriptorId, []);
+      buckets.get(m.descriptorId).push(m);
+    }
+    const cand = [];
+    for (const bucket of buckets.values()) for (const m of bucket) cand.push(m);
+    if (this.mixer) cand.push({ key: this.mixer.key, descriptorId: this.mixer.descriptorId, name: 'Mixer' });
+    const nameCount = new Map();
+    for (const m of cand) nameCount.set(m.name, (nameCount.get(m.name) || 0) + 1);
+    const nameSeen = new Map();
+    const nameOf = new Map();
+    for (const m of cand) {
+      let nm = m.name;
+      if (nameCount.get(m.name) > 1) { const k = (nameSeen.get(m.name) || 0) + 1; nameSeen.set(m.name, k); nm = `${nm} ${k}`; }
+      nameOf.set(m.key, nm);
+    }
+    for (const m of cand) {
       const group = [];
       for (const p of this.host.registry.ports(m.descriptorId)) {
         if (p.dir !== wantDir) continue;
@@ -768,21 +792,30 @@ export class Rack {
         const srcDomain = here.dir === 'out' ? here.domain : p.domain;
         const dstDomain = here.dir === 'out' ? p.domain : here.domain;
         if (canConnect(srcDomain, dstDomain) === DENY) continue;  // never today; future-proof
-        const connected = !!this._edgeBetween(rec.key, portId, m.key, p.id);
-        // An input takes one cable: whichever end of this pairing is the input,
-        // if it's already used by a different cable, this option is unavailable.
-        const inKey = here.dir === 'in' ? rec.key : m.key;
-        const inPort = here.dir === 'in' ? portId : p.id;
-        const taken = !connected && this.patchbay.inputOccupied(inKey, inPort);
+        // An input holds one cable. Selecting a candidate makes the connection,
+        // replacing whatever is already on the input side (the checkmark moves to
+        // it); clicking the checked row disconnects. checkFn keeps the mark live so
+        // the menu can stay open while you repatch.
         group.push({
-          label: this._portLabel(p) + (taken ? ' — in use' : ''),
-          checked: connected,
-          dim: !sameDomain || taken,
-          action: taken ? () => {} : () => this._toggleConnection(rec, portId, m, p.id, connected),
+          label: this._portLabel(p),
+          checkFn: () => !!this._edgeBetween(rec.key, portId, m.key, p.id),
+          dim: !sameDomain,
+          keepOpen: true,
+          action: () => this._toggleConnection(rec, portId, m.key, p.id),
         });
       }
       if (group.length) {
-        items.push({ header: true, label: `Module ${i + 1}${m.key === rec.key ? ' (this one)' : ''}` });
+        const anyConn = group.some((g) => g.checkFn && g.checkFn());
+        items.push({
+          header: true,
+          label: nameOf.get(m.key) + (m.key === rec.key ? ' (this one)' : ''),
+          collapsible: true,
+          // Open by default ONLY a module that holds a current connection to this
+          // terminal (so its checkmark shows) — including this module itself if the
+          // terminal is patched within it. With no connection at all, every module
+          // opens collapsed, since the user usually patches to a different module.
+          open: anyConn,
+        });
         for (const it of group) items.push(it);
       }
     }
@@ -790,13 +823,25 @@ export class Rack {
     this._openMenu(e.clientX, e.clientY, items);
   }
 
-  _toggleConnection(thisRec, thisPort, candRec, candPort, wasConnected) {
-    if (wasConnected) {
-      const edge = this._edgeBetween(thisRec.key, thisPort, candRec.key, candPort);
-      if (edge) { this.patchbay.disconnect(edge); this._drawCables(); this.onChange(); }
-    } else {
-      this._tryConnect({ key: thisRec.key, portId: thisPort }, { key: candRec.key, portId: candPort });
+  _toggleConnection(thisRec, thisPort, candKey, candPort) {
+    const edge = this._edgeBetween(thisRec.key, thisPort, candKey, candPort);
+    if (edge) {   // clicking the connected row disconnects it
+      this.patchbay.disconnect(edge);
+      this._drawCables();
+      this.onChange();
+      return;
     }
+    // Make the connection, first clearing any cable already on the INPUT side —
+    // an input holds one cable, so this moves it (the checkmark follows).
+    const a = this._ep(thisRec.key, thisPort);
+    const b = this._ep(candKey, candPort);
+    const inEp = (a && a.meta.dir === 'in') ? a : (b && b.meta.dir === 'in') ? b : null;
+    if (inEp) {
+      for (const e of this.patchbay.edgesAtJack(inEp.key, inEp.portId)) {
+        if (e.dst.key === inEp.key && e.dst.portId === inEp.portId) this.patchbay.disconnect(e);
+      }
+    }
+    this._tryConnect({ key: thisRec.key, portId: thisPort }, { key: candKey, portId: candPort });
   }
 
   _onPinch(e) {
@@ -1008,31 +1053,119 @@ export class Rack {
     this._closeMenu();
     const menu = document.createElement('div');
     menu.className = 'rack-menu';
+    const checkItems = [];            // rows carrying a live checkmark, for refresh
+    let focusEl = null;
+
+    const pad = 8;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let top = 0, minTop = 0, maxTop = 0;
+    // Slide bounds always straddle the current position, so the menu glides from
+    // where it sits toward fully on-screen — both when opened and after a group is
+    // expanded/collapsed (which changes its height) — instead of snapping.
+    const recomputeBounds = () => {
+      const ch = menu.offsetHeight;
+      minTop = Math.min(top, vh - pad - ch);
+      maxTop = Math.max(top, pad);
+    };
+
+    // Re-evaluate every live checkmark (after a connection toggles) and move the
+    // 'current' highlight to the first connected row — so the mark follows the
+    // connection while the menu stays open.
+    const refresh = () => {
+      let first = null;
+      for (const ci of checkItems) {
+        const on = ci.checkFn();
+        ci.check.textContent = on ? '✓' : '';
+        if (on && !first) first = ci.el;
+      }
+      for (const ci of checkItems) ci.el.classList.toggle('current', ci.el === first);
+    };
+
+    let group = null;   // the current collapsible group's item container
     for (const it of items) {
       if (it.header) {
         const h = document.createElement('div');
         h.className = 'rack-menu-header';
-        h.textContent = it.label;
-        menu.appendChild(h);
+        if (it.collapsible) {
+          const caret = document.createElement('span');
+          caret.className = 'rack-menu-caret';
+          const lab = document.createElement('span');
+          lab.textContent = it.label;
+          h.appendChild(caret);
+          h.appendChild(lab);
+          h.classList.add('clickable');
+          const g = document.createElement('div');
+          g.className = 'rack-menu-group';
+          const setOpen = (open) => { g.style.display = open ? '' : 'none'; caret.textContent = open ? '▾' : '▸'; };
+          setOpen(!!it.open);
+          // Clicking a module heading toggles its entries WITHOUT closing the menu,
+          // then re-flows the slide bounds for the new height.
+          h.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setOpen(g.style.display === 'none');
+            recomputeBounds();
+            menu.style.top = top + 'px';
+          });
+          menu.appendChild(h);
+          menu.appendChild(g);
+          group = g;
+        } else {
+          h.textContent = it.label;
+          menu.appendChild(h);
+          group = null;
+        }
         continue;
       }
       const item = document.createElement('div');
       item.className = 'rack-menu-item' + (it.dim ? ' dim' : '');
-      if (it.checked !== undefined) {
+      const isOn = it.checkFn ? it.checkFn() : !!it.checked;
+      if (it.checkFn || it.checked !== undefined) {
         const ck = document.createElement('span');
         ck.className = 'rack-menu-check';
-        ck.textContent = it.checked ? '✓' : '';
+        ck.textContent = isOn ? '✓' : '';
         item.appendChild(ck);
+        if (it.checkFn) checkItems.push({ el: item, check: ck, checkFn: it.checkFn });
       }
       const lbl = document.createElement('span');
       lbl.textContent = it.label;
       item.appendChild(lbl);
-      item.addEventListener('click', () => { this._closeMenu(); it.action(); });
-      menu.appendChild(item);
+      // Connection rows (keepOpen) toggle in place and refresh the checkmarks so
+      // the menu stays open while you repatch; every other row runs and closes.
+      item.addEventListener('click', () => {
+        if (it.keepOpen) { it.action(); refresh(); }
+        else { this._closeMenu(); it.action(); }
+      });
+      (group || menu).appendChild(item);
+      // The first connected row is the focus: the menu opens with it under the
+      // pointer and pre-highlighted, so a right-click shows the current connection.
+      if (isOn && !focusEl) { focusEl = item; item.classList.add('current'); }
     }
-    menu.style.left = x + 'px';
-    menu.style.top = y + 'px';
+
+    // Measure hidden, then open with the connected row exactly at the pointer —
+    // even if that pushes part of the menu past a screen edge. A wheel scroll then
+    // SLIDES the whole menu (rather than scrolling its contents) so anything off an
+    // edge can be pulled into view; the slide is clamped to the screen edges.
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+    menu.style.maxHeight = 'none';
+    menu.style.visibility = 'hidden';
     document.body.appendChild(menu);
+
+    const mw = menu.offsetWidth;
+    let left = Math.min(x, vw - pad - mw);
+    if (left < pad) left = pad;
+    const focusCenter = focusEl ? focusEl.offsetTop + focusEl.offsetHeight / 2 : 0;
+    top = focusEl ? (y - focusCenter) : y;
+    recomputeBounds();
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+    menu.style.visibility = '';
+    menu.addEventListener('wheel', (ev) => {
+      ev.preventDefault();
+      const d = ev.deltaMode === 1 ? ev.deltaY * 16 : ev.deltaMode === 2 ? ev.deltaY * 400 : ev.deltaY;
+      top = Math.max(minTop, Math.min(maxTop, top - d));
+      menu.style.top = top + 'px';
+    }, { passive: false });
     this._menuEl = menu;
   }
 

@@ -81,13 +81,18 @@
 
     /* ---- context menu ---- */
     .rack-menu {
-      position: fixed; z-index: 1000; min-width: 180px; max-height: 72vh; overflow-y: auto;
+      position: fixed; z-index: 1000; min-width: 150px; max-height: 72vh; overflow-y: auto; font-size: 12px; line-height: 1.25;
       background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-      padding: 4px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      padding: 3px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
     }
-    .rack-menu-header { padding: 8px 12px 3px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-dim); }
-    .rack-menu-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; color: var(--ink); }
+    .rack-menu-header { padding: 5px 10px 2px; font-size: 10px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-dim); }
+    .rack-menu-header.clickable { cursor: pointer; user-select: none; }
+    .rack-menu-header.clickable:hover { color: var(--ink); }
+    .rack-menu-caret { display: inline-block; width: 1em; margin-right: 1px; color: var(--ink-dim); }
+    .rack-menu-item { padding: 2px 10px; border-radius: 4px; cursor: pointer; color: var(--ink); }
     .rack-menu-item:hover { background: var(--accent); color: var(--accent-ink); }
+    .rack-menu-item.current { background: var(--accent); color: var(--accent-ink); }
+    .rack-menu-item:hover .rack-menu-check, .rack-menu-item.current .rack-menu-check { color: var(--accent-ink); }
     .rack-menu-item.dim { color: var(--ink-dim); }
     .rack-menu-item.dim:hover { color: var(--accent-ink); }
     .rack-menu-check { display: inline-block; width: 1.2em; margin-right: 2px; color: var(--accent); }
