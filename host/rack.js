@@ -208,6 +208,10 @@ export class Rack {
   moduleCount() { return this.records.size; }
   moduleRecords() { return [...this.records.values()]; }
 
+  // The rendered height of a module at default zoom (zoom 1), in px — used to
+  // size the mixer panel to match a faceplate.
+  moduleHeightPx() { return PANEL_H_MM * (this._fit || 1); }
+
   setRowCount(n) {
     n = Math.max(1, Math.min(6, Math.round(n)));
     if (n === this.rowCount) return;

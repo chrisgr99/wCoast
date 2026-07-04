@@ -53,6 +53,12 @@
 
     body.grabbing-cable, body.grabbing-cable * { cursor: var(--grip) !important; }
 
+    /* ---- mixer control panel (floating window) ---- */
+    #mixer-panel { position: fixed; z-index: 1200; width: 520px; aspect-ratio: 250 / 174;
+      border: 2px solid #000; border-radius: 12px; overflow: hidden; cursor: move;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.55); touch-action: none; user-select: none; -webkit-user-select: none; }
+    #mixer-panel svg { display: block; width: 100%; height: 100%; }
+
     /* ---- rack (single scrolling viewport with a scaled content area) ---- */
     #rack { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; background: var(--bg); }
     .rack-content { position: relative; }

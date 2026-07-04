@@ -2,7 +2,7 @@
 //
 // Wires the module registry, the audio host, the Rack, and the output Mixer
 // together. The top toolbar holds the start/stop toggle plus the mixer: its
-// channel jacks (A–F audio, plus two pan-CV inputs), a master gain slider, and
+// channel jacks (A–D audio, plus two pan-CV inputs), a master gain slider, and
 // a button to open the mixer's control panel. The mixer IS the output — a
 // module only makes sound once its output is patched into a mixer channel; the
 // master gain feeds your two outputs. Every per-parameter module control lives
@@ -15,6 +15,7 @@ import oscDescriptor from '../modules/complex-oscillator-259t/descriptor.js';
 import { create as oscCreate } from '../modules/complex-oscillator-259t/factory.js';
 import mixerDescriptor from '../modules/mixer/descriptor.js';
 import { create as mixerCreate } from '../modules/mixer/factory.js';
+import { MixerPanel } from '../host/mixer-panel.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
 
@@ -68,7 +69,7 @@ async function boot() {
   mixer = m;
   mixer.instance.setParam('master', 0);   // silent until On
 
-  // Build the toolbar jacks: A–F audio, then the two pan-CV inputs.
+  // Build the toolbar jacks: A–D audio, then the two pan-CV inputs.
   const jacksEl = document.getElementById('mixer-jacks');
   const jackMap = new Map();
   const audioGrp = document.createElement('div'); audioGrp.className = 'grp';
@@ -99,20 +100,39 @@ async function boot() {
   const onoff = document.getElementById('onoff');
   const masterSlider = document.getElementById('master');
   const masterLabel = document.getElementById('masterLabel');
-  const applyMaster = () => mixer.instance.setParam('master', started ? Number(masterSlider.value) : 0);
+
+  // The mixer's floating control panel, toggled by the Mixer button.
+  const panel = new MixerPanel({
+    instance: mixer.instance,
+    descriptor: mixerDescriptor,
+    onMaster: (v) => setMasterValue(v, 'panel'),
+  });
+  panel.setHeight((rack.moduleHeightPx() / 2 * 0.9));   // match a 259t faceplate's height
+  document.getElementById('mixer-open').addEventListener('click', () => {
+    panel.setHeight((rack.moduleHeightPx() / 2 * 0.9));
+    panel.toggle();
+  });
+  window.addEventListener('resize', () => panel.setHeight((rack.moduleHeightPx() / 2 * 0.9)));
+
+  // One master level, shared by the toolbar slider and the panel fader; the
+  // on/off toggle gates it to 0 when off.
+  let masterValue = Number(masterSlider.value);
+  const applyMaster = () => mixer.instance.setParam('master', started ? masterValue : 0);
+  function setMasterValue(v, source) {
+    masterValue = Math.max(0, Math.min(1, v));
+    masterLabel.textContent = masterValue.toFixed(2);
+    if (source !== 'toolbar') masterSlider.value = String(masterValue);
+    if (source !== 'panel') panel.setMaster(masterValue);
+    applyMaster();
+  }
 
   onoff.addEventListener('click', async () => {
     if (!started) { await audioCtx.resume(); started = true; onoff.classList.add('on'); }
     else { started = false; onoff.classList.remove('on'); }
     applyMaster();
   });
-  masterSlider.addEventListener('input', () => {
-    masterLabel.textContent = Number(masterSlider.value).toFixed(2);
-    applyMaster();
-  });
-  document.getElementById('mixer-open').addEventListener('click', () => {
-    log('Mixer panel: coming in the next phase.');
-  });
+  masterSlider.addEventListener('input', () => setMasterValue(Number(masterSlider.value), 'toolbar'));
+  setMasterValue(masterValue, 'init');
 
   // Start with one module so there's something to patch.
   await rack.addModule(oscDescriptor.id, 0, 0);

@@ -23,7 +23,21 @@ export function create(ctx, services) {
 
   const master = ctx.createGain();
   master.gain.value = paramDefault('master');
-  master.connect(ctx.destination);
+  // A mute gain after the master feeds the destination; muting silences the whole
+  // output without disturbing the master level.
+  const masterMute = ctx.createGain();
+  masterMute.gain.value = paramDefault('masterMute') === 'on' ? 0 : 1;
+  master.connect(masterMute);
+  masterMute.connect(ctx.destination);
+
+  // Stereo VU tap: split the post-mute output into L/R analysers for the meters.
+  // (A pure read — it doesn't alter the signal reaching the destination.)
+  const splitter = ctx.createChannelSplitter(2);
+  masterMute.connect(splitter);
+  const meterL = ctx.createAnalyser(); meterL.fftSize = 256;
+  const meterR = ctx.createAnalyser(); meterR.fftSize = 256;
+  splitter.connect(meterL, 0);
+  splitter.connect(meterR, 1);
 
   const channels = CH.map((L) => {
     const level = ctx.createGain();
@@ -57,6 +71,7 @@ export function create(ctx, services) {
   }
   function supports() { return true; }
   function setParam(paramId, value, atTime) {
+    if (paramId === 'masterMute') { masterMute.gain.value = value === 'on' ? 0 : 1; return; }
     if (paramId.startsWith('mute')) {
       const c = byLetter.get(paramId.slice(4));
       if (c) c.mute.gain.value = value === 'on' ? 0 : 1;
@@ -72,5 +87,15 @@ export function create(ctx, services) {
     for (const c of channels) { try { c.level.disconnect(); c.mute.disconnect(); c.pan.disconnect(); } catch (_e) { /* gone */ } }
   }
 
-  return { getOutput, getInput, getParam, setParam, supports, dispose, master };
+  // RMS level (0..~1) of each output channel, for the VU meters.
+  const buf = new Float32Array(meterL.fftSize);
+  function rms(an) {
+    an.getFloatTimeDomainData(buf);
+    let s = 0;
+    for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
+    return Math.sqrt(s / buf.length);
+  }
+  function meters() { return { l: rms(meterL), r: rms(meterR) }; }
+
+  return { getOutput, getInput, getParam, setParam, supports, dispose, master, meters };
 }

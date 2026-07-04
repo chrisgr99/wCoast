@@ -13,8 +13,8 @@
 
 'use strict';
 
-const CH = ['A', 'B', 'C', 'D', 'E', 'F'];
-const VC_PAN = new Set(['A', 'F']);   // channels whose pan is voltage-controllable
+const CH = ['A', 'B', 'C', 'D'];
+const VC_PAN = new Set(['A', 'D']);   // first and last channel: voltage-controllable pan
 
 const ports = [];
 const params = [];
@@ -31,6 +31,7 @@ for (const L of CH) {
   ports.push({ id: `panCv${L}`, name: `Pan ${L}`, section: 'panCv', domain: 'control', dir: 'in', target: `pan${L}` });
 }
 params.push({ id: 'master', name: 'Master', section: 'master', curve: 'linear', min: 0, max: 1, default: 0.7, glideMs: 20 });
+params.push({ id: 'masterMute', name: 'Master Mute', section: 'master', curve: 'stepped', steps: [{ value: 'off' }, { value: 'on' }], default: 'off' });
 
 export default {
   id: 'mixer',
