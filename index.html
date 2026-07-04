@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="color-scheme" content="light">
   <title>Wcoast — rack</title>
   <style>
     :root {
@@ -12,6 +13,10 @@
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; }
+    /* This is a colour-coded instrument: opt out of the browser recolouring the
+       page (auto dark mode, Windows/High-Contrast forced-colors) so the panel
+       art and domain colours render exactly as designed. */
+    html { color-scheme: light; forced-color-adjust: none; }
     body {
       background: var(--bg); color: var(--ink);
       font-family: -apple-system, system-ui, sans-serif; font-size: 15px;

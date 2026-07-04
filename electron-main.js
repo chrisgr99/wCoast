@@ -32,9 +32,18 @@ const fs = require('node:fs');
 // The main process owns the native dialogs and the file writes; the renderer
 // reaches them over the preload bridge (window.wcoast.patch).
 const PATCH_FILTER = [{ name: 'Wcoast Patch', extensions: ['wcoast'] }];
+
+// Patches live in a WCOAST folder in the user's Documents by default; create it
+// on demand and use it as the dialogs' starting location.
+async function patchesDir() {
+  const dir = path.join(app.getPath('documents'), 'WCOAST');
+  await fs.promises.mkdir(dir, { recursive: true });
+  return dir;
+}
+
 function registerPatchIpc() {
   ipcMain.handle('patch:open', async () => {
-    const r = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: PATCH_FILTER });
+    const r = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: PATCH_FILTER, defaultPath: await patchesDir() });
     if (r.canceled || !r.filePaths[0]) return null;
     const filePath = r.filePaths[0];
     return { path: filePath, text: await fs.promises.readFile(filePath, 'utf8') };
@@ -42,7 +51,7 @@ function registerPatchIpc() {
   ipcMain.handle('patch:save', async (_e, arg) => {
     let filePath = arg && arg.path;
     if (!filePath) {
-      const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath: 'patch.wcoast' });
+      const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath: path.join(await patchesDir(), 'patch.wcoast') });
       if (r.canceled || !r.filePath) return null;
       filePath = r.filePath;
     }
@@ -50,7 +59,8 @@ function registerPatchIpc() {
     return { path: filePath };
   });
   ipcMain.handle('patch:saveAs', async (_e, arg) => {
-    const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath: 'patch.wcoast' });
+    const defaultPath = (arg && arg.path) ? arg.path : path.join(await patchesDir(), 'patch.wcoast');
+    const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath });
     if (r.canceled || !r.filePath) return null;
     await fs.promises.writeFile(r.filePath, arg.text, 'utf8');
     return { path: r.filePath };

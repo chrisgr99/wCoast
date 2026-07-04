@@ -175,21 +175,39 @@ async function boot() {
     catch (e) { log(`save failed: ${e.message}`); window.alert(`Could not save: ${e.message}`); }
   }
 
+  async function reopenPatch() {
+    let f;
+    try { f = await storage.reopenLast(); } catch (e) { log(`reopen failed: ${e.message}`); return; }
+    if (!f) return;
+    try { await restore(JSON.parse(f.text), rack, mixerIO); setTitle(f.name); }
+    catch (e) { log(`restore failed: ${e.message}`); window.alert(`Could not open patch: ${e.message}`); }
+  }
+
   // The toolbar hamburger opens the File menu, reusing the rack's pop-up menu.
   document.getElementById('hamburger').addEventListener('click', (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    rack.openMenu(r.left, r.bottom + 4, [
+    const items = [
       { header: true, label: 'File' },
       { label: 'New', action: () => newPatch() },
       { label: 'Open…', action: () => openPatch() },
       { label: 'Save', action: () => savePatch() },
       { label: 'Save As…', action: () => saveAsPatch() },
-    ]);
+    ];
+    // Browser only: offer to reopen the last file (its handle survives in IndexedDB).
+    if (storage.hasLast && storage.hasLast()) {
+      items.push({ label: `Reopen ${storage.lastName()}`, action: () => reopenPatch() });
+    }
+    const r = e.currentTarget.getBoundingClientRect();
+    rack.openMenu(r.left, r.bottom + 4, items);
   });
 
   // Start with one of each so there's something to patch.
   await rack.addModule(oscDescriptor.id, 0, 0);
   await rack.addModule(lpgDescriptor.id, 1, 0);
+
+  // Re-fit once after the toolbar has claimed its final height. In Electron the
+  // ready-to-show gate means this is already correct; a bare browser settles its
+  // flex layout a beat later, so the boot-time fit can be measured too tall.
+  requestAnimationFrame(() => rack.relayout());
 }
 
 window.addEventListener('DOMContentLoaded', () => {
