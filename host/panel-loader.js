@@ -240,14 +240,17 @@ export function parsePanel(svg, descriptor) {
     // Resolve to root user space so cords land on the jack's true centre even
     // when the panel wraps the jack in a transformed group.
     const anchor = (cx != null && cy != null) ? resolveToRoot(el, cx, cy) : null;
-    // The inner-hole radius (smallest circle) so a cord can start on the hole's
-    // rim rather than the dead centre.
-    let holeR = 0;
+    // The inner-hole radius (smallest circle) and the outer radius (largest), so
+    // a cord can end in the middle of the jack's coloured ring — inside the colour
+    // but clear of the dark centre hole.
+    let holeR = 0, outerR = 0;
     for (const c of el.querySelectorAll('circle')) {
       const r = numAttr(c, 'r');
-      if (r != null && (holeR === 0 || r < holeR)) holeR = r;
+      if (r == null) continue;
+      if (holeR === 0 || r < holeR) holeR = r;
+      if (r > outerR) outerR = r;
     }
-    ports.set(id, { id, meta, element: el, anchor, holeR });
+    ports.set(id, { id, meta, element: el, anchor, holeR, outerR });
   }
 
   // Coverage: every descriptor param/port must have exactly one element.
