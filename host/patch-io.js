@@ -92,3 +92,61 @@ export async function restore(obj, rack, mixer) {
   }
   rack.redrawCables();
 }
+
+// Validate an (AI-authored) patch object against the registered descriptors.
+// Returns { ok: true } or { ok: false, error }. Stricter than restore(), which
+// trusts its input: this checks the format, module types, param ids and their
+// ranges/steps, and wiring ports (real, right direction, one cable per input)
+// BEFORE anything is applied — so a machine-written patch is rejected cleanly
+// with a precise message rather than half-applied.
+export function validate(obj, registry) {
+  const bad = (m) => ({ ok: false, error: m });
+  if (!obj || obj.format !== FORMAT) return bad('not a wcoast-patch file');
+  if (obj.version !== VERSION) return bad(`unsupported version ${obj.version}`);
+
+  // module id -> descriptor (the mixer is a fixed endpoint, always present).
+  const descOf = new Map([['mixer', registry.descriptor('mixer')]]);
+  for (const m of (obj.modules || [])) {
+    if (!m || typeof m.id !== 'string') return bad('a module has no id');
+    if (descOf.has(m.id)) return bad(`duplicate module id "${m.id}"`);
+    if (!registry.has(m.type)) return bad(`unknown module type "${m.type}"`);
+    descOf.set(m.id, registry.descriptor(m.type));
+  }
+
+  const params = (obj.settings && obj.settings.params) || {};
+  for (const [mid, vals] of Object.entries(params)) {
+    const d = descOf.get(mid);
+    if (!d) return bad(`settings for unknown module "${mid}"`);
+    const byId = new Map((d.params || []).map((p) => [p.id, p]));
+    for (const [pid, v] of Object.entries(vals)) {
+      const p = byId.get(pid);
+      if (!p) return bad(`unknown param "${pid}" on "${mid}"`);
+      if (p.curve === 'stepped') {
+        const steps = (p.steps || []).map((s) => s.value);
+        if (!steps.includes(v)) return bad(`param "${pid}" on "${mid}" must be one of: ${steps.join(', ')}`);
+      } else if (typeof v !== 'number' || !Number.isFinite(v)) {
+        return bad(`param "${pid}" on "${mid}" must be a number`);
+      } else if (v < p.min || v > p.max) {
+        return bad(`param "${pid}" on "${mid}" is out of range ${p.min}..${p.max}`);
+      }
+    }
+  }
+
+  const portOf = (mid, portId, dir) => {
+    const d = descOf.get(mid);
+    const port = d && (d.ports || []).find((pp) => pp.id === portId);
+    return (port && port.dir === dir) ? port : null;
+  };
+  const usedInputs = new Set();
+  for (const w of (obj.wiring || [])) {
+    if (!w || !w.from || !w.to) return bad('a wiring entry is missing from/to');
+    if (!descOf.has(w.from.module)) return bad(`wiring from unknown module "${w.from.module}"`);
+    if (!descOf.has(w.to.module)) return bad(`wiring to unknown module "${w.to.module}"`);
+    if (!portOf(w.from.module, w.from.port, 'out')) return bad(`no output "${w.from.port}" on "${w.from.module}"`);
+    if (!portOf(w.to.module, w.to.port, 'in')) return bad(`no input "${w.to.port}" on "${w.to.module}"`);
+    const key = `${w.to.module}|${w.to.port}`;
+    if (usedInputs.has(key)) return bad(`input "${w.to.port}" on "${w.to.module}" has more than one cable`);
+    usedInputs.add(key);
+  }
+  return { ok: true };
+}

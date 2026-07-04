@@ -41,12 +41,13 @@ export function buildCatalogue(moduleDescriptors, mixerDescriptor) {
   };
 }
 
-// createMirror({ getPatch, getActive, catalogue }) wires the projection to the
-// Electron bridge. getPatch()/getActive() return the current objects to write;
-// catalogue is the (static) schema. Returns { init, setEnabled, isEnabled,
-// reveal, project }. project() is debounced; init() reads the persisted enabled
-// state and pushes the first full set.
-export function createMirror({ getPatch, getActive, catalogue }) {
+// createMirror({ getPatch, getActive, catalogue, applyEdit }) wires the projection
+// to the Electron bridge. getPatch()/getActive() return the current objects to
+// write; catalogue is the (static) schema; applyEdit(text) validates + confirms +
+// applies an external patch.json edit and returns { ok, error? }. Returns { init,
+// setEnabled, isEnabled, reveal, project }. project() is debounced; init() reads
+// the persisted enabled state and pushes the first full set.
+export function createMirror({ getPatch, getActive, catalogue, applyEdit }) {
   const bridge = (typeof window !== 'undefined' && window.wcoast && window.wcoast.mirror) || null;
   let enabled = false;
   let timer = null;
@@ -57,6 +58,27 @@ export function createMirror({ getPatch, getActive, catalogue }) {
     const files = { 'patch.json': str(getPatch()), 'active.json': str(getActive()) };
     if (withCatalogue) files['catalogue.json'] = str(catalogue);
     bridge.write(files);
+  }
+
+  // Round-trip: an external write to patch.json arrives here. Apply it (with the
+  // app's confirm + validation), report the outcome, then re-project — which
+  // normalises the file on success or reverts it to the current patch on reject.
+  // Guard against overlap and duplicate deliveries (a backgrounded window can be
+  // handed the same edit twice): never run two applies at once, and skip an edit
+  // whose text we are already handling.
+  let applying = false;
+  let lastHandled = null;
+  if (bridge && bridge.onExternal && applyEdit) {
+    bridge.onExternal(async ({ text }) => {
+      if (applying || text === lastHandled) return;
+      applying = true;
+      lastHandled = text;
+      let result;
+      try { result = await applyEdit(text); } catch (e) { result = { ok: false, error: String(e && e.message || e) }; }
+      applying = false;
+      if (bridge.result) bridge.result(result);
+      pushNow(false);
+    });
   }
   function project() {
     if (!bridge || !enabled || timer) return;

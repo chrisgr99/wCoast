@@ -18,7 +18,7 @@ import { create as mixerCreate } from '../modules/mixer/factory.js';
 import lpgDescriptor from '../modules/lpg-292/descriptor.js';
 import { create as lpgCreate } from '../modules/lpg-292/factory.js';
 import { MixerPanel } from '../host/mixer-panel.js';
-import { serialize, restore } from '../host/patch-io.js';
+import { serialize, restore, validate } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
 import { buildCatalogue, createMirror } from '../host/mirror.js';
 
@@ -180,9 +180,10 @@ async function boot() {
       patch: { name: patchName, dirty },
       state: { sound: started ? 'on' : 'off', master: masterValue },
       sync: { lastSyncAt: new Date().toISOString() },
-      files: { roundTrip: ['patch.json'], observationOnly: ['active.json', 'catalogue.json', 'AGENTS.md', 'README.md'] },
+      files: { roundTrip: ['patch.json'], observationOnly: ['active.json', 'catalogue.json', 'last-apply-result.json', 'AGENTS.md', 'README.md'] },
     }),
     catalogue: buildCatalogue([oscDescriptor, lpgDescriptor], mixerDescriptor),
+    applyEdit,
   });
 
   // Save/load: the environment-chosen storage adapter drives the shared core.
@@ -218,6 +219,21 @@ async function boot() {
     if (!f) return;
     try { await restore(JSON.parse(f.text), rack, mixerIO); setPatchName(f.name); markClean(); }
     catch (e) { log(`restore failed: ${e.message}`); window.alert(`Could not open patch: ${e.message}`); }
+  }
+
+  // Apply an AI-proposed patch (an external write to the mirror's patch.json):
+  // validate it against the descriptors, confirm with the user, then restore it.
+  async function applyEdit(text) {
+    let obj;
+    try { obj = JSON.parse(text); } catch (e) { return { ok: false, error: `invalid JSON: ${e.message}` }; }
+    const v = validate(obj, registry);
+    if (!v.ok) return v;
+    const cur = serialize(rack, mixerIO);
+    const summary = `${cur.modules.length} → ${obj.modules.length} modules, ${cur.wiring.length} → ${obj.wiring.length} cables`;
+    if (!window.confirm(`Apply the AI-proposed patch?\n\n${summary}`)) return { ok: false, error: 'cancelled by the user' };
+    try { await restore(obj, rack, mixerIO); } catch (e) { return { ok: false, error: `apply failed: ${e.message}` }; }
+    markDirty();
+    return { ok: true };
   }
 
   // The toolbar hamburger opens the File menu, reusing the rack's pop-up menu.

@@ -244,7 +244,7 @@ function applyDockIcon() {
 app.whenReady().then(() => {
   registerAppProtocol();
   registerPatchIpc();
-  initMirror();
+  initMirror(() => mainWindow);
   applyMinimalMenu();
   applyDockIcon();
   createWindow();

@@ -11,14 +11,34 @@ state and reason about it.
 The user is authoritative. You are a slower, deliberate collaborator working from
 the user's instructions; the user always has the final say.
 
-## Status: observe-only (phase 1)
+## Proposing a patch (the round-trip)
 
-Right now the mirror is **read-only for you**: Wcoast writes these files and you
-read them. Writing files back to propose a change is **not yet wired** — editing
-`patch.json` has no effect for now. The round-trip (your edits flowing back into
-the running app, with a confirm-to-apply step) is the next phase. Until then, to
-change the patch, describe the change to the user in chat and let them do it, or
-hand them a `patch.json` they can load via File ▸ Open.
+You can both **read** these files and **write `patch.json`** to propose a new
+patch. When you write it, Wcoast validates the patch against `catalogue.json`,
+shows the user a confirm dialog, and — on accept — rebuilds the running patch
+from it. Read `last-apply-result.json` afterwards to learn whether your edit was
+accepted or rejected, and why.
+
+How to write it:
+
+- Write `patch.json` with an **atomic temp-and-rename**: write `patch.json.tmp`
+  first, then rename it to `patch.json`. Wcoast never sees a torn file, and the
+  completed rename is itself the signal — there is no separate handshake.
+- Keep the exact format (see "patch.json" below) and reference only module types,
+  ports, and params that exist in `catalogue.json`, with values inside each
+  param's range or step set. An invalid patch is rejected as a whole — nothing is
+  applied.
+- After writing, read `last-apply-result.json`:
+  - `{ "status": "success", "applied": ["patch.json"] }` — your patch is now the
+    running patch (unsaved; the user can Save it).
+  - `{ "status": "rejected", "error": "…" }` — nothing changed, and Wcoast has
+    force-pushed the current patch back to `patch.json`, so the file reverts. Fix
+    the problem named in `error` and try again.
+- If the user clicks Cancel in the confirm dialog, that is a rejection and the
+  file reverts.
+
+Applying is a full rebuild — a brief audible gap, the same as loading a file.
+When a change could be large or surprising, describe it to the user first.
 
 ## Mirror folder
 
@@ -38,8 +58,12 @@ is closed and the user isn't at the keyboard.
   what each parameter's range or allowed values are, and how ports may connect.
 - `patch.json` — the current patch: the modules placed, the wiring between them,
   and every parameter value. This is the same format Wcoast saves to a `.wcoast`
-  file. It reflects live in-memory state, including unsaved changes.
+  file. It reflects live in-memory state, including unsaved changes. This is also
+  the file you write to propose a change (see the round-trip section above).
+- `last-apply-result.json` — the outcome of your most recent `patch.json` write:
+  success (applied) or rejected (with the error). Absent until your first write.
 - `AGENTS.md` — this file.
+- `README.md` — a "do not edit" note for the human user; you can ignore it.
 
 The `files` lists inside `active.json` are the authoritative declaration of which
 file is which; trust those over this prose if they ever disagree.

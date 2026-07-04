@@ -30,5 +30,8 @@ contextBridge.exposeInMainWorld('wcoast', {
     setEnabled: (v) => ipcRenderer.invoke('mirror:setEnabled', v),
     write: (files) => ipcRenderer.send('mirror:write', files),
     reveal: () => ipcRenderer.invoke('mirror:reveal'),
+    // Round-trip: main sends an external patch.json edit; the renderer reports the outcome.
+    onExternal: (cb) => ipcRenderer.on('mirror:external', (_e, payload) => cb(payload)),
+    result: (r) => ipcRenderer.send('mirror:result', r),
   },
 });

@@ -27,6 +27,13 @@ const MIRROR_DIR_NAME = 'mirror';
 const DEFAULT_ENABLED = true;
 const TMP = '.tmp';
 
+let watcher = null;          // fs.watch on the mirror folder (round-trip)
+let watchTimer = null;       // debounce for watch events
+let reconciling = false;     // a reconcile is in flight (prevents overlap/double-send)
+let pending = false;         // a folder event arrived during a reconcile — run once more
+let lastPatchText = null;    // last patch.json content WE wrote (self-write mute)
+let getWindow = () => null;  // returns the BrowserWindow (set by initMirror)
+
 const mirrorDir = () => path.join(app.getPath('documents'), 'WCOAST', MIRROR_DIR_NAME);
 const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
 
@@ -84,6 +91,43 @@ async function disable() {
   await emptyFolder();
 }
 
+// ---- round-trip watcher: detect an AI's external write to patch.json ----
+// macOS fs.watch is unreliable about the filename it reports, so we reconcile by
+// CONTENT: on any folder event, re-read patch.json; if it differs from what we
+// last wrote, it is an external edit — hand it to the renderer to validate,
+// confirm, and apply. Our own projection writes are muted via lastPatchText.
+function startWatch() {
+  stopWatch();
+  try {
+    watcher = fs.watch(mirrorDir(), () => {
+      if (watchTimer) return;
+      watchTimer = setTimeout(reconcile, 150);
+    });
+  } catch (e) { console.warn('Wcoast mirror watch failed:', e.message); }
+}
+function stopWatch() {
+  if (watcher) { try { watcher.close(); } catch (_e) { /* gone */ } watcher = null; }
+  if (watchTimer) { clearTimeout(watchTimer); watchTimer = null; }
+}
+async function reconcile() {
+  watchTimer = null;
+  // Never overlap: a second reconcile reading patch.json before the first records
+  // it would double-send the same edit (likely when App Nap delays the async read
+  // on a backgrounded window). Coalesce instead.
+  if (reconciling) { pending = true; return; }
+  reconciling = true;
+  try {
+    const text = await fsp.readFile(path.join(mirrorDir(), 'patch.json'), 'utf8');
+    if (text !== lastPatchText) {          // not our own echo
+      lastPatchText = text;                // record BEFORE sending so we don't reprocess
+      const win = getWindow();
+      if (win && !win.isDestroyed()) win.webContents.send('mirror:external', { text });
+    }
+  } catch (_e) { /* transient (mid-rename, etc.) */ }
+  reconciling = false;
+  if (pending) { pending = false; reconcile(); }
+}
+
 // On quit, flip isLive in active.json (synchronously — the app is ending) so a
 // reader knows the state is stale.
 function markNotLiveSync() {
@@ -95,28 +139,40 @@ function markNotLiveSync() {
   } catch (_e) { /* folder may be disabled/absent */ }
 }
 
-function initMirror() {
+function initMirror(windowGetter) {
+  getWindow = windowGetter || (() => null);
+
   ipcMain.handle('mirror:status', async () => ({ enabled: await isEnabled(), dir: mirrorDir() }));
   ipcMain.handle('mirror:setEnabled', async (_e, v) => {
-    if (v) await enable(); else await disable();
+    if (v) { await enable(); startWatch(); } else { await disable(); stopWatch(); }
     return { enabled: !!v, dir: mirrorDir() };
   });
   ipcMain.on('mirror:write', async (_e, files) => {
     if (!(await isEnabled()) || !files) return;
     await ensureFolder();
     for (const name of Object.keys(files)) {
-      try { await writeAtomic(name, files[name]); } catch (e) { console.warn('Wcoast mirror write failed:', name, e.message); }
+      try {
+        await writeAtomic(name, files[name]);
+        if (name === 'patch.json') lastPatchText = files[name];   // mute our own echo
+      } catch (e) { console.warn('Wcoast mirror write failed:', name, e.message); }
     }
+  });
+  // The renderer reports the outcome of applying an external patch.json edit.
+  ipcMain.on('mirror:result', async (_e, result) => {
+    const out = result && result.ok
+      ? { status: 'success', timestamp: new Date().toISOString(), applied: ['patch.json'] }
+      : { status: 'rejected', timestamp: new Date().toISOString(), filename: 'patch.json', error: (result && result.error) || 'unknown' };
+    try { await writeAtomic('last-apply-result.json', JSON.stringify(out, null, 2)); } catch (e) { console.warn('Wcoast mirror result write:', e.message); }
   });
   ipcMain.handle('mirror:reveal', async () => { await ensureFolder(); await shell.openPath(mirrorDir()); return mirrorDir(); });
 
   // Prepare the folder at startup when enabled (default on): create it, clear any
-  // leftover .tmp from a crash, and refresh the grounding doc.
+  // leftover .tmp from a crash, refresh the docs, and start watching for edits.
   (async () => {
-    if (await isEnabled()) { await ensureFolder(); await cleanLeftoverTmp(); await copyStaticDocs(); }
+    if (await isEnabled()) { await ensureFolder(); await cleanLeftoverTmp(); await copyStaticDocs(); startWatch(); }
   })().catch((e) => console.warn('Wcoast mirror init:', e.message));
 
-  app.on('before-quit', markNotLiveSync);
+  app.on('before-quit', () => { stopWatch(); markNotLiveSync(); });
 }
 
 module.exports = { initMirror };
