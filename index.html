@@ -7,6 +7,8 @@
     :root {
       --bg: #14110d; --rail: #1c1811; --ink: #f2ead9; --ink-dim: #b6ab93;
       --accent: #e0a353; --accent-ink: #14110d; --line: #3a3226; --panel: #211c15;
+      --audio: #ff7300; --control: #1f7fe0;
+      --grip: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%3E%3Cpath%20d%3D%22M3%2C2%20L3%2C20%20L8%2C16%20L11%2C22%20L14%2C21%20L11%2C15%20L18%2C15%20Z%22%20fill%3D%22%23000%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.4%22%20stroke-linejoin%3D%22round%22%2F%3E%3Cg%20transform%3D%22translate(13%2C12)%22%3E%3Crect%20x%3D%221%22%20y%3D%225%22%20width%3D%2211%22%20height%3D%228%22%20rx%3D%223.5%22%20fill%3D%22%23fafafa%22%20stroke%3D%22%23000%22%20stroke-width%3D%221%22%2F%3E%3Ccircle%20cx%3D%223.2%22%20cy%3D%225%22%20r%3D%221.8%22%20fill%3D%22%23fafafa%22%20stroke%3D%22%23000%22%20stroke-width%3D%221%22%2F%3E%3Ccircle%20cx%3D%226.2%22%20cy%3D%224.2%22%20r%3D%221.8%22%20fill%3D%22%23fafafa%22%20stroke%3D%22%23000%22%20stroke-width%3D%221%22%2F%3E%3Ccircle%20cx%3D%229.2%22%20cy%3D%225%22%20r%3D%221.8%22%20fill%3D%22%23fafafa%22%20stroke%3D%22%23000%22%20stroke-width%3D%221%22%2F%3E%3Ccircle%20cx%3D%221.3%22%20cy%3D%228.5%22%20r%3D%221.9%22%20fill%3D%22%23fafafa%22%20stroke%3D%22%23000%22%20stroke-width%3D%221%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") 3 2, auto;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; }
@@ -16,15 +18,14 @@
       height: 100vh; display: flex; flex-direction: column; overflow: hidden;
     }
 
-    /* ---- top toolbar (full width; global controls live here) ---- */
+    /* ---- top toolbar (full width; global controls + the output mixer) ---- */
     #toolbar {
-      flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
-      padding: 3px 12px; background: var(--rail);
-      border-top: 1px solid #fff; border-bottom: 1px solid #fff;
-      z-index: 30;
+      position: relative; flex: 0 0 auto; display: flex; align-items: flex-end; gap: 12px;
+      padding: 2px 12px 0; background: var(--rail);
+      border-top: 1px solid #fff; border-bottom: 1px solid #fff; z-index: 30;
     }
     #onoff {
-      width: 26px; height: 26px; padding: 0; display: inline-flex;
+      width: 26px; height: 26px; padding: 0; display: inline-flex; margin-bottom: 2px;
       align-items: center; justify-content: center; cursor: pointer;
       background: var(--accent); border: 1px solid var(--line); border-radius: 6px;
     }
@@ -32,18 +33,32 @@
     #onoff .ico-stop { display: none; }
     #onoff.on .ico-play { display: none; }
     #onoff.on .ico-stop { display: inline; }
-    #toolbar label { color: var(--ink-dim); font-size: 13px; }
-    #toolbar #masterLabel { font-size: 13px; color: var(--ink-dim); }
-    #toolbar input[type=range] { width: 130px; height: 14px; accent-color: var(--accent); }
+
+    /* the mixer strip in the toolbar */
+    #mixer { display: flex; align-items: flex-end; gap: 10px; }
+    #mixer-jacks { display: flex; align-items: flex-end; gap: 8px; padding-top: 9px; }
+    #mixer-jacks .grp { display: flex; align-items: flex-end; gap: 8px; padding-right: 8px; border-right: 1px solid var(--line); }
+    .toolbar-jack { position: relative; cursor: crosshair; }
+    .toolbar-jack svg { display: block; width: 22px; height: 22px; }
+    .toolbar-jack .lbl { position: absolute; top: -2px; left: -3px; font-size: 9px; font-weight: 600; color: var(--ink-dim); line-height: 1; pointer-events: none; }
+    #mixer label, #mixer #masterLabel { font-size: 12px; color: var(--ink-dim); }
+    #mixer input[type=range] { width: 120px; height: 14px; accent-color: var(--accent); margin-bottom: 3px; }
+    #mixer-open {
+      font: inherit; font-size: 12px; padding: 4px 10px; margin-bottom: 2px; border-radius: 6px; cursor: pointer;
+      background: transparent; color: var(--ink); border: 1px solid var(--line);
+    }
+
+    /* overlay for the vertical connection lines that meet the rack cords */
+    #toolbar-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; }
+
+    body.grabbing-cable, body.grabbing-cable * { cursor: var(--grip) !important; }
 
     /* ---- rack (single scrolling viewport with a scaled content area) ---- */
     #rack { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; background: var(--bg); }
     .rack-content { position: relative; }
     .rack-row {
       position: absolute; left: 0;
-      background: var(--rail);
-      border: 1px solid #0b0906;
-      overflow: visible;
+      background: var(--rail); border: 1px solid #0b0906; overflow: visible;
       box-shadow: inset 0 0 12px rgba(0,0,0,0.5);
     }
     .rack-module {
@@ -55,8 +70,7 @@
     .rack-module svg { display: block; width: 100%; height: 100%; }
     .rack-ghost {
       position: absolute; top: 0; pointer-events: none; z-index: 15;
-      border: 2px dashed var(--accent); border-radius: 4px;
-      background: rgba(224,163,83,0.12);
+      border: 2px dashed var(--accent); border-radius: 4px; background: rgba(224,163,83,0.12);
     }
 
     /* ---- context menu ---- */
@@ -86,9 +100,14 @@
         <rect class="ico-stop" x="6" y="6" width="12" height="12" rx="2"/>
       </svg>
     </button>
-    <label for="master">Master</label>
-    <input id="master" type="range" min="0" max="1" step="0.01" value="0.3">
-    <span id="masterLabel">0.30</span>
+    <div id="mixer">
+      <div id="mixer-jacks"></div>
+      <button id="mixer-open" title="Open mixer controls">Mixer</button>
+      <label for="master">Master</label>
+      <input id="master" type="range" min="0" max="1" step="0.01" value="0.7">
+      <span id="masterLabel">0.70</span>
+    </div>
+    <svg id="toolbar-lines" aria-hidden="true"></svg>
   </div>
   <div id="rack"></div>
 

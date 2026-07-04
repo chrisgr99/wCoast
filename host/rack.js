@@ -69,6 +69,8 @@ export class Rack {
     this._highlights = null;   // candidate rings thickened during a drag
     this._contentWmm = 0;
     this._contentHmm = 0;
+    this.mixer = null;         // toolbar output mixer (set via setMixer)
+    this._toolbarCords = [];   // per-frame: cord paths to redraw in the toolbar overlay
 
     // The connection layer: the netlist + audio wiring (host/patchbay.js), and
     // an SVG overlay the cords are drawn onto (pointer-transparent, so it never
@@ -95,6 +97,43 @@ export class Rack {
     // background clicks are handled per-module in _startDrag: double-click
     // zooms the module, single-click restores the fitted view while zoomed.
     document.addEventListener('keydown', (e) => this._onKey(e));
+    // Toolbar (mixer) cords track the rack's scroll: their toolbar end is fixed
+    // in screen space while the modules scroll beneath.
+    this.container.addEventListener('scroll', () => { if (this.mixer) this._drawCables(); });
+    // Any pointer release ends a cable drag; clear the grip cursor.
+    document.addEventListener('pointerup', () => { document.body.classList.remove('grabbing-cable'); }, true);
+  }
+
+  // Register the toolbar output mixer as a patch endpoint. mixer:
+  // { key, descriptorId, instance, jacks:Map(portId->svgEl), linesSvg, toolbarEl }.
+  setMixer(mixer) {
+    this.mixer = mixer;
+    for (const [portId, svg] of mixer.jacks) {
+      const el = (svg.closest && svg.closest('.toolbar-jack')) || svg;
+      el.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        const edges = this.patchbay.edgesAtJack(this.mixer.key, portId);
+        if (edges.length) {                             // grab the existing cord (drag off to move/delete)
+          const edge = edges[edges.length - 1];
+          this._startRegrab(e, edge, edge.dst.key === this.mixer.key ? 'dst' : 'src');
+        } else {
+          this._startCableFromMixer(e, portId);         // else start a new cord
+        }
+      });
+      el.addEventListener('contextmenu', (e) => this._onMixerJackContextMenu(e, portId));
+    }
+    this._drawCables();
+  }
+
+  // A patch endpoint (module or mixer) resolved to a common shape.
+  _ep(key, portId) {
+    if (this.mixer && key === this.mixer.key) {
+      const meta = this.host.registry.portById(this.mixer.descriptorId, portId);
+      return meta ? { key, portId, instance: this.mixer.instance, descriptorId: this.mixer.descriptorId, meta } : null;
+    }
+    const rec = this.records.get(key);
+    const port = rec && rec.panel.ports.get(portId);
+    return port ? { key, portId, instance: rec.instance, descriptorId: rec.descriptorId, meta: port.meta, rec } : null;
   }
 
   _onKey(e) {
@@ -242,7 +281,21 @@ export class Rack {
   // A jack's anchor is in panel-viewBox mm; convert to content mm (which the
   // overlay's viewBox uses, so cords line up at any zoom). Everything is mm here
   // and the overlay is px-sized in _drawCables, so a zoom needs no path rework.
+  // A toolbar mixer jack's position projected into content mm (it lives above
+  // the rack, so its content y is negative; the cord is clipped at the seam and
+  // the toolbar line covers the rest).
+  _mixerJackPosMm(portId) {
+    const svg = this.mixer && this.mixer.jacks.get(portId);
+    if (!svg) return null;
+    const r = svg.getBoundingClientRect();
+    const holeScreen = r.height * (4.4 / 24);   // jack hole radius in screen px
+    // Start the cord at the hole's rim (inside the orange) so it blends into the jack.
+    const p = this._clientToMm(r.left + r.width / 2, r.top + r.height / 2 + holeScreen);
+    return { x: p.x, y: p.y, r: 1.2 };
+  }
+
   _jackPosMm(key, portId) {
+    if (this.mixer && key === this.mixer.key) return this._mixerJackPosMm(portId);
     const rec = this.records.get(key);
     if (!rec) return null;
     const port = rec.panel.ports.get(portId);
@@ -271,48 +324,51 @@ export class Rack {
     return `M${r2(p0.x)},${r2(p0.y)} L${r2(p3.x)},${r2(p3.y)}`;
   }
 
-  // The belly point a cord passes through, from its stored bow {f,d} (or a gentle
-  // default). f is the horizontal fraction between the two jacks (0..1); d is the
-  // depth below the straight chord (>=0). Both are relative, so the cord re-hangs
-  // itself when a module moves. This is also where the gravity limits live.
+  // The belly point a cord passes through, from its stored bow {along,perp} (or a
+  // gentle default). `along` is the fraction along the chord A->B (0..1); `perp`
+  // is a SIGNED perpendicular offset from the chord, so a cord can bow to either
+  // side (the cables lie on a surface, not just hang under gravity). Both are
+  // relative to the jacks, so the shape follows when a module moves.
   _bellyPoint(a, b, bow) {
-    const leftX = Math.min(a.x, b.x), rightX = Math.max(a.x, b.x);
-    const span = rightX - leftX;
-    const dist = Math.hypot(b.x - a.x, b.y - a.y);
-    const f = bow ? clamp01(bow.f) : 0.5;
-    const d = bow ? Math.max(0, bow.d) : Math.max(5, 0.14 * dist);
-    if (span < 1e-3) return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + d };
-    const bx = leftX + f * span;
-    const chordY = a.y + (b.y - a.y) * (bx - a.x) / (b.x - a.x);
-    return { x: bx, y: chordY + d };
+    const abx = b.x - a.x, aby = b.y - a.y;
+    const len = Math.hypot(abx, aby) || 1;
+    if (!bow) return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + Math.max(5, 0.14 * len) };
+    const nx = -aby / len, ny = abx / len;   // unit normal to the chord
+    return { x: a.x + bow.along * abx + bow.perp * nx, y: a.y + bow.along * aby + bow.perp * ny };
   }
 
-  // Turn a dragged point into a stored bow {f,d}, clamped to the gravity box:
-  // horizontally between the jacks, vertically at or below the chord.
+  // Turn a dragged point into a stored bow {along,perp}: project onto the chord
+  // for `along` (clamped between the jacks) and the signed distance off it for
+  // `perp` (either side allowed).
   _bowFromPoint(a, b, m) {
-    const leftX = Math.min(a.x, b.x), rightX = Math.max(a.x, b.x);
-    const span = rightX - leftX;
-    if (span < 1e-3) return { f: 0.5, d: Math.max(0, m.y - (a.y + b.y) / 2) };
-    const bx = Math.max(leftX, Math.min(rightX, m.x));
-    const chordY = a.y + (b.y - a.y) * (bx - a.x) / (b.x - a.x);
-    return { f: (bx - leftX) / span, d: Math.max(0, m.y - chordY) };
+    const abx = b.x - a.x, aby = b.y - a.y;
+    const len = Math.hypot(abx, aby) || 1;
+    const along = clamp01(((m.x - a.x) * abx + (m.y - a.y) * aby) / (len * len));
+    const nx = -aby / len, ny = abx / len;
+    return { along, perp: (m.x - a.x) * nx + (m.y - a.y) * ny };
   }
 
-  // The cord's geometry: a quadratic (parabola => never inflects) through the
-  // belly, with each end attached at the hole rim along the line to the control
-  // point Q — so the end tangent passes through that jack's centre.
+  // The cord's geometry as a CUBIC (independent handle per end, so each end can
+  // aim any direction). Each end departs radially toward the belly P: a stub runs
+  // from the hole rim out 2·r along that direction, and the ghosted cord is a
+  // cubic between the two stub ENDS, tangent to each stub — so the stub reads as
+  // the cable's plug and the ghosted cord continues from it with no kink.
   _cordGeom(e) {
     const a = this._jackPosMm(e.src.key, e.src.portId);
     const b = this._jackPosMm(e.dst.key, e.dst.portId);
     if (!a || !b) return null;
     const w = CABLE_PX / (this._fit || 1);
-    const belly = this._bellyPoint(a, b, e.bow);
-    const Q = { x: 2 * belly.x - (a.x + b.x) / 2, y: 2 * belly.y - (a.y + b.y) / 2 };
-    const u0 = unit(Q.x - a.x, Q.y - a.y);
-    const u3 = unit(Q.x - b.x, Q.y - b.y);
-    const p0 = { x: a.x + (a.r + w / 2) * u0.x, y: a.y + (a.r + w / 2) * u0.y };
-    const p3 = { x: b.x + (b.r + w / 2) * u3.x, y: b.y + (b.r + w / 2) * u3.y };
-    return { a, b, w, Q, u0, u3, p0, p3 };
+    const P = this._bellyPoint(a, b, e.bow);
+    const uA = unit(P.x - a.x, P.y - a.y);
+    const uB = unit(P.x - b.x, P.y - b.y);
+    const rimA = { x: a.x + uA.x * (a.r + w / 2), y: a.y + uA.y * (a.r + w / 2) };
+    const rimB = { x: b.x + uB.x * (b.r + w / 2), y: b.y + uB.y * (b.r + w / 2) };
+    const sA = { x: rimA.x + uA.x * 2 * a.r, y: rimA.y + uA.y * 2 * a.r };
+    const sB = { x: rimB.x + uB.x * 2 * b.r, y: rimB.y + uB.y * 2 * b.r };
+    const L = Math.hypot(sB.x - sA.x, sB.y - sA.y) * 0.4;
+    const c1 = { x: sA.x + uA.x * L, y: sA.y + uA.y * L };
+    const c2 = { x: sB.x + uB.x * L, y: sB.y + uB.y * L };
+    return { a, b, w, uA, uB, rimA, rimB, sA, sB, c1, c2 };
   }
 
   _drawCables() {
@@ -335,30 +391,146 @@ export class Rack {
       this.cables.appendChild(p);
       return p;
     };
+    this._toolbarCords = [];
     for (const e of this.patchbay.list()) {
       if (e.id === this._dragEdgeId) continue; // hidden while its end is being dragged
+      if (this.mixer && (e.src.key === this.mixer.key || e.dst.key === this.mixer.key)) {
+        this._drawMixerEdge(e, wmm, mk);
+        continue;
+      }
       const g = this._cordGeom(e);
       if (!g) continue;
       const color = STYLE_COLOR[e.style] || STYLE_COLOR.control;
-      const cordD = `M${r2(g.p0.x)},${r2(g.p0.y)} Q${r2(g.Q.x)},${r2(g.Q.y)} ${r2(g.p3.x)},${r2(g.p3.y)}`;
-      // Ghosted whole cord (inherits pointer-events:none, so clicks fall through);
-      // a wide transparent reshape hit-path over it grabs the cord to droop it.
-      mk(cordD, color, wmm, 0.5, null);
-      mk(cordD, 'transparent', hitMm, null, 'stroke')
+      // Ghosted middle: a cubic from stub-end to stub-end (pointer-events:none, so
+      // clicks fall through); a wide transparent reshape hit-path droops it.
+      const ghostD = `M${r2(g.sA.x)},${r2(g.sA.y)} C${r2(g.c1.x)},${r2(g.c1.y)} ${r2(g.c2.x)},${r2(g.c2.y)} ${r2(g.sB.x)},${r2(g.sB.y)}`;
+      mk(ghostD, color, wmm, 0.5, null);
+      mk(ghostD, 'transparent', hitMm, null, 'stroke')
         .addEventListener('pointerdown', (ev) => this._startReshape(ev, e));
-      // An opaque stub along each end tangent, plus a grab hit-path that moves or
-      // deletes THIS cable's end. Appended last, so it wins over the reshape path.
-      for (const en of [{ p: g.p0, u: g.u0, r: g.a.r, end: 'src' }, { p: g.p3, u: g.u3, r: g.b.r, end: 'dst' }]) {
-        const sd = `M${r2(en.p.x)},${r2(en.p.y)} L${r2(en.p.x + en.u.x * 2 * en.r)},${r2(en.p.y + en.u.y * 2 * en.r)}`;
-        mk(sd, color, wmm, 1, null);
-        mk(sd, 'transparent', hitMm, null, 'stroke')
-          .addEventListener('pointerdown', (ev) => this._startRegrab(ev, e, en.end));
+      // The opaque stub at each end IS the move/delete handle — only the stub, so
+      // it doesn't steal grabs meant for reshaping. Appended last, so it wins over
+      // the reshape hit-path where they overlap near the plug.
+      for (const en of [{ rim: g.rimA, s: g.sA, end: 'src' }, { rim: g.rimB, s: g.sB, end: 'dst' }]) {
+        const sd = `M${r2(en.rim.x)},${r2(en.rim.y)} L${r2(en.s.x)},${r2(en.s.y)}`;
+        mk(sd, color, wmm, 1, null);                       // visible opaque stub
+        const h = mk(sd, 'transparent', hitMm, null, 'stroke');   // grab handle = the stub only
+        h.style.cursor = 'var(--grip)';
+        h.addEventListener('pointerdown', (ev) => this._startRegrab(ev, e, en.end));
       }
     }
     if (this._tempCable) {
       this._tempCable.setAttribute('stroke-width', r2(wmm));
       this.cables.appendChild(this._tempCable);
     }
+    this._drawToolbarCords();
+  }
+
+  // A cord to a toolbar mixer jack. We compute ONE cord from the jack (T, above
+  // the seam) to the module (M), and draw the SAME path in both overlays: the
+  // rack overlay clips it below the seam, the toolbar overlay clips it above —
+  // so it's one continuous curve with no kink where they meet.
+  _drawMixerEdge(e, wmm, mk) {
+    const mixerEnd = e.src.key === this.mixer.key ? 'src' : 'dst';
+    const moduleEnd = mixerEnd === 'src' ? 'dst' : 'src';
+    const other = e[moduleEnd];
+    const T = this._mixerJackPosMm(e[mixerEnd].portId);
+    const M = this._jackPosMm(other.key, other.portId);
+    if (!T || !M) return;
+    const color = STYLE_COLOR[e.style] || STYLE_COLOR.control;
+    const path = this._toolbarCordPath(T, M, wmm);
+    mk(path, color, wmm, 0.95, null);                 // rack part (clipped below the seam)
+    this._toolbarCords.push({ path, color, wmm });     // toolbar part (same path, clipped above)
+    // A grab handle (stub) at the module end so the cord can be dragged off to
+    // move or delete it; the toolbar end is grabbed via its jack.
+    const hitMm = 9 / (this.pxPerMm || 1);
+    const uM = unit(M.x - T.x, M.y - T.y);
+    const rim = { x: M.x - uM.x * (M.r + wmm / 2), y: M.y - uM.y * (M.r + wmm / 2) };
+    const stubEnd = { x: rim.x - uM.x * 2 * M.r, y: rim.y - uM.y * 2 * M.r };
+    const sd = `M${r2(rim.x)},${r2(rim.y)} L${r2(stubEnd.x)},${r2(stubEnd.y)}`;
+    mk(sd, color, wmm, 1, null);
+    const h = mk(sd, 'transparent', hitMm, null, 'stroke');
+    h.style.cursor = 'var(--grip)';
+    h.addEventListener('pointerdown', (ev) => this._startRegrab(ev, e, moduleEnd));
+  }
+
+  // Rack cord for a toolbar edge. It leaves T straight down, PAST the seam by a
+  // fixed drop, so at the seam the cord is vertical — tangent to the toolbar
+  // line — before it curves to M's rim aiming at M's centre.
+  _toolbarCordPath(T, M, w) {
+    const u = unit(M.x - T.x, M.y - T.y);           // T -> M
+    const p3 = { x: M.x - u.x * (M.r + w / 2), y: M.y - u.y * (M.r + w / 2) };
+    const drop = Math.max(0, -T.y) + 10;            // clear the seam (y=0) vertically
+    const c1 = { x: T.x, y: T.y + drop };
+    const h = Math.max(8, Math.hypot(p3.x - c1.x, p3.y - c1.y) * 0.4);
+    const c2 = { x: p3.x - u.x * h, y: p3.y - u.y * h };  // radial into M
+    return `M${r2(T.x)},${r2(T.y)} C${r2(c1.x)},${r2(c1.y)} ${r2(c2.x)},${r2(c2.y)} ${r2(p3.x)},${r2(p3.y)}`;
+  }
+
+  // Draw the toolbar half of each mixer cord: the SAME content-mm path, in a
+  // group transformed so content mm maps to toolbar screen px. The overlay clips
+  // it at the seam (toolbar bottom); the rack overlay draws the rest — so the two
+  // halves are one continuous curve.
+  _drawToolbarCords() {
+    if (!this.mixer || !this.mixer.linesSvg) return;
+    const svg = this.mixer.linesSvg;
+    svg.textContent = '';
+    if (!this._toolbarCords.length) return;
+    const cr = this.content.getBoundingClientRect();
+    const tb = this.mixer.toolbarEl.getBoundingClientRect();
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('transform', `translate(${r2(cr.left - tb.left)},${r2(cr.top - tb.top)}) scale(${r2(this.pxPerMm)})`);
+    for (const c of this._toolbarCords) {
+      const p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d', c.path); p.setAttribute('fill', 'none');
+      p.setAttribute('stroke', c.color); p.setAttribute('stroke-width', r2(c.wmm));
+      p.setAttribute('stroke-linecap', 'round');
+      g.appendChild(p);
+    }
+    svg.appendChild(g);
+  }
+
+  // Start a cable from a toolbar mixer jack (drag down into the rack to a module).
+  _startCableFromMixer(e, portId) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    document.body.classList.add('grabbing-cable');
+    const start = { key: this.mixer.key, portId };
+    const meta = this.host.registry.portById(this.mixer.descriptorId, portId);
+    const a = this._mixerJackPosMm(portId);
+    const wmm = CABLE_PX / (this._fit || 1);
+    const tmp = document.createElementNS(SVG_NS, 'path');
+    tmp.setAttribute('class', 'rack-cable rack-cable-temp');
+    tmp.setAttribute('stroke', STYLE_COLOR[domainStyle(meta.domain)]);
+    tmp.setAttribute('stroke-width', r2(wmm));
+    this._tempCable = tmp;
+    this.cables.appendChild(tmp);
+    this._highlightCandidates(meta.domain, meta.dir === 'out' ? 'in' : 'out');
+
+    const onMove = (ev) => {
+      const m = this._clientToMm(ev.clientX, ev.clientY);
+      tmp.setAttribute('d', this._cordPath(a, a.r, m, 0, wmm));
+    };
+    const onUp = (ev) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      tmp.remove(); this._tempCable = null;
+      this._clearHighlights();
+      const drop = this._jackFromPoint(ev.clientX, ev.clientY);
+      if (drop && !(drop.key === start.key && drop.portId === start.portId)) this._tryConnect(start, drop);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }
+
+  _onMixerJackContextMenu(e, portId) {
+    const edges = this.patchbay.edgesAtJack(this.mixer.key, portId);
+    if (!edges.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this._openMenu(e.clientX, e.clientY, [{
+      label: edges.length > 1 ? `Disconnect ${edges.length} cords` : 'Disconnect',
+      action: () => { for (const ed of edges) this.patchbay.disconnect(ed); this._drawCables(); this.onChange(); },
+    }]);
   }
 
   // ---- drag-to-patch ----
@@ -367,15 +539,18 @@ export class Rack {
     const el = document.elementFromPoint(clientX, clientY);
     const jack = el && el.closest && el.closest('[data-wcoast-port]');
     if (!jack) return null;
+    const portId = jack.getAttribute('data-wcoast-port');
+    if (this.mixer && jack.closest('.toolbar-jack')) return { key: this.mixer.key, portId };
     const modEl = jack.closest('.rack-module');
     if (!modEl || !this.records.has(modEl.dataset.key)) return null;
-    return { key: modEl.dataset.key, portId: jack.getAttribute('data-wcoast-port') };
+    return { key: modEl.dataset.key, portId };
   }
 
   // Start a NEW cable by dragging from a bare part of a port.
   _startCable(e, rec, portId) {
     if (e.button !== 0) return;
     e.preventDefault();
+    document.body.classList.add('grabbing-cable');
     const start = { key: rec.key, portId };
     const meta = rec.panel.ports.get(portId).meta;
     const a = this._jackPosMm(rec.key, portId);
@@ -413,11 +588,12 @@ export class Rack {
     if (ev.button !== 0) return;
     ev.preventDefault();
     ev.stopPropagation();
+    document.body.classList.add('grabbing-cable');
     const fixed = grabbedEnd === 'src' ? edge.dst : edge.src;
     const grabbed = grabbedEnd === 'src' ? edge.src : edge.dst;
-    const fixedRec = this.records.get(fixed.key);
-    if (!fixedRec) return;
-    const fixedMeta = fixedRec.panel.ports.get(fixed.portId).meta;
+    const fixedEp = this._ep(fixed.key, fixed.portId);
+    if (!fixedEp) return;
+    const fixedMeta = fixedEp.meta;
     const fixedPos = this._jackPosMm(fixed.key, fixed.portId);
     const wantDir = fixedMeta.dir === 'out' ? 'in' : 'out';
     const wmm = CABLE_PX / (this._fit || 1);
@@ -430,7 +606,7 @@ export class Rack {
     tmp.setAttribute('stroke-width', r2(wmm));
     this._tempCable = tmp;
     this.cables.appendChild(tmp);
-    this._highlightCandidates(fixedMeta.domain, wantDir);
+    this._highlightCandidates(fixedMeta.domain, wantDir, edge);
 
     const onMove = (e2) => {
       const m = this._clientToMm(e2.clientX, e2.clientY);
@@ -445,9 +621,11 @@ export class Rack {
       this._dragEdgeId = null;
       const drop = this._jackFromPoint(e2.clientX, e2.clientY);
       const droppedBack = drop && drop.key === grabbed.key && drop.portId === grabbed.portId;
-      if (droppedBack) {
-        this._drawCables();                              // unchanged — just restore
-      } else if (drop && this._isCandidate(drop, fixedMeta.domain, wantDir)) {
+      const candidate = drop && this._isCandidate(drop, fixedMeta.domain, wantDir);
+      const occupied = candidate && wantDir === 'in' && this.patchbay.inputOccupied(drop.key, drop.portId, edge);
+      if (droppedBack || (candidate && occupied)) {
+        this._drawCables();                              // unchanged (or target input already taken) — restore
+      } else if (candidate) {
         this.patchbay.disconnect(edge);                  // move: reconnect fixed end -> new port
         this._tryConnect({ key: fixed.key, portId: fixed.portId }, drop);
       } else {
@@ -495,20 +673,23 @@ export class Rack {
   }
 
   _isCandidate(jack, domain, wantDir) {
-    const rec = this.records.get(jack.key);
-    const port = rec && rec.panel.ports.get(jack.portId);
-    return !!port && port.meta.dir === wantDir && port.meta.domain === domain;
+    const ep = this._ep(jack.key, jack.portId);
+    return !!ep && ep.meta.dir === wantDir && ep.meta.domain === domain;
   }
 
   // While a cable is dragging, thicken the outer ring of every valid target port
-  // (same domain, opposite direction) by ~2 px so candidates stand out.
-  _highlightCandidates(domain, wantDir) {
+  // (same domain, opposite direction) by ~2 px so candidates stand out. An input
+  // already carrying a cable is NOT a valid target, so it's left at normal size —
+  // a subtle cue that you can't drop there. (exceptEdge: for a regrab, the moving
+  // cable's own edge doesn't count its current input as occupied.)
+  _highlightCandidates(domain, wantDir, exceptEdge) {
     this._clearHighlights();
     this._highlights = [];
     const delta = 2 / (this.pxPerMm || 1);   // 2 screen px expressed in panel mm
     for (const rec of this.records.values()) {
-      for (const [, port] of rec.panel.ports) {
+      for (const [portId, port] of rec.panel.ports) {
         if (port.meta.dir !== wantDir || port.meta.domain !== domain) continue;
+        if (wantDir === 'in' && this.patchbay.inputOccupied(rec.key, portId, exceptEdge)) continue;
         const ring = port.element.querySelector('circle');   // the outer coloured ring
         if (!ring) continue;
         const orig = ring.getAttribute('stroke-width');
@@ -527,23 +708,21 @@ export class Rack {
     this._highlights = [];
   }
 
-  // Orient the two jacks into (output -> input) and make the edge.
+  // Orient the two jacks into (output -> input) and make the edge. Either end
+  // may be a module or the toolbar mixer.
   _tryConnect(jackA, jackB) {
-    const recA = this.records.get(jackA.key);
-    const recB = this.records.get(jackB.key);
-    if (!recA || !recB) return;
-    const dirA = recA.panel.ports.get(jackA.portId).meta.dir;
-    const dirB = recB.panel.ports.get(jackB.portId).meta.dir;
+    const A = this._ep(jackA.key, jackA.portId);
+    const B = this._ep(jackB.key, jackB.portId);
+    if (!A || !B) return;
     let src, dst;
-    if (dirA === 'out' && dirB === 'in') { src = { rec: recA, portId: jackA.portId }; dst = { rec: recB, portId: jackB.portId }; }
-    else if (dirA === 'in' && dirB === 'out') { src = { rec: recB, portId: jackB.portId }; dst = { rec: recA, portId: jackA.portId }; }
+    if (A.meta.dir === 'out' && B.meta.dir === 'in') { src = A; dst = B; }
+    else if (A.meta.dir === 'in' && B.meta.dir === 'out') { src = B; dst = A; }
     else return;   // output-to-output or input-to-input: not a valid cord
 
-    const dstMeta = dst.rec.panel.ports.get(dst.portId).meta;
-    const initialDepth = dstMeta.via ? dst.rec.values.get(dstMeta.via) : undefined;
+    const initialDepth = (dst.meta.via && dst.rec) ? dst.rec.values.get(dst.meta.via) : undefined;
     const res = this.patchbay.connect(
-      { key: src.rec.key, instance: src.rec.instance, descriptorId: src.rec.descriptorId, portId: src.portId },
-      { key: dst.rec.key, instance: dst.rec.instance, descriptorId: dst.rec.descriptorId, portId: dst.portId },
+      { key: src.key, instance: src.instance, descriptorId: src.descriptorId, portId: src.portId },
+      { key: dst.key, instance: dst.instance, descriptorId: dst.descriptorId, portId: dst.portId },
       initialDepth,
     );
     if (res.ok) { this._drawCables(); this.onChange(); }
@@ -586,11 +765,16 @@ export class Rack {
         const dstDomain = here.dir === 'out' ? p.domain : here.domain;
         if (canConnect(srcDomain, dstDomain) === DENY) continue;  // never today; future-proof
         const connected = !!this._edgeBetween(rec.key, portId, m.key, p.id);
+        // An input takes one cable: whichever end of this pairing is the input,
+        // if it's already used by a different cable, this option is unavailable.
+        const inKey = here.dir === 'in' ? rec.key : m.key;
+        const inPort = here.dir === 'in' ? portId : p.id;
+        const taken = !connected && this.patchbay.inputOccupied(inKey, inPort);
         group.push({
-          label: this._portLabel(p),
+          label: this._portLabel(p) + (taken ? ' — in use' : ''),
           checked: connected,
-          dim: !sameDomain,
-          action: () => this._toggleConnection(rec, portId, m, p.id, connected),
+          dim: !sameDomain || taken,
+          action: taken ? () => {} : () => this._toggleConnection(rec, portId, m, p.id, connected),
         });
       }
       if (group.length) {

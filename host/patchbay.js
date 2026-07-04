@@ -69,6 +69,9 @@ export class Patchbay {
     const verdict = canConnect(srcPort.domain, dstPort.domain);
     if (verdict === DENY) return { ok: false, reason: 'not allowed', verdict };
 
+    // An input takes at most one cable — reject a second (outputs still fan out).
+    if (this.inputOccupied(dst.key, dst.portId)) return { ok: false, reason: 'input already connected' };
+
     const out = src.instance.getOutput(src.portId);
     if (!out) return { ok: false, reason: `output "${src.portId}" not realized` };
 
@@ -139,5 +142,11 @@ export class Patchbay {
   edgesAtJack(key, portId) {
     return this.list().filter((e) => (e.src.key === key && e.src.portId === portId)
       || (e.dst.key === key && e.dst.portId === portId));
+  }
+
+  // Does this input jack already carry a cable? (exceptEdge is ignored — for a
+  // move, the cable's own edge shouldn't count against it.)
+  inputOccupied(dstKey, dstPortId, exceptEdge) {
+    return this.list().some((e) => e !== exceptEdge && e.dst.key === dstKey && e.dst.portId === dstPortId);
   }
 }
