@@ -71,7 +71,7 @@ function buildJack(portId, label, domain) {
 async function boot() {
   ensureAudio();
   rack = new Rack(document.getElementById('rack'), {
-    host, moduleTypes: MODULE_TYPES, rowCount: 2, onChange: () => {},
+    host, moduleTypes: MODULE_TYPES, rowCount: 2, onChange: () => markDirty(),
   });
   rack.relayout();
 
@@ -113,10 +113,22 @@ async function boot() {
   const masterLabel = document.getElementById('masterLabel');
 
   // The mixer's floating control panel, toggled by the Mixer button.
+  // Unsaved-changes tracking. Any knob, switch, cable, or mixer change dirties
+  // the patch; loading or saving cleans it. The title shows a dot while dirty,
+  // and (in Electron) the dirty state is mirrored to the main process so it can
+  // guard the window close.
+  let dirty = false;
+  let patchName = null;
+  function updateTitle() { document.title = `Wcoast — ${patchName || 'untitled'}${dirty ? ' •' : ''}`; }
+  function setPatchName(n) { patchName = n; updateTitle(); }
+  function markDirty() { if (dirty) return; dirty = true; updateTitle(); window.wcoast?.patch?.setDirty?.(true); }
+  function markClean() { dirty = false; updateTitle(); window.wcoast?.patch?.setDirty?.(false); }
+
   const panel = new MixerPanel({
     instance: mixer.instance,
     descriptor: mixerDescriptor,
     onMaster: (v) => setMasterValue(v, 'panel'),
+    onChange: () => markDirty(),
   });
   panel.setHeight((rack.moduleHeightPx() / 2 * 0.9));   // match a 259t faceplate's height
   document.getElementById('mixer-open').addEventListener('click', () => {
@@ -135,6 +147,7 @@ async function boot() {
     if (source !== 'toolbar') masterSlider.value = String(masterValue);
     if (source !== 'panel') panel.setMaster(masterValue);
     applyMaster();
+    if (source !== 'init') markDirty();
   }
 
   onoff.addEventListener('click', async () => {
@@ -155,31 +168,36 @@ async function boot() {
 
   // Save/load: the environment-chosen storage adapter drives the shared core.
   const storage = createStorage();
-  const setTitle = (name) => { document.title = name ? `Wcoast — ${name}` : 'Wcoast — rack'; };
   const patchText = () => JSON.stringify(serialize(rack, mixerIO), null, 2);
+  // Guard the destructive actions (New / Open / Reopen) when there's unsaved work.
+  const okToDiscard = () => !dirty || window.confirm('You have unsaved changes. Discard them?');
 
-  async function newPatch() { rack.clear(); storage.forget(); setTitle(null); }
+  async function newPatch() {
+    if (!okToDiscard()) return;
+    rack.clear(); storage.forget(); setPatchName(null); markClean();
+  }
   async function openPatch() {
+    if (!okToDiscard()) return;
     let f;
     try { f = await storage.open(); } catch (e) { log(`open failed: ${e.message}`); return; }
     if (!f) return;
-    try { await restore(JSON.parse(f.text), rack, mixerIO); setTitle(f.name); }
+    try { await restore(JSON.parse(f.text), rack, mixerIO); setPatchName(f.name); markClean(); }
     catch (e) { log(`restore failed: ${e.message}`); window.alert(`Could not open patch: ${e.message}`); }
   }
   async function savePatch() {
-    try { const name = await storage.save(patchText()); if (name) setTitle(name); }
+    try { const name = await storage.save(patchText()); if (name) { setPatchName(name); markClean(); } }
     catch (e) { log(`save failed: ${e.message}`); window.alert(`Could not save: ${e.message}`); }
   }
   async function saveAsPatch() {
-    try { const name = await storage.saveAs(patchText()); if (name) setTitle(name); }
+    try { const name = await storage.saveAs(patchText()); if (name) { setPatchName(name); markClean(); } }
     catch (e) { log(`save failed: ${e.message}`); window.alert(`Could not save: ${e.message}`); }
   }
-
   async function reopenPatch() {
+    if (!okToDiscard()) return;
     let f;
     try { f = await storage.reopenLast(); } catch (e) { log(`reopen failed: ${e.message}`); return; }
     if (!f) return;
-    try { await restore(JSON.parse(f.text), rack, mixerIO); setTitle(f.name); }
+    try { await restore(JSON.parse(f.text), rack, mixerIO); setPatchName(f.name); markClean(); }
     catch (e) { log(`restore failed: ${e.message}`); window.alert(`Could not open patch: ${e.message}`); }
   }
 
@@ -200,9 +218,27 @@ async function boot() {
     rack.openMenu(r.left, r.bottom + 4, items);
   });
 
+  // Standard file shortcuts (we dropped the native File menu): Cmd/Ctrl-S save,
+  // Shift adds Save As; Cmd/Ctrl-O open; Cmd/Ctrl-N new.
+  window.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 's') { e.preventDefault(); if (e.shiftKey) saveAsPatch(); else savePatch(); }
+    else if (k === 'o' && !e.shiftKey) { e.preventDefault(); openPatch(); }
+    else if (k === 'n' && !e.shiftKey) { e.preventDefault(); newPatch(); }
+  });
+
+  // Warn before a browser tab/window discards unsaved work. In Electron the
+  // window close is guarded in the main process (via the mirrored dirty state),
+  // so beforeunload here is browser-only to avoid a double prompt.
+  if (!(window.wcoast && window.wcoast.isElectron)) {
+    window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+  }
+
   // Start with one of each so there's something to patch.
   await rack.addModule(oscDescriptor.id, 0, 0);
   await rack.addModule(lpgDescriptor.id, 1, 0);
+  markClean();   // the starting patch is the clean baseline, not unsaved work
 
   // Re-fit once after the toolbar has claimed its final height. In Electron the
   // ready-to-show gate means this is already correct; a bare browser settles its

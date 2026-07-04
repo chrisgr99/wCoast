@@ -37,6 +37,7 @@ export class MixerPanel {
     this.inst = opts.instance;
     this.desc = opts.descriptor;
     this.onMaster = opts.onMaster || (() => {});
+    this.onChange = opts.onChange || (() => {});
     this.channels = this.desc.channels;
     this.faders = new Map();     // paramId -> { handle, track, min, max, value }
     this.knobs = new Map();      // paramId -> { pointer, cx, cy, min, max, value }
@@ -172,6 +173,7 @@ export class MixerPanel {
       rec.on = !rec.on;
       this.inst.setParam(paramId, rec.on ? 'on' : 'off');
       this._showMute(paramId);
+      this.onChange();
     });
   }
 
@@ -214,6 +216,7 @@ export class MixerPanel {
     if (paramId === 'master') { this.onMaster(rec.value); this._showFader(paramId); return; }
     this.inst.setParam(paramId, rec.value);
     if (this.faders.has(paramId)) this._showFader(paramId); else this._showKnob(paramId);
+    this.onChange();
   }
 
   // Update the master fader's shown value without echoing back (toolbar changed it).

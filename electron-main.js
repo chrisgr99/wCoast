@@ -41,7 +41,10 @@ async function patchesDir() {
   return dir;
 }
 
+let hasUnsavedChanges = false;   // mirrored from the renderer, to guard window close
+
 function registerPatchIpc() {
+  ipcMain.on('patch:dirty', (_e, v) => { hasUnsavedChanges = !!v; });
   ipcMain.handle('patch:open', async () => {
     const r = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: PATCH_FILTER, defaultPath: await patchesDir() });
     if (r.canceled || !r.filePaths[0]) return null;
@@ -202,6 +205,20 @@ function createWindow() {
   });
 
   mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
+
+  // Guard the close if the renderer has unsaved changes.
+  mainWindow.on('close', (e) => {
+    if (!hasUnsavedChanges) return;
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'warning',
+      buttons: ['Cancel', 'Discard & Close'],
+      defaultId: 0,
+      cancelId: 0,
+      message: 'You have unsaved changes.',
+      detail: 'Close the window without saving your patch?',
+    });
+    if (choice === 0) e.preventDefault();   // Cancel: keep the window open
+  });
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();

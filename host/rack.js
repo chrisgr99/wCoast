@@ -841,6 +841,7 @@ export class Rack {
     const b = rec.panel.controls.get(id);
     if (b) showValue(b, value);
     this.patchbay.setDepth(rec.key, id, value);   // if this knob is a cord's depth control
+    this.onChange();                              // a knob/switch change dirties the patch
   }
 
   deleteModule(rec) {

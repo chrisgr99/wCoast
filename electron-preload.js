@@ -16,9 +16,12 @@ contextBridge.exposeInMainWorld('wcoast', {
     node: process.versions.node,
   },
   // Patch files. open() -> { path, text } | null; save/saveAs -> { path } | null.
+  // setDirty tells the main process about unsaved changes so it can guard the
+  // window close.
   patch: {
     open: () => ipcRenderer.invoke('patch:open'),
     save: (state) => ipcRenderer.invoke('patch:save', state),
     saveAs: (state) => ipcRenderer.invoke('patch:saveAs', state),
+    setDirty: (v) => ipcRenderer.send('patch:dirty', v),
   },
 });
