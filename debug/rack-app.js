@@ -21,6 +21,7 @@ import { MixerPanel } from '../host/mixer-panel.js';
 import { serialize, restore, validate } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
 import { buildCatalogue, createMirror } from '../host/mirror.js';
+import { createAudioTrace } from '../host/audio-trace.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
 
@@ -47,6 +48,7 @@ let audioCtx = null;
 let host = null;
 let rack = null;
 let mixer = null;        // { instanceId, instance }
+let trace = null;        // audio-trace projection (created after the mixer)
 let started = false;
 
 function ensureAudio() {
@@ -80,6 +82,7 @@ async function boot() {
   const m = await host.instantiate(mixerDescriptor.id);
   mixer = m;
   mixer.instance.setParam('master', 0);   // silent until On
+  trace = createAudioTrace({ ctx: audioCtx, rack, mixer: mixer.instance });
 
   // Build the toolbar jacks: A–D audio, then the two pan-CV inputs.
   const jacksEl = document.getElementById('mixer-jacks');
@@ -158,6 +161,7 @@ async function boot() {
     if (!started) { await audioCtx.resume(); started = true; onoff.classList.add('on'); }
     else { started = false; onoff.classList.remove('on'); }
     applyMaster();
+    updateTrace();
   });
   masterSlider.addEventListener('input', () => setMasterValue(Number(masterSlider.value), 'toolbar'));
   setMasterValue(masterValue, 'init');
@@ -180,11 +184,42 @@ async function boot() {
       patch: { name: patchName, dirty },
       state: { sound: started ? 'on' : 'off', master: masterValue },
       sync: { lastSyncAt: new Date().toISOString() },
-      files: { roundTrip: ['patch.json'], observationOnly: ['active.json', 'catalogue.json', 'last-apply-result.json', 'AGENTS.md', 'README.md'] },
+      files: { roundTrip: ['patch.json'], observationOnly: ['active.json', 'catalogue.json', 'last-apply-result.json', 'selection.json', 'runtime.json', 'audio-trace.json', 'AGENTS.md', 'README.md'] },
     }),
     catalogue: buildCatalogue([oscDescriptor, lpgDescriptor], mixerDescriptor),
     applyEdit,
   });
+
+  // Audio-trace + runtime projection: while sound plays AND the mirror is on,
+  // measure the live signal at every wired output, each mixer channel, and the
+  // master, and write audio-trace.json (plus a small runtime.json). Started and
+  // stopped by the On/Off toggle and the mirror enable toggle.
+  function pushTrace(t) {
+    const master = t.endpoints.find((e) => e.id === 'mixer.master');
+    const runtime = {
+      protocolVersion: 1, sound: t.sound, master: masterValue,
+      vu: master ? { peak_dbfs: master.peak_dbfs, rms_dbfs: master.rms_dbfs } : null,
+      at: t.capturedAt,
+    };
+    mirror.pushFiles({ 'audio-trace.json': t, 'runtime.json': runtime });
+  }
+  function updateTrace() {
+    if (!trace) return;
+    const want = started && mirror.isEnabled();
+    if (want && !trace.running()) trace.start(pushTrace);
+    else if (!want && trace.running()) trace.stop({ writeOff: mirror.isEnabled() });
+  }
+
+  // Sticky deixis: project the module the pointer last entered to selection.json,
+  // so "make this one louder" resolves. Debounced; never cleared on pointer-leave.
+  let selTimer = null;
+  rack.onSelect = (rec) => {
+    clearTimeout(selTimer);
+    selTimer = setTimeout(() => {
+      if (!mirror.isEnabled()) return;
+      mirror.pushFiles({ 'selection.json': rec ? { id: rec.key, type: rec.descriptorId, name: rec.name } : null });
+    }, 200);
+  };
 
   // Save/load: the environment-chosen storage adapter drives the shared core.
   const storage = createStorage();
@@ -251,7 +286,7 @@ async function boot() {
     }
     if (mirror.available()) {
       items.push({ header: true, label: 'AI Mirror' });
-      items.push({ label: mirror.isEnabled() ? 'Turn mirror off' : 'Turn mirror on', action: () => mirror.setEnabled(!mirror.isEnabled()) });
+      items.push({ label: mirror.isEnabled() ? 'Turn mirror off' : 'Turn mirror on', action: async () => { await mirror.setEnabled(!mirror.isEnabled()); updateTrace(); } });
       items.push({ label: 'Reveal mirror folder', action: () => mirror.reveal() });
     }
     const r = e.currentTarget.getBoundingClientRect();

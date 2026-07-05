@@ -60,6 +60,16 @@ export function createMirror({ getPatch, getActive, catalogue, applyEdit }) {
     bridge.write(files);
   }
 
+  // Write arbitrary observation-only files (selection.json, runtime.json,
+  // audio-trace.json) when the mirror is on. A no-op otherwise, so callers can
+  // fire freely without guarding. Values are objects (or null); serialised here.
+  function pushFiles(obj) {
+    if (!bridge || !enabled || !obj) return;
+    const files = {};
+    for (const k of Object.keys(obj)) files[k] = str(obj[k]);
+    bridge.write(files);
+  }
+
   // Round-trip: an external write to patch.json arrives here. Apply it (with the
   // app's confirm + validation), report the outcome, then re-project — which
   // normalises the file on success or reverts it to the current patch on reject.
@@ -105,5 +115,6 @@ export function createMirror({ getPatch, getActive, catalogue, applyEdit }) {
     available: () => !!bridge,
     reveal: () => bridge && bridge.reveal(),
     project,
+    pushFiles,
   };
 }

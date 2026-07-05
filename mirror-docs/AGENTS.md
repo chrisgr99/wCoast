@@ -62,6 +62,12 @@ is closed and the user isn't at the keyboard.
   the file you write to propose a change (see the round-trip section above).
 - `last-apply-result.json` — the outcome of your most recent `patch.json` write:
   success (applied) or rejected (with the error). Absent until your first write.
+- `selection.json` — the module the user last pointed at: `{ id, type, name }`, or
+  `null` before any hover. Use it to resolve deixis — "make *this* one louder".
+- `runtime.json` — small live signals: whether sound is running, the master
+  level, and the master VU. Present while the app runs.
+- `audio-trace.json` — the live sound as measurements (see its section below).
+  Present only while sound plays.
 - `AGENTS.md` — this file.
 - `README.md` — a "do not edit" note for the human user; you can ignore it.
 
@@ -79,7 +85,7 @@ file is which; trust those over this prose if they ever disagree.
   "sync": { "lastSyncAt": "2026-07-04T21:00:00.000Z" },
   "files": {
     "roundTrip": ["patch.json"],
-    "observationOnly": ["active.json", "catalogue.json", "AGENTS.md"]
+    "observationOnly": ["active.json", "catalogue.json", "last-apply-result.json", "selection.json", "runtime.json", "audio-trace.json", "AGENTS.md"]
   }
 }
 ```
@@ -135,6 +141,62 @@ Topology (`modules`, `wiring`) is separated from `settings` (every value). A
 `settings.params`; the mixer's id is `"mixer"`. `wiring.from` is always an output
 port and `to` an input; `bow` (optional) is the cable's bend. Every `type`,
 `port`, and `param` id must exist in `catalogue.json`.
+
+## selection.json, runtime.json, audio-trace.json — what's happening now
+
+These three are written only while the mirror is on; `audio-trace.json` and
+`runtime.json` also require sound to be playing.
+
+- `selection.json` is the **deictic pointer**: `{ "id": "m1", "type": "lpg-292",
+  "name": "Quad Low Pass Gate" }`. It holds the module the user last moved the
+  pointer over and stays put after they move away, so when they say "this one"
+  while talking to you, this is what they mean. `null` until the first hover.
+- `runtime.json`: `{ "sound": "on", "master": 0.7, "vu": { "peak_dbfs": -6.1,
+  "rms_dbfs": -12.4 }, "at": "…" }` — a light, always-current read of transport
+  and output level.
+- `audio-trace.json` is the sound reduced to numbers — you cannot hear the audio,
+  but you can reason about its measurements. Shape:
+
+```json
+{
+  "protocolVersion": 1,
+  "capturedAt": "…",
+  "sound": "on",
+  "sampleRateHz": 48000,
+  "endpoints": [
+    { "id": "m0.prinFinalOut", "module": "259t Complex Oscillator", "port": "Final",
+      "rms_dbfs": -14.2, "peak_dbfs": -6.0, "centroid_hz": 820, "flags": [] },
+    { "id": "mixer.chanA", "module": "Mixer", "port": "channel A", "rms_dbfs": -18.0,
+      "peak_dbfs": -9.1, "centroid_hz": 700, "flags": [] },
+    { "id": "mixer.master", "module": "Mixer", "port": "master", "rms_dbfs": -16.5,
+      "peak_dbfs": -7.0, "centroid_hz": 760, "flags": [] }
+  ],
+  "onsets": [ { "t": 12.34, "endpoint": "mixer.chanA", "peak_dbfs": -6.0, "centroid_hz": 900 } ],
+  "masterPeakHistory_dbfs": [ -8.1, -7.6, -7.0 ]
+}
+```
+
+  - `endpoints` runs in signal-flow order: every **wired module output**, then each
+    **mixer channel** (measured post-fader/mute, so a zeroed fader reads as
+    silence), then the **master**. Only wired outputs appear — an unconnected jack
+    is not measured. This lets you trace where signal is present and where it dies:
+    a hot module output whose mixer channel is silent means the fader is down, the
+    channel is muted, or the cable is missing.
+  - Levels are `rms_dbfs` (loudness) and `peak_dbfs` (headroom); `centroid_hz` is
+    the spectral centroid — higher is brighter. `flags` may include `clip` (peak at
+    full scale), `silent` (essentially no signal), `dc` (a stuck DC offset), and
+    `nan` (a broken DSP node). These are your fault-finding cues.
+  - `onsets` is a rolling log of recent **strikes** — envelope peaks on the voice
+    and channel outputs — each with a time (in the audio clock), the endpoint, and
+    its peak and brightness. Use it to reason about rhythm and dynamics.
+  - `masterPeakHistory_dbfs` is a short trail of recent master peaks, for a coarse
+    sense of the output's dynamics over the last few seconds.
+
+  The honest ceiling: this makes you a good **diagnostician** and a coarse
+  **advisor** — you can spot clipping, silence, a dead channel, brightness, or a
+  steady rhythm — but not a listener. You cannot judge whether something sounds
+  beautiful. Within that limit it is most valuable for "why is there no sound?"
+  and "why does this feel wrong?".
 
 ## When in doubt
 

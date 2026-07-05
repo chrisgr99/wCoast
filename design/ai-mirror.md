@@ -68,16 +68,17 @@ files, following the protocol below.
 - `AGENTS.md` — the grounding doc for the AI: this protocol, distilled to what an
   assistant needs to participate safely. Copied on enable.
 
-**Deferred, observation-only** (nice-to-have, later phases):
-
-- `selection.json` — the deictic "this module" pointer: the module the user is
-  hovering or whose connection menu is open, so "make this louder" resolves. The
-  spatial counterpart to GXW's canvas selection.
-- `runtime.json` — at-rest runtime signals Wcoast's static patch doesn't carry:
-  the two output VU levels, whether sound is running. Small; captured on pause.
-- `audio-trace.json` — the sound as measurements: a rolling buffer of per-endpoint
-  levels and spectral features plus detected onsets, so the AI can diagnose and
-  advise on the actual output. Full section below.
+- `selection.json` — the deictic "this module" pointer: the module the user last
+  pointed at, so "make this louder" resolves. `null` until the first hover, then
+  sticky (it does not clear when the pointer leaves), so it survives the user
+  moving the mouse away to talk. The spatial counterpart to GXW's canvas selection.
+- `runtime.json` — the small live signals the static patch doesn't carry: whether
+  sound is running, the master level, and the master VU (peak/RMS). Written on the
+  audio-trace cadence while sound plays, and once with `sound: "off"` on stop.
+- `audio-trace.json` — the sound as measurements: a per-endpoint snapshot of
+  levels and spectral features plus a rolling onset log, so the AI can diagnose
+  faults and advise on the actual output. Full section below. Present only while
+  sound plays; written with empty endpoints once on stop.
 
 The files lists inside `active.json` are the protocol-level declaration of which
 file is which; trust those over this prose if they ever disagree.
@@ -219,15 +220,17 @@ enable: create the folder, copy `AGENTS.md`, generate `catalogue.json`, push the
 current `patch.json` and `active.json`, start the watcher. On disable: stop the
 watcher, empty the folder.
 
-## Deictic pointer — selection.json (later)
+## Deictic pointer — selection.json
 
 When the user works with the AI they can't point at the screen, so — as in GXW —
-Wcoast can project which module they mean: the module under the pointer, or the
-one whose connection menu is open, written (debounced) to `selection.json` as
-`{ id, type, name }`. Pair it with `catalogue.json`/`patch.json` to resolve "this
-module". Deferred to a later phase.
+Wcoast projects which module they mean: the module last under the pointer, written
+(debounced ~200 ms) to `selection.json` as `{ id, type, name }`, or `null` before
+any hover. It is **sticky** — it holds the last-pointed module rather than clearing
+on pointer-leave — because the useful moment is *after* the user has moved off the
+module to speak ("make this one louder"). Pair it with `catalogue.json`/`patch.json`
+to resolve "this module".
 
-## audio-trace.json — the sound, as measurements (later)
+## audio-trace.json — the sound, as measurements
 
 Wcoast has no discrete musical events to log the way GXW does; it has continuous
 audio. Since an AI cannot hear audio, logging raw samples would be useless — but
@@ -252,10 +255,17 @@ empty or absent when stopped.
   centroid }`. This is the closest Wcoast comes to GXW's event trace, and it lets
   the AI reason about rhythm and dynamics.
 
-Feasibility: cheap and already half-present — the mixer taps the master with
-AnalyserNodes for the VU meters, so this is the same technique with a few more
-taps (per module output and mixer channel) and a little math on the control
-thread each frame; no consequential extra work on the audio thread.
+As built (`host/audio-trace.js`): read-only `AnalyserNode` taps — one on each
+wired module output (reconciled against the patchbay as cabling changes), one on
+each mixer channel (post-level/mute, so a zeroed fader or mute reads as silence),
+and the master's existing VU analysers. A 60 ms loop tracks each endpoint's peak
+envelope for onset detection; a ~240 ms write tick measures every endpoint (RMS
+and peak in dBFS, spectral centroid, and `clip`/`silent`/`dc`/`nan` flags) and
+emits the file. `endpoints` runs in signal-flow order (module outputs, then mixer
+channels, then master), `onsets` is the rolling last two dozen strikes, and
+`masterPeakHistory_dbfs` is a short dynamics trail. The taps are pure fan-outs —
+no extra work on the audio thread. The loop runs only while sound plays and the
+mirror is enabled.
 
 The honest ceiling: this makes the AI a good diagnostician and a coarse advisor —
 it can report clipping, silence, brightness, or "firing every beat at a rising
@@ -288,9 +298,13 @@ for "why is there no sound" and "why does this feel wrong."
 2. **Round-trip (mirror → bundle).** The `fs.watch` + signature reconcile +
    debounce, the validator, the confirm-to-apply dialog, `restore()` apply, and
    `last-apply-result.json`. This is where the AI can actually build a patch.
-3. **Deictic + runtime + audio trace.** `selection.json`, `runtime.json`, the
-   `audio-trace.json` analysis (a few analyser taps and per-frame feature math),
-   and optionally `property-changes.json` for targeted edits.
+3. **Deictic + runtime + audio trace.** `selection.json` (sticky deixis),
+   `runtime.json` (live VU + transport), and the `audio-trace.json` analysis (the
+   analyser taps and per-frame feature math above). Built.
 
-Phase 1 is the observable win — the AI can *see and reason about* the patch —
-and is the natural first build. Phase 2 makes it *authorable*.
+All three phases are built. Phase 1 is the observable win — the AI can *see and
+reason about* the patch. Phase 2 makes it *authorable*. Phase 3 lets it *diagnose
+and advise* on the actual sound and resolve "this module". The one deliberate
+hold-back is `property-changes.json` for targeted one-knob edits: the whole-file
+`patch.json` round-trip already covers every edit, so a targeted channel is a
+convenience, not a gap — added if one-knob tweaks prove common.

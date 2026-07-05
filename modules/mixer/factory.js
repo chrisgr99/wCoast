@@ -47,7 +47,12 @@ export function create(ctx, services) {
     mute.gain.value = paramDefault(`mute${L}`) === 'on' ? 0 : 1;
     pan.pan.value = paramDefault(`pan${L}`);
     level.connect(mute); mute.connect(pan); pan.connect(master);
-    return { L, level, mute, pan };
+    // A per-channel analysis tap, post level+mute (so a zeroed fader or a mute
+    // reads as silence): a read-only fan-out for the audio-trace mirror. It has
+    // no onward connection, so it never alters the signal reaching master.
+    const meter = ctx.createAnalyser(); meter.fftSize = 1024;
+    mute.connect(meter);
+    return { L, level, mute, pan, meter };
   });
 
   const byLetter = new Map(channels.map((c) => [c.L, c]));
@@ -97,5 +102,12 @@ export function create(ctx, services) {
   }
   function meters() { return { l: rms(meterL), r: rms(meterR) }; }
 
-  return { getOutput, getInput, getParam, setParam, supports, dispose, master, meters };
+  // Read-only analyser taps for the audio-trace mirror: the master (stereo) plus
+  // one per channel (post level+mute). Pure fan-outs; not part of the audio path.
+  const analysers = {
+    master: { l: meterL, r: meterR },
+    channels: new Map(channels.map((c) => [c.L, c.meter])),
+  };
+
+  return { getOutput, getInput, getParam, setParam, supports, dispose, master, meters, analysers };
 }

@@ -52,6 +52,7 @@ export class Rack {
     this.host = opts.host;
     this.moduleTypes = opts.moduleTypes;
     this.onChange = opts.onChange || (() => {});
+    this.onSelect = opts.onSelect || (() => {});   // module the pointer entered (deixis)
     this.rowCount = opts.rowCount || 2;
     this.rows = [];
     for (let i = 0; i < this.rowCount; i++) this.rows.push([]);
@@ -823,7 +824,7 @@ export class Rack {
 
     el.addEventListener('pointerdown', (e) => this._startDrag(e, rec));
     el.addEventListener('contextmenu', (e) => this._onModuleContextMenu(e, rec));
-    el.addEventListener('pointerenter', () => { this._hoverRec = rec; this._drawCables(); });
+    el.addEventListener('pointerenter', () => { this._hoverRec = rec; this.onSelect(rec); this._drawCables(); });
     el.addEventListener('pointerleave', () => { if (this._hoverRec === rec) { this._hoverRec = null; this._drawCables(); } });
 
     this.records.set(rec.key, rec);
