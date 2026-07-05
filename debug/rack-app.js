@@ -70,6 +70,10 @@ async function boot() {
   ensureAudio();
   let darkMode = false;
   try { darkMode = localStorage.getItem('wcoast.dark') === '1'; } catch (_e) { /* no storage */ }
+  // Unsaved-changes state, declared BEFORE the rack: its onChange fires during
+  // relayout and the mixer addModule below, calling onEdit -> markDirty, which
+  // reads `dirty` — so `dirty` must already be initialized (no temporal dead zone).
+  let dirty = false, patchName = null, mirror = null;
   rack = new Rack(document.getElementById('rack'), {
     host, moduleTypes: MODULE_TYPES, rowCount: 2, dark: darkMode, onChange: () => onEdit(),
   });
@@ -87,14 +91,9 @@ async function boot() {
   const masterSlider = document.getElementById('master');
   const masterLabel = document.getElementById('masterLabel');
 
-  // The mixer's floating control panel, toggled by the Mixer button.
-  // Unsaved-changes tracking. Any knob, switch, cable, or mixer change dirties
-  // the patch; loading or saving cleans it. The title shows a dot while dirty,
-  // and (in Electron) the dirty state is mirrored to the main process so it can
-  // guard the window close.
-  let dirty = false;
-  let patchName = null;
-  let mirror = null;   // AI patch mirror (created below; null here and in a browser)
+  // Unsaved-changes tracking (state declared above the rack). Any knob, switch,
+  // cable, or mixer change dirties the patch; loading or saving cleans it. The
+  // title shows a dot while dirty, mirrored to the main process to guard close.
   function updateTitle() { document.title = `Wcoast — ${patchName || 'untitled'}${dirty ? ' •' : ''}`; }
   function setPatchName(n) { patchName = n; updateTitle(); if (mirror) mirror.project(); }
   function markDirty() { if (dirty) return; dirty = true; updateTitle(); window.wcoast?.patch?.setDirty?.(true); }
