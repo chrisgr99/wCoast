@@ -220,7 +220,15 @@ export class Rack {
 
   // ---- save/load support (host/patch-io.js drives these) ----
   // Remove every module (which pulls its cords first), leaving an empty rack.
-  clear() { for (const rec of [...this.records.values()]) this.deleteModule(rec); }
+  // Clear the rack for a fresh patch. Pinned records (the singleton mixer) are
+  // kept — they're recreated once at boot, not per patch — but their cords are
+  // pulled so a restore rewires from a clean slate.
+  clear() {
+    for (const rec of [...this.records.values()]) {
+      if (rec.pinned) this.patchbay.disconnectModule(rec.key);
+      else this.deleteModule(rec);
+    }
+  }
   // Apply one module param value (knob/switch), updating DSP and the panel.
   applyParam(rec, id, value) { this._setParam(rec, id, value); }
   // Connect two jacks by { key, portId }; returns the edge (for restoring bow).
@@ -819,7 +827,10 @@ export class Rack {
     }
   }
 
-  async addModule(descriptorId, rowIndex, xMm) {
+  // opts.pinned marks a singleton the user can drag but not delete (the mixer),
+  // and opts.key forces its record key (so it stays the stable "mixer" patch
+  // endpoint across sessions).
+  async addModule(descriptorId, rowIndex, xMm, opts = {}) {
     const type = this.moduleTypes.find((t) => t.descriptorId === descriptorId);
     if (!type) return null;
     rowIndex = Math.max(0, Math.min(this.rowCount - 1, rowIndex | 0));
@@ -830,8 +841,8 @@ export class Rack {
     const el = document.createElement('div');
     el.className = 'rack-module';
     const rec = {
-      key: 'm' + (this._seq++), descriptorId, name: type.name,
-      x: Math.max(0, xMm || 0), row: rowIndex,
+      key: opts.key || ('m' + (this._seq++)), descriptorId, name: type.name,
+      x: Math.max(0, xMm || 0), row: rowIndex, pinned: !!opts.pinned,
       instanceId, instance, panel: null, el, panelWmm: 0, values: new Map(),
     };
     el.dataset.key = rec.key;
@@ -974,7 +985,7 @@ export class Rack {
     if (e.target.closest('.rack-module')) return;
     e.preventDefault();
     const xMm = this._xUnderCursor(this._rowEls[rowIndex], e.clientX);
-    const items = this.moduleTypes.map((t) => ({
+    const items = this.moduleTypes.filter((t) => !t.hidden).map((t) => ({
       label: `Add ${t.name}`,
       action: () => this.addModule(t.descriptorId, rowIndex, xMm),
     }));
@@ -984,6 +995,7 @@ export class Rack {
   _onModuleContextMenu(e, rec) {
     e.preventDefault();
     e.stopPropagation();
+    if (rec.pinned) return;   // the mixer is a fixed singleton — no Delete
     this._openMenu(e.clientX, e.clientY, [
       { label: `Delete ${rec.name}`, action: () => this.deleteModule(rec) },
     ]);

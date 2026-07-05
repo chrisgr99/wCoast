@@ -24,7 +24,11 @@ export const VERSION = 1;
 const round2 = (n) => Math.round(n * 100) / 100;
 
 export function serialize(rack, mixer) {
-  const recs = rack.moduleRecords();
+  // Pinned records (the singleton mixer) aren't listed as modules — they're
+  // recreated at boot, not per patch — so a restore won't duplicate them. The
+  // mixer's params + wiring still round-trip: params via the `mixer` adapter
+  // below, wiring by its stable key.
+  const recs = rack.moduleRecords().filter((rec) => !rec.pinned);
 
   const modules = recs.map((rec) => ({
     id: rec.key,

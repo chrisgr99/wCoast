@@ -17,7 +17,6 @@ import mixerDescriptor from '../modules/mixer/descriptor.js';
 import { create as mixerCreate } from '../modules/mixer/factory.js';
 import lpgDescriptor from '../modules/lpg-292/descriptor.js';
 import { create as lpgCreate } from '../modules/lpg-292/factory.js';
-import { MixerPanel } from '../host/mixer-panel.js';
 import { serialize, restore, validate } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
 import { buildCatalogue, createMirror } from '../host/mirror.js';
@@ -42,6 +41,15 @@ const MODULE_TYPES = [{
   hp: 32,
   panelUrl: 'modules/lpg-292/panel.svg',
   descriptor: lpgDescriptor,
+}, {
+  // The mixer is a pinned singleton placed at boot, so it's hidden from the
+  // "Add module" menu (no second mixer). Still a normal module type otherwise.
+  descriptorId: mixerDescriptor.id,
+  name: 'Mixer',
+  hp: 32,
+  panelUrl: 'modules/mixer/panel.svg',
+  descriptor: mixerDescriptor,
+  hidden: true,
 }];
 
 let audioCtx = null;
@@ -58,19 +66,6 @@ function ensureAudio() {
   log(`Audio ready — ${audioCtx.sampleRate} Hz, crossOriginIsolated = ${self.crossOriginIsolated}.`);
 }
 
-// A small jack element for the toolbar (data-wcoast-port so the rack can treat
-// it as a patch target). Inputs get a black ring; audio orange, control blue.
-function buildJack(portId, label, domain) {
-  const el = document.createElement('div');
-  el.className = 'toolbar-jack';
-  const color = domain === 'audio' ? 'var(--audio)' : 'var(--control)';
-  el.innerHTML = `<svg viewBox="0 0 24 24" data-wcoast-port="${portId}">`
-    + `<circle cx="12" cy="12" r="10" fill="${color}" stroke="#000" stroke-width="1.3"/>`
-    + `<circle cx="12" cy="12" r="4.4" fill="#000" stroke="#000" stroke-width="1"/></svg>`
-    + `<span class="lbl">${label}</span>`;
-  return el;
-}
-
 async function boot() {
   ensureAudio();
   let darkMode = false;
@@ -80,38 +75,12 @@ async function boot() {
   });
   rack.relayout();
 
-  // The output mixer (not placed in the rack; its jacks live in the toolbar).
-  const m = await host.instantiate(mixerDescriptor.id);
-  mixer = m;
-  mixer.instance.setParam('master', 0);   // silent until On
+  // The output mixer is now a pinned rack module — a terminal singleton placed
+  // once at the bottom row (draggable, not deletable) that stays the stable
+  // "mixer" patch endpoint. Muted until On (via masterMute, set below).
+  const mixRec = await rack.addModule(mixerDescriptor.id, rack.rowCount - 1, 0, { pinned: true, key: 'mixer' });
+  mixer = { instanceId: mixRec.instanceId, instance: mixRec.instance };
   trace = createAudioTrace({ ctx: audioCtx, rack, mixer: mixer.instance });
-
-  // Build the toolbar jacks: A–D audio, then the two pan-CV inputs.
-  const jacksEl = document.getElementById('mixer-jacks');
-  const jackMap = new Map();
-  const audioGrp = document.createElement('div'); audioGrp.className = 'grp';
-  for (const L of mixerDescriptor.channels) {
-    const j = buildJack(`chan${L}`, L, 'audio');
-    audioGrp.appendChild(j);
-    jackMap.set(`chan${L}`, j.querySelector('[data-wcoast-port]'));
-  }
-  jacksEl.appendChild(audioGrp);
-  const panGrp = document.createElement('div'); panGrp.className = 'grp';
-  for (const L of mixerDescriptor.vcPan) {
-    const j = buildJack(`panCv${L}`, `⊗${L}`, 'control');
-    panGrp.appendChild(j);
-    jackMap.set(`panCv${L}`, j.querySelector('[data-wcoast-port]'));
-  }
-  jacksEl.appendChild(panGrp);
-
-  rack.setMixer({
-    key: 'mixer',
-    descriptorId: mixerDescriptor.id,
-    instance: mixer.instance,
-    jacks: jackMap,
-    linesSvg: document.getElementById('toolbar-lines'),
-    toolbarEl: document.getElementById('toolbar'),
-  });
 
   // Controls.
   const onoff = document.getElementById('onoff');
@@ -133,48 +102,37 @@ async function boot() {
   // Any patch edit: mark dirty and re-project the mirror.
   function onEdit() { markDirty(); if (mirror) mirror.project(); }
 
-  const panel = new MixerPanel({
-    instance: mixer.instance,
-    descriptor: mixerDescriptor,
-    onMaster: (v) => setMasterValue(v, 'panel'),
-    onChange: () => onEdit(),
-  });
-  panel.setDark(darkMode);
-  panel.setHeight((rack.moduleHeightPx() / 2 * 0.9));   // match a 259t faceplate's height
-  document.getElementById('mixer-open').addEventListener('click', () => {
-    panel.setHeight((rack.moduleHeightPx() / 2 * 0.9));
-    panel.toggle();
-  });
-  window.addEventListener('resize', () => panel.setHeight((rack.moduleHeightPx() / 2 * 0.9)));
-
-  // One master level, shared by the toolbar slider and the panel fader; the
-  // on/off toggle gates it to 0 when off.
-  let masterValue = Number(masterSlider.value);
-  const applyMaster = () => mixer.instance.setParam('master', started ? masterValue : 0);
-  function setMasterValue(v, source) {
-    masterValue = Math.max(0, Math.min(1, v));
+  // Master level: the mixer module's own master fader is the control; the TOOLBAR
+  // slider mirrors it (both write the module's master param, which drives the
+  // panel fader + the audio). The On/Off toggle gates the output through the
+  // master MUTE, so it silences without disturbing the level.
+  let masterValue = Number(mixRec.values.get('master'));
+  const syncToolbarMaster = () => {
+    masterValue = Number(mixRec.values.get('master'));
+    masterSlider.value = String(masterValue);
     masterLabel.textContent = masterValue.toFixed(2);
-    if (source !== 'toolbar') masterSlider.value = String(masterValue);
-    if (source !== 'panel') panel.setMaster(masterValue);
-    applyMaster();
-    if (source !== 'init') onEdit();
-  }
+  };
+  masterSlider.addEventListener('input', () => {
+    masterValue = Math.max(0, Math.min(1, Number(masterSlider.value)));
+    masterLabel.textContent = masterValue.toFixed(2);
+    rack.applyParam(mixRec, 'master', masterValue);
+  });
+  syncToolbarMaster();
 
   onoff.addEventListener('click', async () => {
     if (!started) { await audioCtx.resume(); started = true; onoff.classList.add('on'); }
     else { started = false; onoff.classList.remove('on'); }
-    applyMaster();
+    rack.applyParam(mixRec, 'masterMute', started ? 'off' : 'on');
     updateTrace();
   });
-  masterSlider.addEventListener('input', () => setMasterValue(Number(masterSlider.value), 'toolbar'));
-  setMasterValue(masterValue, 'init');
+  rack.applyParam(mixRec, 'masterMute', 'on');   // silent until On
 
-  // The toolbar mixer as a save/load endpoint: it is a fixed endpoint (not a
-  // rack module), so its settings are read/written through this adapter.
+  // The mixer as a save/load endpoint: its settings are the pinned record's
+  // values (it stays the fixed "mixer" key, just now a rack module).
   const mixerIO = {
-    key: 'mixer',   // the fixed mixer endpoint key (see rack.setMixer)
-    getParams: () => ({ ...panel.getValues(), master: masterValue }),
-    setParams: (vals) => { for (const [id, v] of Object.entries(vals)) panel.setValue(id, v); },
+    key: 'mixer',
+    getParams: () => Object.fromEntries(mixRec.values),
+    setParams: (vals) => { for (const [id, v] of Object.entries(vals)) rack.applyParam(mixRec, id, v); },
   };
 
   // AI patch mirror: project the live patch, the module catalogue, and app state
@@ -285,8 +243,7 @@ async function boot() {
       { header: true, label: 'View' },
       { label: 'Dark mode', checkFn: () => rack.isDark(), action: () => {
         const d = !rack.isDark();
-        rack.setDarkMode(d);
-        panel.setDark(d);
+        rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
         try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
       } },
     ];
