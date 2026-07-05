@@ -366,7 +366,6 @@ export function attachControlInteraction(binding, hooks) {
       return clamp01((binding.bot - ly) / (binding.bot - binding.top));
     };
     const onMove = (e) => { const p = posFromEvent(e); if (p != null) hooks.set(positionToValue(binding.meta, p)); };
-    el.style.cursor = 'ns-resize';
     el.addEventListener('pointerdown', (e) => {
       e.stopPropagation(); e.preventDefault();
       el.setPointerCapture && el.setPointerCapture(e.pointerId);
@@ -381,6 +380,28 @@ export function attachControlInteraction(binding, hooks) {
       el.addEventListener('pointerup', up);
       el.addEventListener('pointercancel', up);
     });
+    // Faders also take the scroll wheel, with the same momentum feel as the knobs
+    // (no radial factor — a fader is linear).
+    let vel = 0, raf = null, last = 0;
+    const tick = (t) => {
+      const now = t || performance.now();
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const next = clamp01(valueToPosition(binding.meta, hooks.get()) + vel * dt);
+      hooks.set(positionToValue(binding.meta, next));
+      vel *= Math.exp(-KNOB_DRAG * dt);
+      const pinned = (next <= 0 && vel < 0) || (next >= 1 && vel > 0);
+      if (Math.abs(vel) > 1e-3 && !pinned) raf = requestAnimationFrame(tick);
+      else { raf = null; vel = 0; }
+    };
+    el.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) return;   // ctrl+wheel is the rack pinch-zoom
+      e.preventDefault();
+      const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+      vel += (-d / 100) * KNOB_STEP * KNOB_DRAG;   // up (negative delta) raises
+      if (vel > KNOB_MAXV) vel = KNOB_MAXV; else if (vel < -KNOB_MAXV) vel = -KNOB_MAXV;
+      if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); }
+    }, { passive: false });
   } else if (binding.kind === 'switch' && binding.stepCount > 1) {
     // Operate a switch by clicking its LAMPS. A multi-position switch (Range,
     // Waveshape) jumps to whichever lamp you click; a single-lamp on/off switch

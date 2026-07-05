@@ -126,6 +126,36 @@ async function boot() {
   });
   rack.applyParam(mixRec, 'masterMute', 'on');   // master enabled by default (audio still gated by the suspended context until On)
 
+  // --- VU meters -------------------------------------------------------------
+  // One rAF loop reads the mixer instance's per-channel + master RMS and lights
+  // the pre-drawn LED rings (fill the ring when lit, clear it when not), plus the
+  // toolbar's horizontal master meter.
+  const vuColumns = [...mixRec.panel.svg.querySelectorAll('[data-wcoast-role="vu"],[data-wcoast-role="vuMaster"]')].map((g) => ({
+    chan: g.getAttribute('data-wcoast-chan'),
+    segs: [...g.querySelectorAll('[data-wcoast-seg]')].sort(
+      (a, b) => (+a.getAttribute('data-wcoast-seg')) - (+b.getAttribute('data-wcoast-seg'))),
+  }));
+  const vuColour = (i, n) => { const f = i / (n - 1); return f > 0.85 ? '#ff5a4a' : f > 0.6 ? '#f4c430' : '#3ad16b'; };
+  const vuScale = (rms) => Math.min(1, rms * 3.2);   // RMS ~0..0.3 → full scale
+
+  const masterVuEl = document.getElementById('master-vu');
+  const TB_SEGS = 16;
+  const tbSegs = [];
+  if (masterVuEl) for (let i = 0; i < TB_SEGS; i++) { const s = document.createElement('span'); masterVuEl.appendChild(s); tbSegs.push(s); }
+
+  function paintVU() {
+    const lv = mixer.instance.levels();
+    for (const col of vuColumns) {
+      const n = col.segs.length;
+      const lit = Math.round(vuScale(col.chan === 'M' ? lv.master : (lv.channels[col.chan] || 0)) * n);
+      for (let i = 0; i < n; i++) col.segs[i].setAttribute('fill', i < lit ? vuColour(i, n) : 'none');
+    }
+    const mLit = Math.round(vuScale(lv.master) * TB_SEGS);
+    for (let i = 0; i < tbSegs.length; i++) tbSegs[i].style.background = i < mLit ? vuColour(i, TB_SEGS) : '';
+    requestAnimationFrame(paintVU);
+  }
+  requestAnimationFrame(paintVU);
+
   // The mixer as a save/load endpoint: its settings are the pinned record's
   // values (it stays the fixed "mixer" key, just now a rack module).
   const mixerIO = {

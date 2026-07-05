@@ -20,6 +20,7 @@
 export function create(ctx, services) {
   const { descriptor } = services;
   const CH = descriptor.channels;
+  const vcPan = new Set(descriptor.vcPan || []);   // outer channels: CV-only pan
 
   const master = ctx.createGain();
   master.gain.value = paramDefault('master');
@@ -46,14 +47,22 @@ export function create(ctx, services) {
     const pan = ctx.createStereoPanner();
     level.gain.value = paramDefault(`level${L}`);
     mute.gain.value = paramDefault(`mute${L}`) === 'on' ? 1 : 0;
-    pan.pan.value = paramDefault(`pan${L}`);
     level.connect(mute); mute.connect(pan); pan.connect(master);
+    // Outer channels are pan-CV only (no knob): the panner rests full-left (−1)
+    // and a ×2 scaler turns a 0..1 CV into a full −1..+1 sweep. Inner channels
+    // take their manual pan default.
+    let panScale = null;
+    if (vcPan.has(L)) {
+      pan.pan.value = -1;
+      panScale = ctx.createGain(); panScale.gain.value = 2; panScale.connect(pan.pan);
+    } else {
+      pan.pan.value = paramDefault(`pan${L}`);
+    }
     // A per-channel analysis tap, post level+mute (so a zeroed fader or a mute
-    // reads as silence): a read-only fan-out for the audio-trace mirror. It has
-    // no onward connection, so it never alters the signal reaching master.
+    // reads as silence): a read-only fan-out for the VU meters and audio-trace.
     const meter = ctx.createAnalyser(); meter.fftSize = 1024;
     mute.connect(meter);
-    return { L, level, mute, pan, meter };
+    return { L, level, mute, pan, meter, panScale };
   });
 
   const byLetter = new Map(channels.map((c) => [c.L, c]));
@@ -67,12 +76,17 @@ export function create(ctx, services) {
   function getOutput() { return null; }                 // terminal
   function getInput(portId) {
     const i = inIndex.get(portId);
-    return i === undefined ? null : { node: channels[i].level, index: 0 };
+    if (i !== undefined) return { node: channels[i].level, index: 0 };
+    // Pan CV on the outer channels routes through the ×2/−1 pan scaler so a 0..1
+    // CV sweeps the panner fully left..right.
+    if (portId.startsWith('panCv')) { const c = byLetter.get(portId.slice(5)); return c && c.panScale ? { node: c.panScale, index: 0 } : null; }
+    return null;
   }
   function getParam(paramId) {
     if (paramId === 'master') return master.gain;
     if (paramId.startsWith('level')) { const c = byLetter.get(paramId.slice(5)); return c ? c.level.gain : null; }
-    if (paramId.startsWith('pan')) { const c = byLetter.get(paramId.slice(3)); return c ? c.pan.pan : null; }
+    // Inner channels expose their pan AudioParam; outer (CV-only) channels do not.
+    if (paramId.startsWith('pan')) { const c = byLetter.get(paramId.slice(3)); return c && !c.panScale ? c.pan.pan : null; }
     return null;
   }
   function supports() { return true; }
@@ -90,7 +104,7 @@ export function create(ctx, services) {
   }
   function dispose() {
     try { master.disconnect(); } catch (_e) { /* gone */ }
-    for (const c of channels) { try { c.level.disconnect(); c.mute.disconnect(); c.pan.disconnect(); } catch (_e) { /* gone */ } }
+    for (const c of channels) { try { c.level.disconnect(); c.mute.disconnect(); c.pan.disconnect(); if (c.panScale) c.panScale.disconnect(); } catch (_e) { /* gone */ } }
   }
 
   // RMS level (0..~1) of each output channel, for the VU meters.
@@ -103,6 +117,21 @@ export function create(ctx, services) {
   }
   function meters() { return { l: rms(meterL), r: rms(meterR) }; }
 
+  // Per-channel + master RMS levels (0..~1) for the VU meters. One reused buffer
+  // sized to the largest analyser avoids per-frame allocation.
+  const vbuf = new Float32Array(1024);
+  function levelOf(an) {
+    an.getFloatTimeDomainData(vbuf);
+    let s = 0; const n = an.fftSize;
+    for (let i = 0; i < n; i++) s += vbuf[i] * vbuf[i];
+    return Math.sqrt(s / n);
+  }
+  function levels() {
+    const ch = {};
+    for (const c of channels) ch[c.L] = levelOf(c.meter);
+    return { channels: ch, master: Math.max(levelOf(meterL), levelOf(meterR)) };
+  }
+
   // Read-only analyser taps for the audio-trace mirror: the master (stereo) plus
   // one per channel (post level+mute). Pure fan-outs; not part of the audio path.
   const analysers = {
@@ -110,5 +139,5 @@ export function create(ctx, services) {
     channels: new Map(channels.map((c) => [c.L, c.meter])),
   };
 
-  return { getOutput, getInput, getParam, setParam, supports, dispose, master, meters, analysers };
+  return { getOutput, getInput, getParam, setParam, supports, dispose, master, meters, levels, analysers };
 }

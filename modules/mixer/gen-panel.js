@@ -14,18 +14,17 @@ const CH_X = { A: 15.5, B: 28.5, C: 41.5, D: 54.5, E: 67.5, F: 80.5 };   // 13mm
 const MASTER_X = 95.5, DIVIDER_X = 88.5;
 const ROW_LABEL_X = 11.5;                                     // right edge of the left-margin row labels
 
-const Y_CHAN_LABEL = 9;           // A-F, above the pan row
-const Y_PAN = 15;                 // pan knobs / outer CV jacks
-const Y_LINE = 21;                // pan | fader divider
-const SLIDER_TOP = 24, SLIDER_BOT = 72;
+const Y_CHAN_LABEL = 9;           // A-F letters + MASTER, at the top
+const Y_INPUT = 15;               // audio input jacks (now at the top)
+const Y_LINE_IF = 21;             // input | fader divider
+const SLIDER_TOP = 24, SLIDER_BOT = 78;
 const VU_SEGS = 12;              // circular VU LEDs down the left of each fader
-const Y_LINE_FC = 75;            // fader | amp-CV divider
-const Y_AMPCV = 80.5;            // amp-CV (gain) input jacks
-const Y_LINE_CE = 86;            // amp-CV | enable divider
-const Y_MUTE = 89.5;             // enable lamp (gate gain; sense flipped so lit = enabled)
-const Y_LINE_EI = 93;            // enable | input divider
-const Y_PORT_LABEL = 98;          // A-F above the input ports
-const Y_INPUT = 104;
+const Y_LINE_FC = 81;            // fader | amp-CV divider
+const Y_AMPCV = 86;             // amp-CV (gain) input jacks
+const Y_LINE_CE = 90.5;         // amp-CV | enable divider
+const Y_MUTE = 94;              // enable lamp (gate gain; sense flipped so lit = enabled)
+const Y_LINE_EP = 98;           // enable | pan divider
+const Y_PAN = 105;              // pan knobs / outer pan-CV jacks (now at the bottom)
 
 function jack(id, cx, cy, kind) {
   const outer = kind === 'audio' ? '#ff7300' : '#1f7fe0';
@@ -114,26 +113,26 @@ function build(dark) {
   // Framed border, 0.5mm inside the face all around (matches the lpg-292).
   p.push(`  <rect x="0.5" y="0.5" width="${FACE_W - 1}" height="${FACE_H - 1}" rx="2.2" fill="none" stroke="${th.frame}" stroke-width="0.5"/>`);
 
-  // Column headers A-F above the pan row (MASTER is labelled lower, by its fader).
+  // Column headers at the top: A-F over the audio inputs, plus MASTER.
   for (const L of CH) p.push(label(CH_X[L], Y_CHAN_LABEL, L, th.ink, 2.6));
+  p.push(label(MASTER_X, Y_CHAN_LABEL, 'MASTER', th.ink, 2.6));
 
-  // Pan row: knobs for the inner channels, a pan-CV jack for A and F.
+  // Pan row at the bottom: knobs for the inner channels, a pan-CV jack for A and F.
   for (const L of CH) {
     if (VCPAN[L]) p.push(jack(VCPAN[L], CH_X[L], Y_PAN, 'control'));
     else p.push(panKnob(`pan${L}`, CH_X[L], Y_PAN, th));
   }
   // Row labels down the left margin, right-aligned just before channel A.
   const rowLabel = (y, text) => label(ROW_LABEL_X, y, text, th.ink, 2.5, 'end');
-  p.push(rowLabel(16, 'PAN'));
+  p.push(rowLabel(Y_INPUT + 1.5, 'INPUT'));
   p.push(rowLabel(Y_AMPCV - 0.5, 'AMP'));
   p.push(rowLabel(Y_AMPCV + 2.3, 'CV IN'));
   p.push(rowLabel(Y_MUTE + 1, 'ENABLE'));
-  p.push(rowLabel(Y_INPUT + 1.5, 'INPUT'));
+  p.push(rowLabel(Y_PAN + 1, 'PAN'));
 
-  // Section dividers: pan | fader | mute | VU | input, plus the channel/master
-  // vertical divider.
+  // Section dividers: input | fader | amp-CV | enable | pan.
   const hdiv = (y) => `  <line x1="3" y1="${y}" x2="${FACE_W - 3}" y2="${y}" stroke="${th.frame}" stroke-width="0.355"/>`;
-  p.push(hdiv(Y_LINE)); p.push(hdiv(Y_LINE_FC)); p.push(hdiv(Y_LINE_CE)); p.push(hdiv(Y_LINE_EI));
+  p.push(hdiv(Y_LINE_IF)); p.push(hdiv(Y_LINE_FC)); p.push(hdiv(Y_LINE_CE)); p.push(hdiv(Y_LINE_EP));
   // Thin separators between each fader/VU column: 2/3 of the fader-region height,
   // centred, 1mm right of each handle. The one right of F divides off the master.
   const sepMid = (SLIDER_TOP + SLIDER_BOT) / 2, sepHalf = (SLIDER_BOT - SLIDER_TOP) / 3;
@@ -141,19 +140,17 @@ function build(dark) {
     p.push(`  <line x1="${CH_X[L] + 5}" y1="${(sepMid - sepHalf).toFixed(2)}" x2="${CH_X[L] + 5}" y2="${(sepMid + sepHalf).toFixed(2)}" stroke="${th.frame}" stroke-width="0.25"/>`);
   }
 
-  // Channel strips: fader, mute, VU, input jack (bottom) + letter.
+  // Channel strips: audio input (top), fader + VU, amp-CV, enable.
   for (const L of CH) {
     const cx = CH_X[L];
+    p.push(jack(`chan${L}`, cx, Y_INPUT, 'audio'));
     p.push(slider(`level${L}`, cx, 0.8, th));
     p.push(jack(`ampCv${L}`, cx, Y_AMPCV, 'control'));
     p.push(mute(`mute${L}`, cx, Y_MUTE));
     p.push(vu('vu', cx, th, L));
-    p.push(label(cx, Y_PORT_LABEL, L, th.ink, 2.4));
-    p.push(jack(`chan${L}`, cx, Y_INPUT, 'audio'));
   }
 
-  // Master strip; its label sits up by the pan row, to the right of the channels.
-  p.push(label(MASTER_X, Y_LINE - 1.4, 'MASTER', th.ink, 2.6));
+  // Master strip (MASTER label is in the top header row; no audio input, no pan).
   p.push(slider('master', MASTER_X, 0.7, th));
   p.push(jack('ampCvMaster', MASTER_X, Y_AMPCV, 'control'));
   p.push(mute('masterMute', MASTER_X, Y_MUTE));

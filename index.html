@@ -55,6 +55,8 @@
     .toolbar-jack svg { display: block; width: 22px; height: 22px; }
     .toolbar-jack .lbl { position: absolute; top: -2px; left: -3px; font-size: 9px; font-weight: 600; color: var(--ink-dim); line-height: 1; pointer-events: none; }
     #mixer label, #mixer #masterLabel { font-size: 12px; color: var(--ink-dim); }
+    #master-vu.vu { display: inline-flex; gap: 2px; align-items: center; height: 12px; margin-left: 8px; }
+    #master-vu.vu span { width: 3px; height: 100%; background: #2a2d33; border-radius: 1px; }
     #mixer input[type=range] { width: 120px; height: 14px; accent-color: var(--accent); margin-bottom: 3px; }
     #mixer-open {
       font: inherit; font-size: 12px; padding: 4px 10px; margin-bottom: 2px; border-radius: 6px; cursor: pointer;
@@ -133,6 +135,7 @@
       <label for="master">Master</label>
       <input id="master" type="range" min="0" max="1" step="0.01" value="0.7">
       <span id="masterLabel">0.70</span>
+      <div id="master-vu" class="vu" aria-hidden="true"></div>
     </div>
     <svg id="toolbar-lines" aria-hidden="true"></svg>
   </div>

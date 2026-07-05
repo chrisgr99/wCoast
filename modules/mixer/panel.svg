@@ -17,309 +17,303 @@
   <text x="54.5" y="9" font-size="2.6" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle">D</text>
   <text x="67.5" y="9" font-size="2.6" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle">E</text>
   <text x="80.5" y="9" font-size="2.6" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle">F</text>
-  <g data-wcoast-port="panCvA" data-wcoast-cx="15.5" data-wcoast-cy="15">
-    <circle cx="15.5" cy="15" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+  <text x="95.5" y="9" font-size="2.6" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle">MASTER</text>
+  <g data-wcoast-port="panCvA" data-wcoast-cx="15.5" data-wcoast-cy="105">
+    <circle cx="15.5" cy="105" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="15.5" cy="105" r="1.6" fill="#000"/>
+  </g>
+  <g data-wcoast-param="panB" data-wcoast-cx="28.5" data-wcoast-cy="105" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
+    <circle cx="28.5" cy="105" r="4.2" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
+    <line x1="26.250" y1="108.897" x2="25.900" y2="109.503" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="24.068" y1="105.781" x2="23.379" y2="105.903" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="25.053" y1="102.107" x2="24.517" y2="101.658" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="28.500" y1="100.500" x2="28.500" y2="99.800" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="31.947" y1="102.107" x2="32.483" y2="101.658" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="32.932" y1="105.781" x2="33.621" y2="105.903" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="30.750" y1="108.897" x2="31.100" y2="109.503" stroke="#163a69" stroke-width="0.3"/>
+    <circle cx="28.5" cy="105" r="3.3" fill="url(#knobCap)" stroke="#666" stroke-width="0.2366"/>
+    <line x1="28.5" y1="105" x2="28.5" y2="101.7" stroke="#163a69" stroke-width="0.55" data-wcoast-role="indicator"/>
+  </g>
+  <g data-wcoast-param="panC" data-wcoast-cx="41.5" data-wcoast-cy="105" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
+    <circle cx="41.5" cy="105" r="4.2" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
+    <line x1="39.250" y1="108.897" x2="38.900" y2="109.503" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="37.068" y1="105.781" x2="36.379" y2="105.903" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="38.053" y1="102.107" x2="37.517" y2="101.658" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="41.500" y1="100.500" x2="41.500" y2="99.800" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="44.947" y1="102.107" x2="45.483" y2="101.658" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="45.932" y1="105.781" x2="46.621" y2="105.903" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="43.750" y1="108.897" x2="44.100" y2="109.503" stroke="#163a69" stroke-width="0.3"/>
+    <circle cx="41.5" cy="105" r="3.3" fill="url(#knobCap)" stroke="#666" stroke-width="0.2366"/>
+    <line x1="41.5" y1="105" x2="41.5" y2="101.7" stroke="#163a69" stroke-width="0.55" data-wcoast-role="indicator"/>
+  </g>
+  <g data-wcoast-param="panD" data-wcoast-cx="54.5" data-wcoast-cy="105" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
+    <circle cx="54.5" cy="105" r="4.2" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
+    <line x1="52.250" y1="108.897" x2="51.900" y2="109.503" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="50.068" y1="105.781" x2="49.379" y2="105.903" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="51.053" y1="102.107" x2="50.517" y2="101.658" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="54.500" y1="100.500" x2="54.500" y2="99.800" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="57.947" y1="102.107" x2="58.483" y2="101.658" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="58.932" y1="105.781" x2="59.621" y2="105.903" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="56.750" y1="108.897" x2="57.100" y2="109.503" stroke="#163a69" stroke-width="0.3"/>
+    <circle cx="54.5" cy="105" r="3.3" fill="url(#knobCap)" stroke="#666" stroke-width="0.2366"/>
+    <line x1="54.5" y1="105" x2="54.5" y2="101.7" stroke="#163a69" stroke-width="0.55" data-wcoast-role="indicator"/>
+  </g>
+  <g data-wcoast-param="panE" data-wcoast-cx="67.5" data-wcoast-cy="105" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
+    <circle cx="67.5" cy="105" r="4.2" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
+    <line x1="65.250" y1="108.897" x2="64.900" y2="109.503" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="63.068" y1="105.781" x2="62.379" y2="105.903" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="64.053" y1="102.107" x2="63.517" y2="101.658" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="67.500" y1="100.500" x2="67.500" y2="99.800" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="70.947" y1="102.107" x2="71.483" y2="101.658" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="71.932" y1="105.781" x2="72.621" y2="105.903" stroke="#163a69" stroke-width="0.3"/>
+    <line x1="69.750" y1="108.897" x2="70.100" y2="109.503" stroke="#163a69" stroke-width="0.3"/>
+    <circle cx="67.5" cy="105" r="3.3" fill="url(#knobCap)" stroke="#666" stroke-width="0.2366"/>
+    <line x1="67.5" y1="105" x2="67.5" y2="101.7" stroke="#163a69" stroke-width="0.55" data-wcoast-role="indicator"/>
+  </g>
+  <g data-wcoast-port="panCvF" data-wcoast-cx="80.5" data-wcoast-cy="105">
+    <circle cx="80.5" cy="105" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="80.5" cy="105" r="1.6" fill="#000"/>
+  </g>
+  <text x="11.5" y="16.5" font-size="2.5" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end">INPUT</text>
+  <text x="11.5" y="85.5" font-size="2.5" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end">AMP</text>
+  <text x="11.5" y="88.3" font-size="2.5" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end">CV IN</text>
+  <text x="11.5" y="95" font-size="2.5" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end">ENABLE</text>
+  <text x="11.5" y="106" font-size="2.5" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end">PAN</text>
+  <line x1="3" y1="21" x2="100" y2="21" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="3" y1="81" x2="100" y2="81" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="3" y1="90.5" x2="100" y2="90.5" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="3" y1="98" x2="100" y2="98" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="20.5" y1="33.00" x2="20.5" y2="69.00" stroke="#7d7d7d" stroke-width="0.25"/>
+  <line x1="33.5" y1="33.00" x2="33.5" y2="69.00" stroke="#7d7d7d" stroke-width="0.25"/>
+  <line x1="46.5" y1="33.00" x2="46.5" y2="69.00" stroke="#7d7d7d" stroke-width="0.25"/>
+  <line x1="59.5" y1="33.00" x2="59.5" y2="69.00" stroke="#7d7d7d" stroke-width="0.25"/>
+  <line x1="72.5" y1="33.00" x2="72.5" y2="69.00" stroke="#7d7d7d" stroke-width="0.25"/>
+  <line x1="85.5" y1="33.00" x2="85.5" y2="69.00" stroke="#7d7d7d" stroke-width="0.25"/>
+  <g data-wcoast-port="chanA" data-wcoast-cx="15.5" data-wcoast-cy="15">
+    <circle cx="15.5" cy="15" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
     <circle cx="15.5" cy="15" r="1.6" fill="#000"/>
   </g>
-  <g data-wcoast-param="panB" data-wcoast-cx="28.5" data-wcoast-cy="15" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
-    <circle cx="28.5" cy="15" r="4.2" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
-    <line x1="26.250" y1="18.897" x2="25.900" y2="19.503" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="24.068" y1="15.781" x2="23.379" y2="15.903" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="25.053" y1="12.107" x2="24.517" y2="11.658" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="28.500" y1="10.500" x2="28.500" y2="9.800" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="31.947" y1="12.107" x2="32.483" y2="11.658" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="32.932" y1="15.781" x2="33.621" y2="15.903" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="30.750" y1="18.897" x2="31.100" y2="19.503" stroke="#163a69" stroke-width="0.3"/>
-    <circle cx="28.5" cy="15" r="3.3" fill="url(#knobCap)" stroke="#666" stroke-width="0.2366"/>
-    <line x1="28.5" y1="15" x2="28.5" y2="11.7" stroke="#163a69" stroke-width="0.55" data-wcoast-role="indicator"/>
-  </g>
-  <g data-wcoast-param="panC" data-wcoast-cx="41.5" data-wcoast-cy="15" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
-    <circle cx="41.5" cy="15" r="4.2" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
-    <line x1="39.250" y1="18.897" x2="38.900" y2="19.503" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="37.068" y1="15.781" x2="36.379" y2="15.903" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="38.053" y1="12.107" x2="37.517" y2="11.658" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="41.500" y1="10.500" x2="41.500" y2="9.800" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="44.947" y1="12.107" x2="45.483" y2="11.658" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="45.932" y1="15.781" x2="46.621" y2="15.903" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="43.750" y1="18.897" x2="44.100" y2="19.503" stroke="#163a69" stroke-width="0.3"/>
-    <circle cx="41.5" cy="15" r="3.3" fill="url(#knobCap)" stroke="#666" stroke-width="0.2366"/>
-    <line x1="41.5" y1="15" x2="41.5" y2="11.7" stroke="#163a69" stroke-width="0.55" data-wcoast-role="indicator"/>
-  </g>
-  <g data-wcoast-param="panD" data-wcoast-cx="54.5" data-wcoast-cy="15" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
-    <circle cx="54.5" cy="15" r="4.2" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
-    <line x1="52.250" y1="18.897" x2="51.900" y2="19.503" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="50.068" y1="15.781" x2="49.379" y2="15.903" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="51.053" y1="12.107" x2="50.517" y2="11.658" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="54.500" y1="10.500" x2="54.500" y2="9.800" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="57.947" y1="12.107" x2="58.483" y2="11.658" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="58.932" y1="15.781" x2="59.621" y2="15.903" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="56.750" y1="18.897" x2="57.100" y2="19.503" stroke="#163a69" stroke-width="0.3"/>
-    <circle cx="54.5" cy="15" r="3.3" fill="url(#knobCap)" stroke="#666" stroke-width="0.2366"/>
-    <line x1="54.5" y1="15" x2="54.5" y2="11.7" stroke="#163a69" stroke-width="0.55" data-wcoast-role="indicator"/>
-  </g>
-  <g data-wcoast-param="panE" data-wcoast-cx="67.5" data-wcoast-cy="15" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
-    <circle cx="67.5" cy="15" r="4.2" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
-    <line x1="65.250" y1="18.897" x2="64.900" y2="19.503" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="63.068" y1="15.781" x2="62.379" y2="15.903" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="64.053" y1="12.107" x2="63.517" y2="11.658" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="67.500" y1="10.500" x2="67.500" y2="9.800" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="70.947" y1="12.107" x2="71.483" y2="11.658" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="71.932" y1="15.781" x2="72.621" y2="15.903" stroke="#163a69" stroke-width="0.3"/>
-    <line x1="69.750" y1="18.897" x2="70.100" y2="19.503" stroke="#163a69" stroke-width="0.3"/>
-    <circle cx="67.5" cy="15" r="3.3" fill="url(#knobCap)" stroke="#666" stroke-width="0.2366"/>
-    <line x1="67.5" y1="15" x2="67.5" y2="11.7" stroke="#163a69" stroke-width="0.55" data-wcoast-role="indicator"/>
-  </g>
-  <g data-wcoast-port="panCvF" data-wcoast-cx="80.5" data-wcoast-cy="15">
-    <circle cx="80.5" cy="15" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="80.5" cy="15" r="1.6" fill="#000"/>
-  </g>
-  <text x="11.5" y="16" font-size="2.5" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end">PAN</text>
-  <text x="11.5" y="80" font-size="2.5" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end">AMP</text>
-  <text x="11.5" y="82.8" font-size="2.5" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end">CV IN</text>
-  <text x="11.5" y="90.5" font-size="2.5" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end">ENABLE</text>
-  <text x="11.5" y="105.5" font-size="2.5" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end">INPUT</text>
-  <line x1="3" y1="21" x2="100" y2="21" stroke="#7d7d7d" stroke-width="0.355"/>
-  <line x1="3" y1="75" x2="100" y2="75" stroke="#7d7d7d" stroke-width="0.355"/>
-  <line x1="3" y1="86" x2="100" y2="86" stroke="#7d7d7d" stroke-width="0.355"/>
-  <line x1="3" y1="93" x2="100" y2="93" stroke="#7d7d7d" stroke-width="0.355"/>
-  <line x1="20.5" y1="32.00" x2="20.5" y2="64.00" stroke="#7d7d7d" stroke-width="0.25"/>
-  <line x1="33.5" y1="32.00" x2="33.5" y2="64.00" stroke="#7d7d7d" stroke-width="0.25"/>
-  <line x1="46.5" y1="32.00" x2="46.5" y2="64.00" stroke="#7d7d7d" stroke-width="0.25"/>
-  <line x1="59.5" y1="32.00" x2="59.5" y2="64.00" stroke="#7d7d7d" stroke-width="0.25"/>
-  <line x1="72.5" y1="32.00" x2="72.5" y2="64.00" stroke="#7d7d7d" stroke-width="0.25"/>
-  <line x1="85.5" y1="32.00" x2="85.5" y2="64.00" stroke="#7d7d7d" stroke-width="0.25"/>
-  <g data-wcoast-param="levelA" data-wcoast-role="slider" data-wcoast-cx="15.5" data-wcoast-top="24" data-wcoast-bot="72">
-    <rect x="14.3" y="22" width="2.4" height="52" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
-    <g data-wcoast-role="handle" transform="translate(0 -14.400)">
-      <rect x="11.5" y="45.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
-      <line x1="12.3" y1="48" x2="18.7" y2="48" stroke="#e6ecf3" stroke-width="0.7"/>
+  <g data-wcoast-param="levelA" data-wcoast-role="slider" data-wcoast-cx="15.5" data-wcoast-top="24" data-wcoast-bot="78">
+    <rect x="14.3" y="22" width="2.4" height="58" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -16.200)">
+      <rect x="11.5" y="48.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="12.3" y1="51" x2="18.7" y2="51" stroke="#e6ecf3" stroke-width="0.7"/>
     </g>
   </g>
-  <g data-wcoast-port="ampCvA" data-wcoast-cx="15.5" data-wcoast-cy="80.5">
-    <circle cx="15.5" cy="80.5" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="15.5" cy="80.5" r="1.6" fill="#000"/>
+  <g data-wcoast-port="ampCvA" data-wcoast-cx="15.5" data-wcoast-cy="86">
+    <circle cx="15.5" cy="86" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="15.5" cy="86" r="1.6" fill="#000"/>
   </g>
   <g data-wcoast-param="muteA">
-    <circle cx="15.5" cy="89.5" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
-    <circle cx="15" cy="89" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+    <circle cx="15.5" cy="94" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="15" cy="93.5" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
   </g>
   <g data-wcoast-role="vu" data-wcoast-chan="A">
-    <circle cx="9.75" cy="72.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
-    <circle cx="9.75" cy="67.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
-    <circle cx="9.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
-    <circle cx="9.75" cy="58.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
-    <circle cx="9.75" cy="54.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
-    <circle cx="9.75" cy="50.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
-    <circle cx="9.75" cy="45.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
-    <circle cx="9.75" cy="41.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
-    <circle cx="9.75" cy="37.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
-    <circle cx="9.75" cy="32.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
-    <circle cx="9.75" cy="28.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
+    <circle cx="9.75" cy="78.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
+    <circle cx="9.75" cy="73.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
+    <circle cx="9.75" cy="68.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
+    <circle cx="9.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
+    <circle cx="9.75" cy="58.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
+    <circle cx="9.75" cy="53.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
+    <circle cx="9.75" cy="48.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
+    <circle cx="9.75" cy="43.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
+    <circle cx="9.75" cy="38.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
+    <circle cx="9.75" cy="33.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
+    <circle cx="9.75" cy="28.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
     <circle cx="9.75" cy="24.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="11"/>
   </g>
-  <text x="15.5" y="98" font-size="2.4" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle">A</text>
-  <g data-wcoast-port="chanA" data-wcoast-cx="15.5" data-wcoast-cy="104">
-    <circle cx="15.5" cy="104" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="15.5" cy="104" r="1.6" fill="#000"/>
+  <g data-wcoast-port="chanB" data-wcoast-cx="28.5" data-wcoast-cy="15">
+    <circle cx="28.5" cy="15" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="28.5" cy="15" r="1.6" fill="#000"/>
   </g>
-  <g data-wcoast-param="levelB" data-wcoast-role="slider" data-wcoast-cx="28.5" data-wcoast-top="24" data-wcoast-bot="72">
-    <rect x="27.3" y="22" width="2.4" height="52" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
-    <g data-wcoast-role="handle" transform="translate(0 -14.400)">
-      <rect x="24.5" y="45.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
-      <line x1="25.3" y1="48" x2="31.7" y2="48" stroke="#e6ecf3" stroke-width="0.7"/>
+  <g data-wcoast-param="levelB" data-wcoast-role="slider" data-wcoast-cx="28.5" data-wcoast-top="24" data-wcoast-bot="78">
+    <rect x="27.3" y="22" width="2.4" height="58" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -16.200)">
+      <rect x="24.5" y="48.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="25.3" y1="51" x2="31.7" y2="51" stroke="#e6ecf3" stroke-width="0.7"/>
     </g>
   </g>
-  <g data-wcoast-port="ampCvB" data-wcoast-cx="28.5" data-wcoast-cy="80.5">
-    <circle cx="28.5" cy="80.5" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="28.5" cy="80.5" r="1.6" fill="#000"/>
+  <g data-wcoast-port="ampCvB" data-wcoast-cx="28.5" data-wcoast-cy="86">
+    <circle cx="28.5" cy="86" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="28.5" cy="86" r="1.6" fill="#000"/>
   </g>
   <g data-wcoast-param="muteB">
-    <circle cx="28.5" cy="89.5" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
-    <circle cx="28" cy="89" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+    <circle cx="28.5" cy="94" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="28" cy="93.5" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
   </g>
   <g data-wcoast-role="vu" data-wcoast-chan="B">
-    <circle cx="22.75" cy="72.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
-    <circle cx="22.75" cy="67.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
-    <circle cx="22.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
-    <circle cx="22.75" cy="58.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
-    <circle cx="22.75" cy="54.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
-    <circle cx="22.75" cy="50.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
-    <circle cx="22.75" cy="45.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
-    <circle cx="22.75" cy="41.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
-    <circle cx="22.75" cy="37.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
-    <circle cx="22.75" cy="32.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
-    <circle cx="22.75" cy="28.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
+    <circle cx="22.75" cy="78.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
+    <circle cx="22.75" cy="73.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
+    <circle cx="22.75" cy="68.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
+    <circle cx="22.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
+    <circle cx="22.75" cy="58.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
+    <circle cx="22.75" cy="53.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
+    <circle cx="22.75" cy="48.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
+    <circle cx="22.75" cy="43.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
+    <circle cx="22.75" cy="38.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
+    <circle cx="22.75" cy="33.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
+    <circle cx="22.75" cy="28.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
     <circle cx="22.75" cy="24.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="11"/>
   </g>
-  <text x="28.5" y="98" font-size="2.4" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle">B</text>
-  <g data-wcoast-port="chanB" data-wcoast-cx="28.5" data-wcoast-cy="104">
-    <circle cx="28.5" cy="104" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="28.5" cy="104" r="1.6" fill="#000"/>
+  <g data-wcoast-port="chanC" data-wcoast-cx="41.5" data-wcoast-cy="15">
+    <circle cx="41.5" cy="15" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="41.5" cy="15" r="1.6" fill="#000"/>
   </g>
-  <g data-wcoast-param="levelC" data-wcoast-role="slider" data-wcoast-cx="41.5" data-wcoast-top="24" data-wcoast-bot="72">
-    <rect x="40.3" y="22" width="2.4" height="52" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
-    <g data-wcoast-role="handle" transform="translate(0 -14.400)">
-      <rect x="37.5" y="45.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
-      <line x1="38.3" y1="48" x2="44.7" y2="48" stroke="#e6ecf3" stroke-width="0.7"/>
+  <g data-wcoast-param="levelC" data-wcoast-role="slider" data-wcoast-cx="41.5" data-wcoast-top="24" data-wcoast-bot="78">
+    <rect x="40.3" y="22" width="2.4" height="58" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -16.200)">
+      <rect x="37.5" y="48.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="38.3" y1="51" x2="44.7" y2="51" stroke="#e6ecf3" stroke-width="0.7"/>
     </g>
   </g>
-  <g data-wcoast-port="ampCvC" data-wcoast-cx="41.5" data-wcoast-cy="80.5">
-    <circle cx="41.5" cy="80.5" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="41.5" cy="80.5" r="1.6" fill="#000"/>
+  <g data-wcoast-port="ampCvC" data-wcoast-cx="41.5" data-wcoast-cy="86">
+    <circle cx="41.5" cy="86" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="41.5" cy="86" r="1.6" fill="#000"/>
   </g>
   <g data-wcoast-param="muteC">
-    <circle cx="41.5" cy="89.5" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
-    <circle cx="41" cy="89" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+    <circle cx="41.5" cy="94" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="41" cy="93.5" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
   </g>
   <g data-wcoast-role="vu" data-wcoast-chan="C">
-    <circle cx="35.75" cy="72.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
-    <circle cx="35.75" cy="67.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
-    <circle cx="35.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
-    <circle cx="35.75" cy="58.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
-    <circle cx="35.75" cy="54.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
-    <circle cx="35.75" cy="50.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
-    <circle cx="35.75" cy="45.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
-    <circle cx="35.75" cy="41.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
-    <circle cx="35.75" cy="37.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
-    <circle cx="35.75" cy="32.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
-    <circle cx="35.75" cy="28.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
+    <circle cx="35.75" cy="78.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
+    <circle cx="35.75" cy="73.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
+    <circle cx="35.75" cy="68.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
+    <circle cx="35.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
+    <circle cx="35.75" cy="58.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
+    <circle cx="35.75" cy="53.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
+    <circle cx="35.75" cy="48.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
+    <circle cx="35.75" cy="43.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
+    <circle cx="35.75" cy="38.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
+    <circle cx="35.75" cy="33.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
+    <circle cx="35.75" cy="28.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
     <circle cx="35.75" cy="24.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="11"/>
   </g>
-  <text x="41.5" y="98" font-size="2.4" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle">C</text>
-  <g data-wcoast-port="chanC" data-wcoast-cx="41.5" data-wcoast-cy="104">
-    <circle cx="41.5" cy="104" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="41.5" cy="104" r="1.6" fill="#000"/>
+  <g data-wcoast-port="chanD" data-wcoast-cx="54.5" data-wcoast-cy="15">
+    <circle cx="54.5" cy="15" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="54.5" cy="15" r="1.6" fill="#000"/>
   </g>
-  <g data-wcoast-param="levelD" data-wcoast-role="slider" data-wcoast-cx="54.5" data-wcoast-top="24" data-wcoast-bot="72">
-    <rect x="53.3" y="22" width="2.4" height="52" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
-    <g data-wcoast-role="handle" transform="translate(0 -14.400)">
-      <rect x="50.5" y="45.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
-      <line x1="51.3" y1="48" x2="57.7" y2="48" stroke="#e6ecf3" stroke-width="0.7"/>
+  <g data-wcoast-param="levelD" data-wcoast-role="slider" data-wcoast-cx="54.5" data-wcoast-top="24" data-wcoast-bot="78">
+    <rect x="53.3" y="22" width="2.4" height="58" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -16.200)">
+      <rect x="50.5" y="48.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="51.3" y1="51" x2="57.7" y2="51" stroke="#e6ecf3" stroke-width="0.7"/>
     </g>
   </g>
-  <g data-wcoast-port="ampCvD" data-wcoast-cx="54.5" data-wcoast-cy="80.5">
-    <circle cx="54.5" cy="80.5" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="54.5" cy="80.5" r="1.6" fill="#000"/>
+  <g data-wcoast-port="ampCvD" data-wcoast-cx="54.5" data-wcoast-cy="86">
+    <circle cx="54.5" cy="86" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="54.5" cy="86" r="1.6" fill="#000"/>
   </g>
   <g data-wcoast-param="muteD">
-    <circle cx="54.5" cy="89.5" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
-    <circle cx="54" cy="89" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+    <circle cx="54.5" cy="94" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="54" cy="93.5" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
   </g>
   <g data-wcoast-role="vu" data-wcoast-chan="D">
-    <circle cx="48.75" cy="72.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
-    <circle cx="48.75" cy="67.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
-    <circle cx="48.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
-    <circle cx="48.75" cy="58.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
-    <circle cx="48.75" cy="54.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
-    <circle cx="48.75" cy="50.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
-    <circle cx="48.75" cy="45.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
-    <circle cx="48.75" cy="41.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
-    <circle cx="48.75" cy="37.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
-    <circle cx="48.75" cy="32.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
-    <circle cx="48.75" cy="28.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
+    <circle cx="48.75" cy="78.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
+    <circle cx="48.75" cy="73.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
+    <circle cx="48.75" cy="68.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
+    <circle cx="48.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
+    <circle cx="48.75" cy="58.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
+    <circle cx="48.75" cy="53.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
+    <circle cx="48.75" cy="48.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
+    <circle cx="48.75" cy="43.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
+    <circle cx="48.75" cy="38.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
+    <circle cx="48.75" cy="33.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
+    <circle cx="48.75" cy="28.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
     <circle cx="48.75" cy="24.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="11"/>
   </g>
-  <text x="54.5" y="98" font-size="2.4" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle">D</text>
-  <g data-wcoast-port="chanD" data-wcoast-cx="54.5" data-wcoast-cy="104">
-    <circle cx="54.5" cy="104" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="54.5" cy="104" r="1.6" fill="#000"/>
+  <g data-wcoast-port="chanE" data-wcoast-cx="67.5" data-wcoast-cy="15">
+    <circle cx="67.5" cy="15" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="67.5" cy="15" r="1.6" fill="#000"/>
   </g>
-  <g data-wcoast-param="levelE" data-wcoast-role="slider" data-wcoast-cx="67.5" data-wcoast-top="24" data-wcoast-bot="72">
-    <rect x="66.3" y="22" width="2.4" height="52" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
-    <g data-wcoast-role="handle" transform="translate(0 -14.400)">
-      <rect x="63.5" y="45.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
-      <line x1="64.3" y1="48" x2="70.7" y2="48" stroke="#e6ecf3" stroke-width="0.7"/>
+  <g data-wcoast-param="levelE" data-wcoast-role="slider" data-wcoast-cx="67.5" data-wcoast-top="24" data-wcoast-bot="78">
+    <rect x="66.3" y="22" width="2.4" height="58" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -16.200)">
+      <rect x="63.5" y="48.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="64.3" y1="51" x2="70.7" y2="51" stroke="#e6ecf3" stroke-width="0.7"/>
     </g>
   </g>
-  <g data-wcoast-port="ampCvE" data-wcoast-cx="67.5" data-wcoast-cy="80.5">
-    <circle cx="67.5" cy="80.5" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="67.5" cy="80.5" r="1.6" fill="#000"/>
+  <g data-wcoast-port="ampCvE" data-wcoast-cx="67.5" data-wcoast-cy="86">
+    <circle cx="67.5" cy="86" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="67.5" cy="86" r="1.6" fill="#000"/>
   </g>
   <g data-wcoast-param="muteE">
-    <circle cx="67.5" cy="89.5" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
-    <circle cx="67" cy="89" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+    <circle cx="67.5" cy="94" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="67" cy="93.5" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
   </g>
   <g data-wcoast-role="vu" data-wcoast-chan="E">
-    <circle cx="61.75" cy="72.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
-    <circle cx="61.75" cy="67.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
-    <circle cx="61.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
-    <circle cx="61.75" cy="58.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
-    <circle cx="61.75" cy="54.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
-    <circle cx="61.75" cy="50.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
-    <circle cx="61.75" cy="45.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
-    <circle cx="61.75" cy="41.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
-    <circle cx="61.75" cy="37.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
-    <circle cx="61.75" cy="32.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
-    <circle cx="61.75" cy="28.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
+    <circle cx="61.75" cy="78.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
+    <circle cx="61.75" cy="73.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
+    <circle cx="61.75" cy="68.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
+    <circle cx="61.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
+    <circle cx="61.75" cy="58.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
+    <circle cx="61.75" cy="53.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
+    <circle cx="61.75" cy="48.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
+    <circle cx="61.75" cy="43.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
+    <circle cx="61.75" cy="38.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
+    <circle cx="61.75" cy="33.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
+    <circle cx="61.75" cy="28.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
     <circle cx="61.75" cy="24.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="11"/>
   </g>
-  <text x="67.5" y="98" font-size="2.4" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle">E</text>
-  <g data-wcoast-port="chanE" data-wcoast-cx="67.5" data-wcoast-cy="104">
-    <circle cx="67.5" cy="104" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="67.5" cy="104" r="1.6" fill="#000"/>
+  <g data-wcoast-port="chanF" data-wcoast-cx="80.5" data-wcoast-cy="15">
+    <circle cx="80.5" cy="15" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="80.5" cy="15" r="1.6" fill="#000"/>
   </g>
-  <g data-wcoast-param="levelF" data-wcoast-role="slider" data-wcoast-cx="80.5" data-wcoast-top="24" data-wcoast-bot="72">
-    <rect x="79.3" y="22" width="2.4" height="52" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
-    <g data-wcoast-role="handle" transform="translate(0 -14.400)">
-      <rect x="76.5" y="45.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
-      <line x1="77.3" y1="48" x2="83.7" y2="48" stroke="#e6ecf3" stroke-width="0.7"/>
+  <g data-wcoast-param="levelF" data-wcoast-role="slider" data-wcoast-cx="80.5" data-wcoast-top="24" data-wcoast-bot="78">
+    <rect x="79.3" y="22" width="2.4" height="58" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -16.200)">
+      <rect x="76.5" y="48.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="77.3" y1="51" x2="83.7" y2="51" stroke="#e6ecf3" stroke-width="0.7"/>
     </g>
   </g>
-  <g data-wcoast-port="ampCvF" data-wcoast-cx="80.5" data-wcoast-cy="80.5">
-    <circle cx="80.5" cy="80.5" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="80.5" cy="80.5" r="1.6" fill="#000"/>
+  <g data-wcoast-port="ampCvF" data-wcoast-cx="80.5" data-wcoast-cy="86">
+    <circle cx="80.5" cy="86" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="80.5" cy="86" r="1.6" fill="#000"/>
   </g>
   <g data-wcoast-param="muteF">
-    <circle cx="80.5" cy="89.5" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
-    <circle cx="80" cy="89" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+    <circle cx="80.5" cy="94" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="80" cy="93.5" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
   </g>
   <g data-wcoast-role="vu" data-wcoast-chan="F">
-    <circle cx="74.75" cy="72.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
-    <circle cx="74.75" cy="67.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
-    <circle cx="74.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
-    <circle cx="74.75" cy="58.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
-    <circle cx="74.75" cy="54.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
-    <circle cx="74.75" cy="50.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
-    <circle cx="74.75" cy="45.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
-    <circle cx="74.75" cy="41.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
-    <circle cx="74.75" cy="37.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
-    <circle cx="74.75" cy="32.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
-    <circle cx="74.75" cy="28.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
+    <circle cx="74.75" cy="78.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
+    <circle cx="74.75" cy="73.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
+    <circle cx="74.75" cy="68.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
+    <circle cx="74.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
+    <circle cx="74.75" cy="58.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
+    <circle cx="74.75" cy="53.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
+    <circle cx="74.75" cy="48.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
+    <circle cx="74.75" cy="43.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
+    <circle cx="74.75" cy="38.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
+    <circle cx="74.75" cy="33.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
+    <circle cx="74.75" cy="28.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
     <circle cx="74.75" cy="24.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="11"/>
   </g>
-  <text x="80.5" y="98" font-size="2.4" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle">F</text>
-  <g data-wcoast-port="chanF" data-wcoast-cx="80.5" data-wcoast-cy="104">
-    <circle cx="80.5" cy="104" r="3.0" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="80.5" cy="104" r="1.6" fill="#000"/>
-  </g>
-  <text x="95.5" y="19.6" font-size="2.6" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle">MASTER</text>
-  <g data-wcoast-param="master" data-wcoast-role="slider" data-wcoast-cx="95.5" data-wcoast-top="24" data-wcoast-bot="72">
-    <rect x="94.3" y="22" width="2.4" height="52" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
-    <g data-wcoast-role="handle" transform="translate(0 -9.600)">
-      <rect x="91.5" y="45.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
-      <line x1="92.3" y1="48" x2="98.7" y2="48" stroke="#e6ecf3" stroke-width="0.7"/>
+  <g data-wcoast-param="master" data-wcoast-role="slider" data-wcoast-cx="95.5" data-wcoast-top="24" data-wcoast-bot="78">
+    <rect x="94.3" y="22" width="2.4" height="58" rx="1.2" fill="#20242a" stroke="#000" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -10.800)">
+      <rect x="91.5" y="48.8" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="92.3" y1="51" x2="98.7" y2="51" stroke="#e6ecf3" stroke-width="0.7"/>
     </g>
   </g>
-  <g data-wcoast-port="ampCvMaster" data-wcoast-cx="95.5" data-wcoast-cy="80.5">
-    <circle cx="95.5" cy="80.5" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="95.5" cy="80.5" r="1.6" fill="#000"/>
+  <g data-wcoast-port="ampCvMaster" data-wcoast-cx="95.5" data-wcoast-cy="86">
+    <circle cx="95.5" cy="86" r="3.0" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="95.5" cy="86" r="1.6" fill="#000"/>
   </g>
   <g data-wcoast-param="masterMute">
-    <circle cx="95.5" cy="89.5" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
-    <circle cx="95" cy="89" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+    <circle cx="95.5" cy="94" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="95" cy="93.5" r="0.5" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
   </g>
   <g data-wcoast-role="vuMaster" data-wcoast-chan="M">
-    <circle cx="89.75" cy="72.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
-    <circle cx="89.75" cy="67.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
-    <circle cx="89.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
-    <circle cx="89.75" cy="58.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
-    <circle cx="89.75" cy="54.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
-    <circle cx="89.75" cy="50.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
-    <circle cx="89.75" cy="45.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
-    <circle cx="89.75" cy="41.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
-    <circle cx="89.75" cy="37.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
-    <circle cx="89.75" cy="32.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
-    <circle cx="89.75" cy="28.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
+    <circle cx="89.75" cy="78.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
+    <circle cx="89.75" cy="73.091" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
+    <circle cx="89.75" cy="68.182" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
+    <circle cx="89.75" cy="63.273" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
+    <circle cx="89.75" cy="58.364" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
+    <circle cx="89.75" cy="53.455" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
+    <circle cx="89.75" cy="48.545" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
+    <circle cx="89.75" cy="43.636" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
+    <circle cx="89.75" cy="38.727" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
+    <circle cx="89.75" cy="33.818" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
+    <circle cx="89.75" cy="28.909" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
     <circle cx="89.75" cy="24.000" r="0.75" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="11"/>
   </g>
 </g>
