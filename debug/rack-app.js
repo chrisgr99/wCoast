@@ -73,8 +73,10 @@ function buildJack(portId, label, domain) {
 
 async function boot() {
   ensureAudio();
+  let darkMode = false;
+  try { darkMode = localStorage.getItem('wcoast.dark') === '1'; } catch (_e) { /* no storage */ }
   rack = new Rack(document.getElementById('rack'), {
-    host, moduleTypes: MODULE_TYPES, rowCount: 2, onChange: () => onEdit(),
+    host, moduleTypes: MODULE_TYPES, rowCount: 2, dark: darkMode, onChange: () => onEdit(),
   });
   rack.relayout();
 
@@ -137,6 +139,7 @@ async function boot() {
     onMaster: (v) => setMasterValue(v, 'panel'),
     onChange: () => onEdit(),
   });
+  panel.setDark(darkMode);
   panel.setHeight((rack.moduleHeightPx() / 2 * 0.9));   // match a 259t faceplate's height
   document.getElementById('mixer-open').addEventListener('click', () => {
     panel.setHeight((rack.moduleHeightPx() / 2 * 0.9));
@@ -279,6 +282,13 @@ async function boot() {
       { label: 'Open…', action: () => openPatch() },
       { label: 'Save', action: () => savePatch() },
       { label: 'Save As…', action: () => saveAsPatch() },
+      { header: true, label: 'View' },
+      { label: 'Dark mode', checkFn: () => rack.isDark(), action: () => {
+        const d = !rack.isDark();
+        rack.setDarkMode(d);
+        panel.setDark(d);
+        try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
+      } },
     ];
     // Browser only: offer to reopen the last file (its handle survives in IndexedDB).
     if (storage.hasLast && storage.hasLast()) {

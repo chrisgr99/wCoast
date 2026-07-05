@@ -172,7 +172,7 @@ export default {
   ports: [
     // Modulation oscillator inputs
     { id: "modPitchIn", section: "modOsc", name: "1V/Oct", domain: "control",
-      dir: "in", target: "modFreq" },                 // was 1V/OCT-or-ART; ART dropped
+      dir: "in", target: "modFreq", role: "pitch" },  // 1V/oct pitch/keyboard in (green jack)
     { id: "modCvIn", section: "modOsc", name: "CV In", domain: "control",
       dir: "in", target: "modFreq", via: "modCvAmount" }, // attenuverted CV
     { id: "modFmIn", section: "modOsc", name: "FM In", domain: "audio",
@@ -187,7 +187,7 @@ export default {
 
     // Principal oscillator inputs
     { id: "prinPitchIn", section: "prinOsc", name: "1V/Oct", domain: "control",
-      dir: "in", target: "prinFreq" },
+      dir: "in", target: "prinFreq", role: "pitch" },
     { id: "prinCvIn", section: "prinOsc", name: "CV In", domain: "control",
       dir: "in", target: "prinFreq", via: "prinCvAmount" },
     { id: "prinFmIn", section: "prinOsc", name: "FM In", domain: "audio",

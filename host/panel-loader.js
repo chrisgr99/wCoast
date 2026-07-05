@@ -139,11 +139,17 @@ export function showPosition(binding, pos) {
 export function showStep(binding, stepValue) {
   for (const [val, el] of binding.stepIndicators) {
     const on = val === stepValue;
-    // On: a glowing red lamp. Off: a cream centre with a red ring (the same red
-    // it glows) so an off lamp stays clearly visible against the light panel.
-    el.setAttribute('fill', on ? 'url(#redLed)' : '#f6eccf');
-    el.setAttribute('stroke', on ? '#7c0000' : '#d00000');
-    el.setAttribute('stroke-width', on ? '0.2366' : '0.5');
+    // A medium-light-gray push-button disc either way; ON lights a red LED in its
+    // centre (the ledLit gradient: red core fading to the gray body) plus a glossy
+    // highlight. OFF is the flat gray disc. The thin edge is black on the light
+    // panel, the font-gray on the dark panel.
+    el.setAttribute('fill', on ? 'url(#ledLit)' : BUTTON_OFF);
+    el.setAttribute('stroke', binding.dark ? DARK_LINE : BUTTON_EDGE_LIGHT);
+    // Match the jack edge's PROPORTION (~6% of radius): buttons are smaller, so a
+    // fixed width read much heavier on them. Scale the edge to each button's radius.
+    const r = parseFloat(el.getAttribute('r')) || 2;
+    const edgeW = r * 0.06 * (on ? 1 : 2);   // double the outline on unlit buttons
+    el.setAttribute('stroke-width', String(Math.round(edgeW * 1000) / 1000));
     el.setAttribute('opacity', '1');
     const hi = el.nextElementSibling;   // the little glossy highlight
     if (hi && hi.getAttribute && hi.getAttribute('fill') === '#ffb4b4') {
@@ -346,9 +352,113 @@ export function attachControlInteraction(binding, hooks) {
   }
 }
 
+// ---- jack colour code + dark-mode decoration (applied, not authored) ----
+// Jack colours follow one rule keyed on each port's domain + direction (and a
+// pitch tag), applied HERE — not baked per-jack in the art — so the one colour
+// code paints both the light and dark panels and every future module. Adapted
+// from Buchla: pulse(=trigger) in orange / out red; CV(=control) in black (grey
+// on the dark panel so it doesn't vanish) / out blue, with 1V/oct pitch inputs
+// green; audio in a muted grey-yellow / out a brighter yellow — direction reads
+// from colour, no direction ring. The pale audio jacks get a thin black edge on
+// the LIGHT panel only (they'd wash into the light face otherwise). Every jack's
+// centre hole is dark grey with a hair-thin light-grey rim to lift it off the
+// fill. Unlit lamps show dark grey (not cream) on the dark panel; a vertical
+// TITLE up the left edge is added in both modes.
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const DARK_LINE = '#b8b8bc';        // dark-mode vertical title (light gray)
+// Push buttons are a medium-LIGHT-gray disc in BOTH states; pressed/on adds a red
+// LED in the centre (the `ledLit` gradient below). The thin edge is black on the
+// light panel and the font-gray on the dark panel (set per-mode in showStep).
+const BUTTON_OFF = '#505055';        // unlit push-button body: dark-medium gray
+const BUTTON_EDGE_LIGHT = '#141414'; // button edge on the light panel (black); dark uses DARK_LINE
+
+// The jack colour code.
+const JACK = {
+  pulseIn: '#ff7300',   // trigger in  — orange
+  pulseOut: '#dd0000',  // trigger out — red
+  cvInLight: '#1a1a1a', // control in  — black on the light panel…
+  cvInDark: '#8f8f94',  // …grey on the dark panel (so it doesn't vanish)
+  cvOut: '#1f7fe0',     // control out — blue
+  pitchIn: '#39a85a',   // 1V/oct pitch/keyboard in — green
+  audioIn: '#cabf7a',   // audio in  — muted grey-yellow
+  audioOut: '#f3c40b',  // audio out — brighter yellow
+  hole: '#2f2f33',      // centre plug-hole
+  holeRim: '#cfcfd3',   // hair-thin light rim around the hole
+  holeRimW: '0.15',
+  edge: '#111111',      // thin black edge on every jack (light panel only)
+  edgeW: '0.22',
+};
+
+function isPitch(meta) { return meta.role === 'pitch' || meta.name === '1V/Oct'; }
+function jackFill(meta, dark) {
+  if (meta.domain === 'trigger') return meta.dir === 'in' ? JACK.pulseIn : JACK.pulseOut;
+  if (meta.domain === 'audio') return meta.dir === 'in' ? JACK.audioIn : JACK.audioOut;
+  // control
+  if (meta.dir === 'out') return JACK.cvOut;
+  if (isPitch(meta)) return JACK.pitchIn;
+  return dark ? JACK.cvInDark : JACK.cvInLight;
+}
+
+// Paint one jack: outer ring = type colour with a thin black edge on the light
+// panel (defines every jack against the light face; black would be invisible on
+// the dark panel, so it's dropped there); inner hole = dark grey with a hair-thin
+// light rim.
+function paintJack(port, dark) {
+  const circles = [...port.element.querySelectorAll('circle')];
+  if (!circles.length || !port.meta) return;
+  let outer = circles[0], hole = circles[0], ro = -1, rh = Infinity;
+  for (const c of circles) { const r = parseFloat(c.getAttribute('r')) || 0; if (r > ro) { ro = r; outer = c; } if (r < rh) { rh = r; hole = c; } }
+  outer.setAttribute('fill', jackFill(port.meta, dark));
+  if (!dark) { outer.setAttribute('stroke', JACK.edge); outer.setAttribute('stroke-width', JACK.edgeW); }
+  else { outer.setAttribute('stroke', 'none'); outer.setAttribute('stroke-width', '0'); }
+  if (hole !== outer) { hole.setAttribute('fill', JACK.hole); hole.setAttribute('stroke', JACK.holeRim); hole.setAttribute('stroke-width', JACK.holeRimW); }
+}
+
+// The lit-button gradient: a red LED core fading to the gray button body, so an
+// ON button reads as a dark-gray disc with a glowing centre. Injected once per
+// panel so showStep can reference url(#ledLit).
+function ensureLedGradient(svg) {
+  const doc = svg.ownerDocument;
+  let defs = svg.querySelector('defs');
+  if (!defs) { defs = doc.createElementNS(SVG_NS, 'defs'); svg.insertBefore(defs, svg.firstChild); }
+  if (svg.querySelector('#ledLit')) return;
+  const g = doc.createElementNS(SVG_NS, 'radialGradient');
+  g.setAttribute('id', 'ledLit');
+  // Red LED lens fills the WHOLE button (a glowing dome, bright centre → deep red
+  // edge) — no gray rim; the only ring is the thin outline the button already has.
+  for (const [off, col] of [['0', '#ff7a5a'], ['0.5', '#ee2a10'], ['0.82', '#d21010'], ['1', '#8f0c0c']]) {
+    const s = doc.createElementNS(SVG_NS, 'stop'); s.setAttribute('offset', off); s.setAttribute('stop-color', col); g.appendChild(s);
+  }
+  defs.appendChild(g);
+}
+
+function decoratePanel(parsed, descriptor, opts) {
+  const { svg, controls, ports } = parsed;
+  ensureLedGradient(svg);
+  for (const b of controls.values()) b.dark = opts.dark;   // showStep picks the button edge by mode
+  for (const port of ports.values()) paintJack(port, opts.dark);
+  // Vertical title up the left edge, fitted into the existing left margin.
+  const name = (descriptor && descriptor.name) || '';
+  if (name) {
+    const t = svg.ownerDocument.createElementNS(SVG_NS, 'text');
+    t.setAttribute('transform', `translate(${round2(FACE_LEFT_MM + 2.4)} ${round2(FACE_TOP_MM + FACE_H_MM / 2)}) rotate(-90)`);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('font-size', '3.1');
+    t.setAttribute('font-weight', '700');
+    t.setAttribute('letter-spacing', '0.2');
+    t.setAttribute('fill', opts.dark ? DARK_LINE : '#163a69');
+    t.setAttribute('opacity', '0.55');
+    t.setAttribute('pointer-events', 'none');
+    t.textContent = name;
+    svg.appendChild(t);
+  }
+}
+
 // Fetch the panel SVG over the app:// origin, parse it, and bind it. Paths are
-// relative to the origin root (a leading slash resolves against it).
-export async function loadPanel(url, descriptor) {
+// relative to the origin root (a leading slash resolves against it). `opts.dark`
+// selects the dark decoration (the caller has already chosen the dark file URL).
+export async function loadPanel(url, descriptor, opts = {}) {
   const href = url.startsWith('/') || url.includes('://') ? url : `/${url}`;
   const res = await fetch(href);
   if (!res.ok) throw new Error(`panel fetch ${href} failed: ${res.status}`);
@@ -358,5 +468,7 @@ export async function loadPanel(url, descriptor) {
   if (err) throw new Error(`panel SVG parse error: ${err.textContent.trim()}`);
   const svg = doc.documentElement;
   cropToFace(svg);   // show only the functional face; crop the mounting rim
-  return parsePanel(svg, descriptor);
+  const parsed = parsePanel(svg, descriptor);
+  decoratePanel(parsed, descriptor, opts);
+  return parsed;
 }

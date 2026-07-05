@@ -51,11 +51,6 @@
   </defs>
   <rect x="3.9" y="1.036" width="171.333" height="128.5" fill="#cfcfcf" stroke="none" stroke-width="0"/>
   <rect x="-0.464" y="2.458" width="171.333" height="128.5" fill="#d0d0d0" filter="url(#grain)"/>
-  <rect x="9.343" y="2.692" width="4.733" height="2.603" rx="0.947" fill="#020202" stroke="#000" stroke-width="0.2366"/>
-  <rect x="165.058" y="2.692" width="4.733" height="2.603" rx="0.947" fill="#020202" stroke="#000" stroke-width="0.2366"/>
-  <rect x="9.343" y="124.921" width="4.733" height="2.603" rx="0.947" fill="#020202" stroke="#000" stroke-width="0.2366"/>
-  <rect x="165.058" y="124.921" width="4.733" height="2.603" rx="0.947" fill="#020202" stroke="#000" stroke-width="0.2366"/>
-  <text x="89.567" y="5.769" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="3.0764" font-weight="800" font-style="normal" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 3.1px;">CWG   259w</text>
   <line x1="3.9" y1="8.135" x2="175.233" y2="8.135" stroke="#163a69" stroke-width="0.355"/>
   <line x1="3.9" y1="28.487" x2="63.062" y2="28.487" stroke="#163a69" stroke-width="0.355"/>
   <line x1="3.9" y1="49.904" x2="63.062" y2="49.904" stroke="#163a69" stroke-width="0.355"/>

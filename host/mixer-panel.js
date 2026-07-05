@@ -50,7 +50,33 @@ export class MixerPanel {
   _paramDefault(id) { const p = this.desc.params.find((x) => x.id === id); return p ? p.default : 0; }
   _paramMeta(id) { return this.desc.params.find((x) => x.id === id); }
 
+  // Dark mode is a scoped CSS override keyed on the faceplate's own colours, so
+  // toggling one class re-themes the whole panel and the dynamic VU/mute updates
+  // (which use other colours) are untouched. The light face darkens, the navy
+  // ink goes white, and the near-black fader slot / VU wells lighten so they stay
+  // visible against the dark face.
+  _ensureDarkStyle() {
+    if (document.getElementById('mixer-dark-style')) return;
+    const s = document.createElement('style');
+    s.id = 'mixer-dark-style';
+    s.textContent = [
+      '#mixer-panel.dark [fill="#cfcfcf"]{fill:#262629}',            // face
+      '#mixer-panel.dark [fill="#163a69"]{fill:#b8b8bc}',            // labels: light gray
+      '#mixer-panel.dark [stroke="#163a69"]{stroke:#b8b8bc}',        // dividers: light gray
+      '#mixer-panel.dark [fill="#20242a"]{fill:#454951}',           // fader slot / VU wells visible
+      '#mixer-panel.dark [fill="#3c4653"]{fill:#59636f}',           // fader handle
+      '#mixer-panel.dark [fill="#f6eccf"]{fill:#3a3d43}',           // unlit mute → dark gray, not cream
+      '#mixer-panel.dark [fill="url(#mxKnob)"]{fill:url(#mxKnobDark)}',  // dark knob cap
+      '#mixer-panel.dark [stroke="#0d2038"]{stroke:#b8b8bc}',       // knob outline + pointer stay visible
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  // Toggle dark faceplate (called by the app's Dark mode switch).
+  setDark(dark) { this.win.classList.toggle('dark', !!dark); }
+
   _build() {
+    this._ensureDarkStyle();
     const win = document.createElement('div');
     win.id = 'mixer-panel';
     win.style.display = 'none';
@@ -65,6 +91,12 @@ export class MixerPanel {
     el('stop', { offset: '0', 'stop-color': '#f0f6fc' }, kg);
     el('stop', { offset: '0.55', 'stop-color': '#7ea8d8' }, kg);
     el('stop', { offset: '1', 'stop-color': '#173e66' }, kg);
+    // Dark-mode knob cap: medium-dark gray centre shading to a lighter rim (swapped
+    // in by the .dark CSS), so the knob reads as a raised dark cap, not a light disc.
+    const kgd = el('radialGradient', { id: 'mxKnobDark', cx: '0.42', cy: '0.38', r: '0.75' }, defs);
+    el('stop', { offset: '0', 'stop-color': '#3a3d43' }, kgd);
+    el('stop', { offset: '0.6', 'stop-color': '#4c5058' }, kgd);
+    el('stop', { offset: '1', 'stop-color': '#62666d' }, kgd);
     const lg = el('radialGradient', { id: 'mxLed' }, defs);
     el('stop', { offset: '0', 'stop-color': '#ff7a7a' }, lg);
     el('stop', { offset: '0.6', 'stop-color': '#e00000' }, lg);
@@ -110,7 +142,7 @@ export class MixerPanel {
     const m = this._paramMeta(paramId);
     const g = el('g', { 'data-knob': paramId }, svg);
     el('circle', { cx, cy, r: KNOB_R + 0.6, fill: '#0d1a28', opacity: 0.35 }, g);
-    el('circle', { cx, cy, r: KNOB_R, fill: 'url(#mxKnob)', stroke: '#0d2038', 'stroke-width': 0.4 }, g);
+    el('circle', { cx, cy, r: KNOB_R, fill: 'url(#mxKnob)', stroke: '#141a22', 'stroke-width': 0.4 }, g);
     const pointer = el('line', { x1: cx, y1: cy, x2: cx, y2: cy - KNOB_R + 1.2, stroke: '#0d2038', 'stroke-width': 1, 'stroke-linecap': 'round' }, g);
     if (vcPan) el('text', { x: cx, y: cy + KNOB_R + 4, 'text-anchor': 'middle', 'font-family': 'Arial Narrow, sans-serif', 'font-size': '3.2', fill: '#1f7fe0' }, svg).textContent = 'cv';
     const rec = { pointer, cx, cy, min: m.min, max: m.max, value: this._paramDefault(paramId) };

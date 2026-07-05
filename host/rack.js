@@ -53,6 +53,7 @@ export class Rack {
     this.moduleTypes = opts.moduleTypes;
     this.onChange = opts.onChange || (() => {});
     this.onSelect = opts.onSelect || (() => {});   // module the pointer entered (deixis)
+    this.dark = !!opts.dark;                        // dark-mode faceplates
     this.rowCount = opts.rowCount || 2;
     this.rows = [];
     for (let i = 0; i < this.rowCount; i++) this.rows.push([]);
@@ -777,33 +778,29 @@ export class Rack {
     }
   }
 
-  async addModule(descriptorId, rowIndex, xMm) {
-    const type = this.moduleTypes.find((t) => t.descriptorId === descriptorId);
-    if (!type) return null;
-    rowIndex = Math.max(0, Math.min(this.rowCount - 1, rowIndex | 0));
+  // The panel URL for the current mode: dark modules load the generated
+  // <name>.dark.svg beside the light <name>.svg.
+  _panelUrl(type) {
+    return this.dark ? type.panelUrl.replace(/\.svg$/, '.dark.svg') : type.panelUrl;
+  }
 
-    const { instanceId, instance } = await this.host.instantiate(descriptorId);
-    const panel = await loadPanel(type.panelUrl, type.descriptor);
-
-    const el = document.createElement('div');
-    el.className = 'rack-module';
+  // Put a freshly loaded panel into a record's element and (re)bind its controls
+  // and jacks. Used both when a module is created and when its skin is swapped
+  // for a mode change — the audio instance and the record identity persist, so
+  // only the faceplate and its per-element handlers are replaced.
+  _skinModule(rec, panel) {
+    const el = rec.el;
+    while (el.firstChild) el.removeChild(el.firstChild);
     const svg = document.adoptNode(panel.svg);
     const vb = (svg.getAttribute('viewBox') || '0 0 171 128.5').split(/\s+/).map(Number);
-    const panelWmm = vb[2];
+    rec.panelWmm = vb[2];
     svg.removeAttribute('width');
     svg.removeAttribute('height');
     svg.style.width = '100%';
     svg.style.height = '100%';
     svg.style.display = 'block';
     el.appendChild(svg);
-
-    const rec = {
-      key: 'm' + (this._seq++), descriptorId, name: type.name,
-      x: Math.max(0, xMm || 0), row: rowIndex,
-      instanceId, instance, panel, el, panelWmm, values: new Map(),
-    };
-    el.dataset.key = rec.key;
-    for (const p of type.descriptor.params) rec.values.set(p.id, p.default);
+    rec.panel = panel;
     for (const b of panel.controls.values()) {
       const v = rec.values.get(b.id);
       if (v !== undefined) showValue(b, v);
@@ -820,8 +817,29 @@ export class Rack {
       port.element.addEventListener('pointerdown', (e) => this._onJackPointerDown(e, rec.key, portId));
       port.element.addEventListener('contextmenu', (e) => this._onJackContextMenu(e, rec.key, portId));
     }
+  }
+
+  async addModule(descriptorId, rowIndex, xMm) {
+    const type = this.moduleTypes.find((t) => t.descriptorId === descriptorId);
+    if (!type) return null;
+    rowIndex = Math.max(0, Math.min(this.rowCount - 1, rowIndex | 0));
+
+    const { instanceId, instance } = await this.host.instantiate(descriptorId);
+    const panel = await loadPanel(this._panelUrl(type), type.descriptor, { dark: this.dark });
+
+    const el = document.createElement('div');
+    el.className = 'rack-module';
+    const rec = {
+      key: 'm' + (this._seq++), descriptorId, name: type.name,
+      x: Math.max(0, xMm || 0), row: rowIndex,
+      instanceId, instance, panel: null, el, panelWmm: 0, values: new Map(),
+    };
+    el.dataset.key = rec.key;
+    for (const p of type.descriptor.params) rec.values.set(p.id, p.default);
+    this._skinModule(rec, panel);
     for (const [id, v] of rec.values) if (instance.supports(id)) instance.setParam(id, v);
 
+    // Module-level handlers live on the wrapper element, so they survive a skin swap.
     el.addEventListener('pointerdown', (e) => this._startDrag(e, rec));
     el.addEventListener('contextmenu', (e) => this._onModuleContextMenu(e, rec));
     el.addEventListener('pointerenter', () => { this._hoverRec = rec; this.onSelect(rec); this._drawCables(); });
@@ -834,6 +852,24 @@ export class Rack {
     this.relayout();
     this.onChange();
     return rec;
+  }
+
+  isDark() { return this.dark; }
+
+  // Swap every module's faceplate to the given mode, preserving audio, wiring,
+  // and every knob value (only the skin and its per-element handlers change).
+  async setDarkMode(dark) {
+    dark = !!dark;
+    if (dark === this.dark) return;
+    this.dark = dark;
+    for (const rec of this.records.values()) {
+      const type = this.moduleTypes.find((t) => t.descriptorId === rec.descriptorId);
+      if (!type) continue;
+      const panel = await loadPanel(this._panelUrl(type), type.descriptor, { dark });
+      this._skinModule(rec, panel);
+    }
+    this.relayout();
+    this._drawCables();
   }
 
   _setParam(rec, id, value) {
