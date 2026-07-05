@@ -100,10 +100,10 @@ export function create(ctx, services) {
       node.port.postMessage({ type: 'switch', id: paramId, value });
       return;
     }
-    // Momentary strike: EVERY press fires (the panel button toggles its lamp,
-    // but each toggle is a fresh strike).
+    // Momentary strike: fire only on the press (value 'on'); the release ('off')
+    // just clears the lamp and must NOT fire a second strike.
     if (isCh(paramId, 'strike')) {
-      node.port.postMessage({ type: 'strike', ch: CI[paramId.slice(-1)] });
+      if (value === 'on') node.port.postMessage({ type: 'strike', ch: CI[paramId.slice(-1)] });
       return;
     }
     // Divider knob -> quantised integer division.

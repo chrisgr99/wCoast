@@ -44,7 +44,7 @@ for (const L of CH) {
   params.push({ id: `decay${L}`, name: `Decay ${L}`, section: 'channel', curve: 'linear', min: 0, max: 1, default: 0.4, glideMs: 10 });
   params.push({ id: `lp${L}`, name: `Lowpass ${L}`, section: 'channel', ...onoff(), default: 'on' });
   params.push({ id: `vca${L}`, name: `VCA ${L}`, section: 'channel', ...onoff(), default: 'on' });
-  params.push({ id: `strike${L}`, name: `Strike ${L}`, section: 'channel', ...onoff(), default: 'off' });
+  params.push({ id: `strike${L}`, name: `Strike ${L}`, section: 'channel', ...onoff(), default: 'off', momentary: true });
   params.push({ id: `div${L}`, name: `Divide ${L}`, section: 'channel', curve: 'linear', min: 0, max: 1, default: 0, glideMs: 0 });
   params.push({ id: `clkOn${L}`, name: `Clock ${L}`, section: 'channel', ...onoff(), default: 'off' });
 }
