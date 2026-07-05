@@ -50,20 +50,21 @@
     </radialGradient>
   </defs>
   <rect x="3.9" y="1.036" width="171.333" height="128.5" fill="#cfcfcf" stroke="none" stroke-width="0"/>
+  <rect x="4.4" y="7.5994" width="170.333" height="112.5912" rx="2.2" fill="none" stroke="#7d7d7d" stroke-width="0.5"/>
   <rect x="-0.464" y="2.458" width="171.333" height="128.5" fill="#d0d0d0" filter="url(#grain)"/>
-  <line x1="3.9" y1="8.135" x2="175.233" y2="8.135" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="3.9" y1="28.487" x2="63.062" y2="28.487" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="3.9" y1="49.904" x2="63.062" y2="49.904" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="3.9" y1="121.726" x2="175.233" y2="121.726" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="35.848" y1="27.865" x2="35.848" y2="50.439" stroke="#163a69" stroke-width="0.355" style=""/>
-  <line x1="64.245" y1="8.135" x2="64.245" y2="121.726" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="85.78" y1="8.135" x2="85.78" y2="121.726" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="144.114" y1="8.135" x2="144.114" y2="121.726" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="85.78" y1="28.487" x2="144.114" y2="28.487" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="85.78" y1="49.904" x2="144.114" y2="49.904" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="144.114" y1="64.931" x2="175.233" y2="64.931" stroke="#163a69" stroke-width="0.355"/>
-  <line x1="35.848" y1="28.487" x2="35.848" y2="49.592" stroke="#163a69" stroke-width="0.355" style=""/>
-  <line x1="64.245" y1="8.135" x2="64.245" y2="121.726" stroke="#163a69" stroke-width="0.355"/>
+
+  <line x1="3.9" y1="28.487" x2="63.062" y2="28.487" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="3.9" y1="49.904" x2="63.062" y2="49.904" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="3.9" y1="121.726" x2="175.233" y2="121.726" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="35.848" y1="27.865" x2="35.848" y2="50.439" stroke="#7d7d7d" stroke-width="0.355" style=""/>
+  <line x1="64.245" y1="8.135" x2="64.245" y2="121.726" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="85.78" y1="8.135" x2="85.78" y2="121.726" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="144.114" y1="8.135" x2="144.114" y2="121.726" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="85.78" y1="28.487" x2="144.114" y2="28.487" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="85.78" y1="49.904" x2="144.114" y2="49.904" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="144.114" y1="64.931" x2="175.233" y2="64.931" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="35.848" y1="28.487" x2="35.848" y2="49.592" stroke="#7d7d7d" stroke-width="0.355" style=""/>
+  <line x1="64.245" y1="8.135" x2="64.245" y2="121.726" stroke="#7d7d7d" stroke-width="0.355"/>
   <text x="16.679" y="11.685" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">MODULATION</text>
   <text x="34.073" y="11.685" font-family="Arial Narrow, Helvetica, Arial, sans-serif" font-size="2.8398" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" style="white-space: pre; font-size: 2.8px;">OSC. OUTPUTS</text>
   <g data-wcoast-port="modTriOut" data-wcoast-cx="12.0691" data-wcoast-cy="16.3287" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
@@ -159,7 +160,7 @@
     <circle cx="11.3591" cy="95.0143" r="5.6796" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="11.3591" y1="95.0143" x2="11.3591" y2="89.9263" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <line x1="15.259" y1="103.268" x2="15.259" y2="112.616" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="15.259" y1="103.268" x2="15.259" y2="112.616" stroke="#7d7d7d" stroke-width="0.355"/>
   <g data-wcoast-port="modFmIn" data-wcoast-cx="11.3591" data-wcoast-cy="112.7629" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="11.3591" cy="112.7629" r="3.5497" fill="#ff7300" stroke="#000000" stroke-width="0.3" filter="url(#softShadow)"/>
     <circle cx="11.3591" cy="112.7629" r="1.8932" fill="#000000" stroke="#000000" stroke-width="0.3"/>
@@ -188,7 +189,7 @@
     <circle cx="50.8794" cy="95.0143" r="5.6796" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="50.8794" y1="95.0143" x2="50.8794" y2="89.9263" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <line x1="54.779" y1="103.268" x2="54.779" y2="112.616" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="54.779" y1="103.268" x2="54.779" y2="112.616" stroke="#7d7d7d" stroke-width="0.355"/>
   <g data-wcoast-port="modCvIn" data-wcoast-cx="50.8794" data-wcoast-cy="112.7629" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="50.8794" cy="112.7629" r="3.5497" fill="#1f7fe0" stroke="#000000" stroke-width="0.3" filter="url(#softShadow)"/>
     <circle cx="50.8794" cy="112.7629" r="1.8932" fill="#000000" stroke="#000000" stroke-width="0.3"/>
@@ -246,7 +247,7 @@
     <circle cx="69.8112" cy="94.6593" r="5.6796" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="69.8112" y1="94.6593" x2="69.8112" y2="89.5714" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <line x1="73.711" y1="102.913" x2="73.711" y2="112.261" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="73.711" y1="102.913" x2="73.711" y2="112.261" stroke="#7d7d7d" stroke-width="0.355"/>
   <g data-wcoast-port="modIndexCvIn" data-wcoast-cx="69.8112" data-wcoast-cy="112.4079" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="69.8112" cy="112.4079" r="3.5497" fill="#1f7fe0" stroke="#000000" stroke-width="0.3" filter="url(#softShadow)"/>
     <circle cx="69.8112" cy="112.4079" r="1.8932" fill="#000000" stroke="#000000" stroke-width="0.3"/>
@@ -349,7 +350,7 @@
     <circle cx="90.518" cy="95.0143" r="5.6796" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="90.518" y1="95.0143" x2="90.518" y2="89.9263" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <line x1="94.418" y1="103.268" x2="94.418" y2="112.616" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="94.418" y1="103.268" x2="94.418" y2="112.616" stroke="#7d7d7d" stroke-width="0.355"/>
   <g data-wcoast-port="prinFmIn" data-wcoast-cx="90.518" data-wcoast-cy="112.7629" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="90.518" cy="112.7629" r="3.5497" fill="#ff7300" stroke="#000000" stroke-width="0.3" filter="url(#softShadow)"/>
     <circle cx="90.518" cy="112.7629" r="1.8932" fill="#000000" stroke="#000000" stroke-width="0.3"/>
@@ -378,7 +379,7 @@
     <circle cx="128.9733" cy="95.0143" r="5.6796" fill="url(#knobMetal)" stroke="#666" stroke-width="0.2366"/>
     <line x1="128.9733" y1="95.0143" x2="128.9733" y2="89.9263" stroke="#163a69" stroke-width="0.5916" data-wcoast-role="indicator"/>
   </g>
-  <line x1="132.873" y1="103.268" x2="132.873" y2="112.616" stroke="#163a69" stroke-width="0.355"/>
+  <line x1="132.873" y1="103.268" x2="132.873" y2="112.616" stroke="#7d7d7d" stroke-width="0.355"/>
   <g data-wcoast-port="prinCvIn" data-wcoast-cx="128.9733" data-wcoast-cy="112.7629" transform="matrix(1, 0, 0, 1, 3.900055, 1.035889)">
     <circle cx="128.9733" cy="112.7629" r="3.5497" fill="#1f7fe0" stroke="#000000" stroke-width="0.3" filter="url(#softShadow)"/>
     <circle cx="128.9733" cy="112.7629" r="1.8932" fill="#000000" stroke="#000000" stroke-width="0.3"/>

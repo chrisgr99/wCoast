@@ -26,7 +26,8 @@ export function create(ctx, services) {
   // A mute gain after the master feeds the destination; muting silences the whole
   // output without disturbing the master level.
   const masterMute = ctx.createGain();
-  masterMute.gain.value = paramDefault('masterMute') === 'on' ? 0 : 1;
+  // Enable sense flipped: 'on' = enabled (pass), 'off' = disabled (silent).
+  masterMute.gain.value = paramDefault('masterMute') === 'on' ? 1 : 0;
   master.connect(masterMute);
   masterMute.connect(ctx.destination);
 
@@ -44,7 +45,7 @@ export function create(ctx, services) {
     const mute = ctx.createGain();
     const pan = ctx.createStereoPanner();
     level.gain.value = paramDefault(`level${L}`);
-    mute.gain.value = paramDefault(`mute${L}`) === 'on' ? 0 : 1;
+    mute.gain.value = paramDefault(`mute${L}`) === 'on' ? 1 : 0;
     pan.pan.value = paramDefault(`pan${L}`);
     level.connect(mute); mute.connect(pan); pan.connect(master);
     // A per-channel analysis tap, post level+mute (so a zeroed fader or a mute
@@ -76,10 +77,10 @@ export function create(ctx, services) {
   }
   function supports() { return true; }
   function setParam(paramId, value, atTime) {
-    if (paramId === 'masterMute') { masterMute.gain.value = value === 'on' ? 0 : 1; return; }
+    if (paramId === 'masterMute') { masterMute.gain.value = value === 'on' ? 1 : 0; return; }
     if (paramId.startsWith('mute')) {
       const c = byLetter.get(paramId.slice(4));
-      if (c) c.mute.gain.value = value === 'on' ? 0 : 1;
+      if (c) c.mute.gain.value = value === 'on' ? 1 : 0;
       return;
     }
     const ap = getParam(paramId);

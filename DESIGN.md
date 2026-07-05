@@ -369,6 +369,86 @@ Absent a faithful SVG, the host can still auto-lay out a generic, functional
 (non-faithful) panel from the descriptor, so a new module is playable before
 its artwork exists. Faithful density is encouraged — it helps magnified viewing.
 
+### Faceplate visual language (house style)
+
+Every module shares one visual language so a rack of them reads as one
+instrument, and every new faceplate must match it. All numbers below are in
+millimetres of real panel (the viewBox unit).
+
+**Panel body.** The active face is the full module width by **113.5912 mm** tall
+(one 3U rack row; the mounting rim above and below is cropped away on load).
+Width = descriptor `hp` × 5.08 mm. Draw two stacked fill rects with **rounded
+corners rx 2.5** — a base fill plus a faint monochrome grain overlay
+(fractal-noise turbulence at ~10% alpha) for a matte texture:
+
+| | base fill | grain |
+|---|---|---|
+| dark | `#262629` | `#2a2a2d` |
+| light | `#cfcfcf` | `#d0d0d0` |
+
+**Border.** A rounded rect **0.5 mm inside the face on all four sides** (x/y
+`0.5`, width/height = face − 1), **rx 2.2**, `fill:none`, stroke the line-grey
+below at **stroke-width 0.5**. This frame — not a separate top or edge line — is
+the module's outline.
+
+**Lines.** Section dividers and the frame share one **line-grey**: `#808085`
+(dark) / `#7d7d7d` (light) at **stroke-width 0.355**. Fine intra-section
+separators (e.g. between mixer fader columns) use the same grey at width `0.25`
+and may run a partial height rather than edge-to-edge.
+
+**Ink** (legends, tick marks, knob pointers): `#b8b8bc` (dark) / `#163a69`
+(light). Faceplate text is **bold italic** in a condensed face (Arial Narrow,
+Helvetica, Arial), sizes ~2.0–2.6; legends are static art, never tagged.
+
+**Module name.** Set vertically up the left margin (rotated −90°), font-size
+`3.1`, weight 700, at x = face-left + `3.4`, centred top-to-bottom, fill
+**white** (`#ffffff`) in dark / `#163a69` in light, opacity `0.9`. The host draws
+this automatically from `descriptor.name` — authors leave the left margin clear.
+
+**Knobs (small, "259t" style).** Skirt ring radius `4.2`, radial blue
+(`#1688cc → #006da8 → #003d62`), stroke `#6fa8d6` (dark) / `#004b7a` (light) at
+`0.355`. Cap radius `3.3`, radial metal gradient — dark `#3a3d43 → #4c5058 →
+#5a5f67 → #6b7079`, light `#f8f8f8 → #bfc3c5 → #f4f4f4 → #777` — stroke `#b8b8bc`
+(dark) / `#666` (light) at `0.2366`. Pointer: a line from centre to cap top in
+ink at `0.55`, tagged `data-wcoast-role="indicator"`. Seven tick marks over a
+±150° sweep in ink at `0.3`.
+
+**Jacks.** Ring radius `3.0` with a black hole radius `1.6`, stroke `#000` at
+`0.3`. Colour by signal domain: **audio = `#ff7300`** (orange), **control/CV =
+`#1f7fe0`** (blue).
+
+**Lamps / push-button LEDs.** Red LED, radius `1.8`, radial `#ff4a4a → #d00000 →
+#650000`, stroke `#7c0000` at `0.2366`, with a small pink highlight dot. Used for
+step/toggle indicators (`data-wcoast-role="step-indicator"`); lit = active, the
+host dims the inactive state.
+
+**Faders.** Vertical: a rounded track (width `2.4`) in a dark slot colour, with a
+wider rounded handle (`8 × 4.4`) carrying a centre line. The handle group is
+tagged `data-wcoast-role="handle"` and slides along the track.
+
+**VU meters.** A vertical column of small circular LEDs (radius `0.75` = 1.5 mm
+diameter) beside a fader, evenly spaced over its travel and `1` mm off the
+handle's left edge. Unlit = a **line-grey ring** (`fill:none`, stroke line-grey
+at `0.3`); the host lights them by level. Tagged `data-wcoast-role="vu"` with a
+`data-wcoast-seg` index per LED.
+
+### Dark / light theming
+
+Each module ships **two** SVGs: `panel.svg` (light) and `panel.dark.svg` (dark).
+The host loads whichever matches the current mode; the two differ **only in
+colour, never in geometry**. The colour pairs above are the entire mapping —
+face, grain, line-grey, ink, knob cap/ring strokes, module-name fill — so one
+theme converts to the other by a mechanical colour swap.
+
+Keep the pair in sync with a **conversion/generator script**, not by editing two
+files by hand. The mixer is the one panel we generate end to end —
+`modules/mixer/gen-panel.js` — because it has no vintage faceplate to trace for
+the controls we added; a single `build(dark)` takes a per-theme colour table and
+writes both files, so dark↔light is just the two theme objects. For a
+hand-authored module, author one theme, then run the same colour-pair swap to
+produce the other, and re-run it whenever the palette changes. Either way the two
+files stay identical except for the documented colour pairs.
+
 ---
 
 ## 5A. Rack — spatial model, placement, interaction

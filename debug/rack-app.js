@@ -121,10 +121,10 @@ async function boot() {
   onoff.addEventListener('click', async () => {
     if (!started) { await audioCtx.resume(); started = true; onoff.classList.add('on'); }
     else { started = false; onoff.classList.remove('on'); }
-    rack.applyParam(mixRec, 'masterMute', started ? 'off' : 'on');
+    rack.applyParam(mixRec, 'masterMute', started ? 'on' : 'off');
     updateTrace();
   });
-  rack.applyParam(mixRec, 'masterMute', 'on');   // silent until On
+  rack.applyParam(mixRec, 'masterMute', 'on');   // master enabled by default (audio still gated by the suspended context until On)
 
   // The mixer as a save/load endpoint: its settings are the pinned record's
   // values (it stays the fixed "mixer" key, just now a rack module).

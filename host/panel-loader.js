@@ -506,13 +506,13 @@ function decoratePanel(parsed, descriptor, opts) {
   const name = (descriptor && descriptor.name) || '';
   if (name) {
     const t = svg.ownerDocument.createElementNS(SVG_NS, 'text');
-    t.setAttribute('transform', `translate(${round2(FACE_LEFT_MM + 2.4)} ${round2(FACE_TOP_MM + FACE_H_MM / 2)}) rotate(-90)`);
+    t.setAttribute('transform', `translate(${round2(FACE_LEFT_MM + 3.4)} ${round2(FACE_TOP_MM + FACE_H_MM / 2)}) rotate(-90)`);
     t.setAttribute('text-anchor', 'middle');
     t.setAttribute('font-size', '3.1');
     t.setAttribute('font-weight', '700');
     t.setAttribute('letter-spacing', '0.2');
-    t.setAttribute('fill', opts.dark ? DARK_LINE : '#163a69');
-    t.setAttribute('opacity', '0.55');
+    t.setAttribute('fill', opts.dark ? '#ffffff' : '#163a69');
+    t.setAttribute('opacity', '0.9');
     t.setAttribute('pointer-events', 'none');
     t.textContent = name;
     svg.appendChild(t);
