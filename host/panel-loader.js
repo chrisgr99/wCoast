@@ -172,9 +172,18 @@ export function showStep(binding, stepValue) {
   }
 }
 
-// Set a control from a raw descriptor value (dispatches on curve).
+// Slide a fader's handle to a normalised position. The handle is authored at the
+// track midpoint and translated along y; pos 1 (full) is at the top (bot..top).
+export function showSlider(binding, pos) {
+  if (!binding.handle || binding.top == null || binding.bot == null) return;
+  const travel = binding.bot - binding.top;
+  binding.handle.setAttribute('transform', `translate(0 ${round2(travel * (0.5 - clamp01(pos)))})`);
+}
+
+// Set a control from a raw descriptor value (dispatches on kind/curve).
 export function showValue(binding, value) {
-  if (binding.meta.curve === 'stepped') showStep(binding, value);
+  if (binding.kind === 'slider') showSlider(binding, valueToPosition(binding.meta, value));
+  else if (binding.meta.curve === 'stepped') showStep(binding, value);
   else showPosition(binding, valueToPosition(binding.meta, value));
 }
 
@@ -196,6 +205,19 @@ export function parsePanel(svg, descriptor) {
     if (controls.has(id)) { warnings.push(`duplicate param "${id}"`); continue; }
 
     const stepped = meta.curve === 'stepped';
+    // A SLIDER (fader): a linear param whose group is tagged data-wcoast-role
+    // "slider" and holds a data-wcoast-role "handle" child that rides a vertical
+    // track spanning data-wcoast-top..bot (group-local y). Drag moves the handle;
+    // unlike a knob it has no rotating indicator or pivot.
+    if (el.getAttribute('data-wcoast-role') === 'slider') {
+      const handle = el.querySelector('[data-wcoast-role="handle"]');
+      const top = numAttr(el, 'data-wcoast-top');
+      const bot = numAttr(el, 'data-wcoast-bot');
+      if (!handle) warnings.push(`slider "${id}" has no handle element`);
+      if (top == null || bot == null) warnings.push(`slider "${id}" has no track range (data-wcoast-top/bot)`);
+      controls.set(id, { id, meta, group: el, kind: 'slider', handle, top, bot });
+      continue;
+    }
     const span = stepped ? SWITCH_SPAN : KNOB_SPAN;
     const cx = numAttr(el, 'data-wcoast-cx');
     const cy = numAttr(el, 'data-wcoast-cy');
@@ -329,12 +351,54 @@ export function attachControlInteraction(binding, hooks) {
       if (vel > KNOB_MAXV) vel = KNOB_MAXV; else if (vel < -KNOB_MAXV) vel = -KNOB_MAXV;
       if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); }
     }, { passive: false });
+  } else if (binding.kind === 'slider') {
+    // Faders are DRAGGED (unlike knobs, which scroll): the value tracks the
+    // pointer's y within the track. Map the client point into the group's user
+    // space via the inverse screen CTM (which carries the panel's mm scale and
+    // the crop translate), then normalise against top..bot. stopPropagation keeps
+    // a fader grab from starting a rack module drag.
+    if (!binding.handle || binding.top == null || binding.bot == null) return;
+    const posFromEvent = (e) => {
+      const ctm = el.getScreenCTM && el.getScreenCTM();
+      if (!ctm) return null;
+      const inv = ctm.inverse();
+      const ly = inv.b * e.clientX + inv.d * e.clientY + inv.f;
+      return clamp01((binding.bot - ly) / (binding.bot - binding.top));
+    };
+    const onMove = (e) => { const p = posFromEvent(e); if (p != null) hooks.set(positionToValue(binding.meta, p)); };
+    el.style.cursor = 'ns-resize';
+    el.addEventListener('pointerdown', (e) => {
+      e.stopPropagation(); e.preventDefault();
+      el.setPointerCapture && el.setPointerCapture(e.pointerId);
+      onMove(e);
+      const up = (ev) => {
+        el.releasePointerCapture && el.releasePointerCapture(ev.pointerId);
+        el.removeEventListener('pointermove', onMove);
+        el.removeEventListener('pointerup', up);
+        el.removeEventListener('pointercancel', up);
+      };
+      el.addEventListener('pointermove', onMove);
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointercancel', up);
+    });
   } else if (binding.kind === 'switch' && binding.stepCount > 1) {
     // Operate a switch by clicking its LAMPS. A multi-position switch (Range,
     // Waveshape) jumps to whichever lamp you click; a single-lamp on/off switch
     // (the centre mod switches) flips between its two states when clicked.
     const lamps = [...binding.stepIndicators.entries()];
-    if (lamps.length >= 2) {
+    if (binding.meta.momentary && lamps.length >= 1) {
+      // Momentary push button (STRIKE): ON only while held, OFF on release, and
+      // every press is a fresh trigger. Capture the pointer so the release still
+      // registers if it happens off the lamp.
+      const lamp = lamps[0][1];
+      const on = binding.stepValues.includes('on') ? 'on' : binding.stepValues[0];
+      const off = binding.stepValues.find((v) => v !== on);
+      lamp.style.cursor = 'pointer';
+      lamp.addEventListener('pointerdown', (e) => { e.stopPropagation(); lamp.setPointerCapture && lamp.setPointerCapture(e.pointerId); hooks.set(on); });
+      const release = () => { if (hooks.get() === on) hooks.set(off); };
+      lamp.addEventListener('pointerup', release);
+      lamp.addEventListener('pointercancel', release);
+    } else if (lamps.length >= 2) {
       for (const [val, lamp] of lamps) {
         lamp.style.cursor = 'pointer';
         lamp.addEventListener('click', (e) => { e.stopPropagation(); hooks.set(val); });

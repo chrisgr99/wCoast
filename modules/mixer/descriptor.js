@@ -6,15 +6,16 @@
 // apply to a computer — the microphone preamp, headphone/monitor output, preset
 // storage — and add a per-channel mute (our own, not on the real panel).
 //
-// Unlike a rack module, the mixer isn't placed in the case: its jacks live in
-// the toolbar and its per-channel controls open in a floating panel. But it IS
-// a normal patch destination — the host instantiates it and the patchbay wires
-// module outputs into its channel inputs exactly like any other module input.
+// The mixer is a normal rack module — a terminal one: it has no output jacks
+// because it IS the output (its master feeds the speakers). It's a singleton the
+// host always keeps present (default lower-right, draggable, not deletable), and
+// the patchbay wires module outputs into its channel inputs like any other input.
+// A master level + stereo VU also mirror into the toolbar for always-on reach.
 
 'use strict';
 
-const CH = ['A', 'B', 'C', 'D'];
-const VC_PAN = new Set(['A', 'D']);   // first and last channel: voltage-controllable pan
+const CH = ['A', 'B', 'C', 'D', 'E', 'F'];
+const VC_PAN = new Set(['A', 'F']);   // first and last channel: voltage-controllable pan
 
 const ports = [];
 const params = [];

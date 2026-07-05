@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160mm" height="128.5mm" viewBox="0 0 160 128.5" font-family="Arial Narrow, Helvetica, Arial, sans-serif">
+<defs>
+  <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="6.8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="table" tableValues="0 .10"/></feComponentTransfer></filter>
+  <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0.4733" dy="0.5916" stdDeviation="0.4733" flood-color="#000" flood-opacity=".28"/></filter>
+  <radialGradient id="knobMetal"><stop offset="0" stop-color="#f8f8f8"/><stop offset="0.35" stop-color="#bfc3c5"/><stop offset="0.55" stop-color="#f4f4f4"/><stop offset="1" stop-color="#777"/></radialGradient>
+  <radialGradient id="knobCap"><stop offset="0" stop-color="#d4d7d9"/><stop offset="0.4" stop-color="#aeb2b5"/><stop offset="0.62" stop-color="#c4c8ca"/><stop offset="1" stop-color="#6c6f72"/></radialGradient>
+  <radialGradient id="blueRing"><stop offset="0" stop-color="#1688cc"/><stop offset="0.55" stop-color="#006da8"/><stop offset="1" stop-color="#003d62"/></radialGradient>
+  <radialGradient id="redLed"><stop offset="0" stop-color="#ff4a4a"/><stop offset="0.55" stop-color="#d00000"/><stop offset="1" stop-color="#650000"/></radialGradient>
+</defs>
+<g transform="translate(3.9 7.0994)">
+<rect x="0" y="0" width="160" height="113.5912" rx="2.5" fill="#33343a"/>
+<rect x="0" y="0" width="160" height="113.5912" rx="2.5" fill="#34353b" filter="url(#grain)"/>
+<rect x="0.5" y="0.5" width="159" height="112.5912" rx="2.2" fill="none" stroke="#111214" stroke-width="0.5"/>
+  <text x="8" y="56.7956" font-size="4.2" font-weight="700" letter-spacing="0.4" fill="#b8b8bc" opacity="0.55" text-anchor="middle" transform="rotate(-90 8 56.7956)">MIXER</text>
+  <line x1="128" y1="4" x2="128" y2="109.5912" stroke="#111214" stroke-width="0.4" opacity="0.7"/>
+  <text x="22" y="9.2" font-size="2.8" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle">A</text>
+  <g data-wcoast-port="chanA" data-wcoast-cx="22" data-wcoast-cy="16.5">
+    <circle cx="22" cy="16.5" r="3.2" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="22" cy="16.5" r="1.7" fill="#000"/>
+  </g>
+  <g data-wcoast-param="levelA" data-wcoast-role="slider" data-wcoast-cx="22" data-wcoast-top="24" data-wcoast-bot="70">
+    <rect x="20.7" y="22" width="2.6" height="50" rx="1.3" fill="#626771" stroke="#20242a" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -13.800)">
+      <rect x="17" y="44.6" width="10" height="4.8" rx="1.2" fill="#9aa4b2" stroke="#20242a" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="18" y1="47" x2="26" y2="47" stroke="#1c2026" stroke-width="0.7"/>
+    </g>
+  </g>
+  <g data-wcoast-param="panA" data-wcoast-cx="22" data-wcoast-cy="80" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
+    <circle cx="22" cy="80" r="4.8" fill="url(#blueRing)" stroke="#6fa8d6" stroke-width="0.355" filter="url(#softShadow)"/>
+    <line x1="19.425" y1="84.460" x2="19.050" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="16.928" y1="80.894" x2="16.190" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="18.055" y1="76.690" x2="17.480" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="22.000" y1="74.850" x2="22.000" y2="74.100" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="25.945" y1="76.690" x2="26.520" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="27.072" y1="80.894" x2="27.810" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="24.575" y1="84.460" x2="24.950" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <circle cx="22" cy="80" r="3.75" fill="url(#knobCap)" stroke="#b8b8bc" stroke-width="0.2366"/>
+    <line x1="22" y1="80" x2="22" y2="76.25" stroke="#b8b8bc" stroke-width="0.5916" data-wcoast-role="indicator"/>
+  </g>
+  <g data-wcoast-port="panCvA" data-wcoast-cx="13.5" data-wcoast-cy="80">
+    <circle cx="13.5" cy="80" r="3.2" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="13.5" cy="80" r="1.7" fill="#000"/>
+  </g>
+  <g data-wcoast-param="muteA">
+    <circle cx="22" cy="90" r="1.9" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="21.45" cy="89.45" r="0.55" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+  </g>
+  <g data-wcoast-role="vu" data-wcoast-chan="A">
+    <rect x="19.6" y="108.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="0"/>
+    <rect x="19.6" y="106.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="1"/>
+    <rect x="19.6" y="105.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="2"/>
+    <rect x="19.6" y="103.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="3"/>
+    <rect x="19.6" y="101.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="4"/>
+    <rect x="19.6" y="99.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="5"/>
+    <rect x="19.6" y="98.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="6"/>
+    <rect x="19.6" y="96.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="7"/>
+  </g>
+  <text x="40" y="9.2" font-size="2.8" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle">B</text>
+  <g data-wcoast-port="chanB" data-wcoast-cx="40" data-wcoast-cy="16.5">
+    <circle cx="40" cy="16.5" r="3.2" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="40" cy="16.5" r="1.7" fill="#000"/>
+  </g>
+  <g data-wcoast-param="levelB" data-wcoast-role="slider" data-wcoast-cx="40" data-wcoast-top="24" data-wcoast-bot="70">
+    <rect x="38.7" y="22" width="2.6" height="50" rx="1.3" fill="#626771" stroke="#20242a" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -13.800)">
+      <rect x="35" y="44.6" width="10" height="4.8" rx="1.2" fill="#9aa4b2" stroke="#20242a" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="36" y1="47" x2="44" y2="47" stroke="#1c2026" stroke-width="0.7"/>
+    </g>
+  </g>
+  <g data-wcoast-param="panB" data-wcoast-cx="40" data-wcoast-cy="80" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
+    <circle cx="40" cy="80" r="4.8" fill="url(#blueRing)" stroke="#6fa8d6" stroke-width="0.355" filter="url(#softShadow)"/>
+    <line x1="37.425" y1="84.460" x2="37.050" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="34.928" y1="80.894" x2="34.190" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="36.055" y1="76.690" x2="35.480" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="40.000" y1="74.850" x2="40.000" y2="74.100" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="43.945" y1="76.690" x2="44.520" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="45.072" y1="80.894" x2="45.810" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="42.575" y1="84.460" x2="42.950" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <circle cx="40" cy="80" r="3.75" fill="url(#knobCap)" stroke="#b8b8bc" stroke-width="0.2366"/>
+    <line x1="40" y1="80" x2="40" y2="76.25" stroke="#b8b8bc" stroke-width="0.5916" data-wcoast-role="indicator"/>
+  </g>
+  <g data-wcoast-param="muteB">
+    <circle cx="40" cy="90" r="1.9" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="39.45" cy="89.45" r="0.55" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+  </g>
+  <g data-wcoast-role="vu" data-wcoast-chan="B">
+    <rect x="37.6" y="108.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="0"/>
+    <rect x="37.6" y="106.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="1"/>
+    <rect x="37.6" y="105.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="2"/>
+    <rect x="37.6" y="103.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="3"/>
+    <rect x="37.6" y="101.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="4"/>
+    <rect x="37.6" y="99.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="5"/>
+    <rect x="37.6" y="98.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="6"/>
+    <rect x="37.6" y="96.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="7"/>
+  </g>
+  <text x="58" y="9.2" font-size="2.8" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle">C</text>
+  <g data-wcoast-port="chanC" data-wcoast-cx="58" data-wcoast-cy="16.5">
+    <circle cx="58" cy="16.5" r="3.2" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="58" cy="16.5" r="1.7" fill="#000"/>
+  </g>
+  <g data-wcoast-param="levelC" data-wcoast-role="slider" data-wcoast-cx="58" data-wcoast-top="24" data-wcoast-bot="70">
+    <rect x="56.7" y="22" width="2.6" height="50" rx="1.3" fill="#626771" stroke="#20242a" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -13.800)">
+      <rect x="53" y="44.6" width="10" height="4.8" rx="1.2" fill="#9aa4b2" stroke="#20242a" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="54" y1="47" x2="62" y2="47" stroke="#1c2026" stroke-width="0.7"/>
+    </g>
+  </g>
+  <g data-wcoast-param="panC" data-wcoast-cx="58" data-wcoast-cy="80" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
+    <circle cx="58" cy="80" r="4.8" fill="url(#blueRing)" stroke="#6fa8d6" stroke-width="0.355" filter="url(#softShadow)"/>
+    <line x1="55.425" y1="84.460" x2="55.050" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="52.928" y1="80.894" x2="52.190" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="54.055" y1="76.690" x2="53.480" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="58.000" y1="74.850" x2="58.000" y2="74.100" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="61.945" y1="76.690" x2="62.520" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="63.072" y1="80.894" x2="63.810" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="60.575" y1="84.460" x2="60.950" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <circle cx="58" cy="80" r="3.75" fill="url(#knobCap)" stroke="#b8b8bc" stroke-width="0.2366"/>
+    <line x1="58" y1="80" x2="58" y2="76.25" stroke="#b8b8bc" stroke-width="0.5916" data-wcoast-role="indicator"/>
+  </g>
+  <g data-wcoast-param="muteC">
+    <circle cx="58" cy="90" r="1.9" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="57.45" cy="89.45" r="0.55" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+  </g>
+  <g data-wcoast-role="vu" data-wcoast-chan="C">
+    <rect x="55.6" y="108.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="0"/>
+    <rect x="55.6" y="106.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="1"/>
+    <rect x="55.6" y="105.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="2"/>
+    <rect x="55.6" y="103.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="3"/>
+    <rect x="55.6" y="101.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="4"/>
+    <rect x="55.6" y="99.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="5"/>
+    <rect x="55.6" y="98.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="6"/>
+    <rect x="55.6" y="96.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="7"/>
+  </g>
+  <text x="76" y="9.2" font-size="2.8" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle">D</text>
+  <g data-wcoast-port="chanD" data-wcoast-cx="76" data-wcoast-cy="16.5">
+    <circle cx="76" cy="16.5" r="3.2" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="76" cy="16.5" r="1.7" fill="#000"/>
+  </g>
+  <g data-wcoast-param="levelD" data-wcoast-role="slider" data-wcoast-cx="76" data-wcoast-top="24" data-wcoast-bot="70">
+    <rect x="74.7" y="22" width="2.6" height="50" rx="1.3" fill="#626771" stroke="#20242a" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -13.800)">
+      <rect x="71" y="44.6" width="10" height="4.8" rx="1.2" fill="#9aa4b2" stroke="#20242a" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="72" y1="47" x2="80" y2="47" stroke="#1c2026" stroke-width="0.7"/>
+    </g>
+  </g>
+  <g data-wcoast-param="panD" data-wcoast-cx="76" data-wcoast-cy="80" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
+    <circle cx="76" cy="80" r="4.8" fill="url(#blueRing)" stroke="#6fa8d6" stroke-width="0.355" filter="url(#softShadow)"/>
+    <line x1="73.425" y1="84.460" x2="73.050" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="70.928" y1="80.894" x2="70.190" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="72.055" y1="76.690" x2="71.480" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="76.000" y1="74.850" x2="76.000" y2="74.100" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="79.945" y1="76.690" x2="80.520" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="81.072" y1="80.894" x2="81.810" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="78.575" y1="84.460" x2="78.950" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <circle cx="76" cy="80" r="3.75" fill="url(#knobCap)" stroke="#b8b8bc" stroke-width="0.2366"/>
+    <line x1="76" y1="80" x2="76" y2="76.25" stroke="#b8b8bc" stroke-width="0.5916" data-wcoast-role="indicator"/>
+  </g>
+  <g data-wcoast-param="muteD">
+    <circle cx="76" cy="90" r="1.9" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="75.45" cy="89.45" r="0.55" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+  </g>
+  <g data-wcoast-role="vu" data-wcoast-chan="D">
+    <rect x="73.6" y="108.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="0"/>
+    <rect x="73.6" y="106.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="1"/>
+    <rect x="73.6" y="105.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="2"/>
+    <rect x="73.6" y="103.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="3"/>
+    <rect x="73.6" y="101.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="4"/>
+    <rect x="73.6" y="99.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="5"/>
+    <rect x="73.6" y="98.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="6"/>
+    <rect x="73.6" y="96.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="7"/>
+  </g>
+  <text x="94" y="9.2" font-size="2.8" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle">E</text>
+  <g data-wcoast-port="chanE" data-wcoast-cx="94" data-wcoast-cy="16.5">
+    <circle cx="94" cy="16.5" r="3.2" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="94" cy="16.5" r="1.7" fill="#000"/>
+  </g>
+  <g data-wcoast-param="levelE" data-wcoast-role="slider" data-wcoast-cx="94" data-wcoast-top="24" data-wcoast-bot="70">
+    <rect x="92.7" y="22" width="2.6" height="50" rx="1.3" fill="#626771" stroke="#20242a" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -13.800)">
+      <rect x="89" y="44.6" width="10" height="4.8" rx="1.2" fill="#9aa4b2" stroke="#20242a" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="90" y1="47" x2="98" y2="47" stroke="#1c2026" stroke-width="0.7"/>
+    </g>
+  </g>
+  <g data-wcoast-param="panE" data-wcoast-cx="94" data-wcoast-cy="80" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
+    <circle cx="94" cy="80" r="4.8" fill="url(#blueRing)" stroke="#6fa8d6" stroke-width="0.355" filter="url(#softShadow)"/>
+    <line x1="91.425" y1="84.460" x2="91.050" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="88.928" y1="80.894" x2="88.190" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="90.055" y1="76.690" x2="89.480" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="94.000" y1="74.850" x2="94.000" y2="74.100" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="97.945" y1="76.690" x2="98.520" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="99.072" y1="80.894" x2="99.810" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="96.575" y1="84.460" x2="96.950" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <circle cx="94" cy="80" r="3.75" fill="url(#knobCap)" stroke="#b8b8bc" stroke-width="0.2366"/>
+    <line x1="94" y1="80" x2="94" y2="76.25" stroke="#b8b8bc" stroke-width="0.5916" data-wcoast-role="indicator"/>
+  </g>
+  <g data-wcoast-param="muteE">
+    <circle cx="94" cy="90" r="1.9" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="93.45" cy="89.45" r="0.55" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+  </g>
+  <g data-wcoast-role="vu" data-wcoast-chan="E">
+    <rect x="91.6" y="108.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="0"/>
+    <rect x="91.6" y="106.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="1"/>
+    <rect x="91.6" y="105.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="2"/>
+    <rect x="91.6" y="103.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="3"/>
+    <rect x="91.6" y="101.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="4"/>
+    <rect x="91.6" y="99.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="5"/>
+    <rect x="91.6" y="98.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="6"/>
+    <rect x="91.6" y="96.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="7"/>
+  </g>
+  <text x="112" y="9.2" font-size="2.8" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle">F</text>
+  <g data-wcoast-port="chanF" data-wcoast-cx="112" data-wcoast-cy="16.5">
+    <circle cx="112" cy="16.5" r="3.2" fill="#ff7300" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="112" cy="16.5" r="1.7" fill="#000"/>
+  </g>
+  <g data-wcoast-param="levelF" data-wcoast-role="slider" data-wcoast-cx="112" data-wcoast-top="24" data-wcoast-bot="70">
+    <rect x="110.7" y="22" width="2.6" height="50" rx="1.3" fill="#626771" stroke="#20242a" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -13.800)">
+      <rect x="107" y="44.6" width="10" height="4.8" rx="1.2" fill="#9aa4b2" stroke="#20242a" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="108" y1="47" x2="116" y2="47" stroke="#1c2026" stroke-width="0.7"/>
+    </g>
+  </g>
+  <g data-wcoast-param="panF" data-wcoast-cx="112" data-wcoast-cy="80" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
+    <circle cx="112" cy="80" r="4.8" fill="url(#blueRing)" stroke="#6fa8d6" stroke-width="0.355" filter="url(#softShadow)"/>
+    <line x1="109.425" y1="84.460" x2="109.050" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="106.928" y1="80.894" x2="106.190" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="108.055" y1="76.690" x2="107.480" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="112.000" y1="74.850" x2="112.000" y2="74.100" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="115.945" y1="76.690" x2="116.520" y2="76.208" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="117.072" y1="80.894" x2="117.810" y2="81.025" stroke="#b8b8bc" stroke-width="0.355"/>
+    <line x1="114.575" y1="84.460" x2="114.950" y2="85.110" stroke="#b8b8bc" stroke-width="0.355"/>
+    <circle cx="112" cy="80" r="3.75" fill="url(#knobCap)" stroke="#b8b8bc" stroke-width="0.2366"/>
+    <line x1="112" y1="80" x2="112" y2="76.25" stroke="#b8b8bc" stroke-width="0.5916" data-wcoast-role="indicator"/>
+  </g>
+  <g data-wcoast-port="panCvF" data-wcoast-cx="120.5" data-wcoast-cy="80">
+    <circle cx="120.5" cy="80" r="3.2" fill="#1f7fe0" stroke="#000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="120.5" cy="80" r="1.7" fill="#000"/>
+  </g>
+  <g data-wcoast-param="muteF">
+    <circle cx="112" cy="90" r="1.9" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="111.45" cy="89.45" r="0.55" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+  </g>
+  <g data-wcoast-role="vu" data-wcoast-chan="F">
+    <rect x="109.6" y="108.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="0"/>
+    <rect x="109.6" y="106.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="1"/>
+    <rect x="109.6" y="105.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="2"/>
+    <rect x="109.6" y="103.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="3"/>
+    <rect x="109.6" y="101.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="4"/>
+    <rect x="109.6" y="99.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="5"/>
+    <rect x="109.6" y="98.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="6"/>
+    <rect x="109.6" y="96.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="7"/>
+  </g>
+  <text x="140" y="9.2" font-size="2.1" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle">MASTER</text>
+  <g data-wcoast-param="master" data-wcoast-role="slider" data-wcoast-cx="140" data-wcoast-top="24" data-wcoast-bot="70">
+    <rect x="138.7" y="22" width="2.6" height="50" rx="1.3" fill="#626771" stroke="#20242a" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -9.200)">
+      <rect x="135" y="44.6" width="10" height="4.8" rx="1.2" fill="#9aa4b2" stroke="#20242a" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="136" y1="47" x2="144" y2="47" stroke="#1c2026" stroke-width="0.7"/>
+    </g>
+  </g>
+  <g data-wcoast-param="masterMute">
+    <circle cx="140" cy="90" r="1.9" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/>
+    <circle cx="139.45" cy="89.45" r="0.55" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+  </g>
+  <g data-wcoast-role="vuMaster" data-wcoast-chan="M">
+    <rect x="137.6" y="108.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="0"/>
+    <rect x="137.6" y="106.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="1"/>
+    <rect x="137.6" y="105.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="2"/>
+    <rect x="137.6" y="103.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="3"/>
+    <rect x="137.6" y="101.550" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="4"/>
+    <rect x="137.6" y="99.800" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="5"/>
+    <rect x="137.6" y="98.050" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="6"/>
+    <rect x="137.6" y="96.300" width="4.8" height="0.850" rx="0.5" fill="#3a3f47" stroke="#606670" stroke-width="0.12" data-wcoast-seg="7"/>
+  </g>
+</g>
+</svg>
