@@ -504,6 +504,11 @@ finish one module fully before the next.
 
 ## 9. GXW bridge (deferred, but designed)
 
+> The message protocol, the receiving module, and the sending-side mapping are
+> specified in `design/control-protocol.md`. This section holds the bridge-level
+> reasoning (control-rate, glide, scheduling); the protocol doc holds the wire
+> format (handles, mandatory duration, note-off, loss tolerance).
+
 - **Separate audio contexts.** GXW and Wcoast do NOT share an audio graph;
   they talk over a local message transport. (Electron-to-Electron makes this
   far simpler than browser-to-anything.)
@@ -528,10 +533,12 @@ finish one module fully before the next.
   args + time tags), over a WebSocket / MessageChannel on the local machine.
   Plain JSON with {address, value, timestamp} over the same transport does the
   identical job — OSC is a tidy convention, not a speed requirement.
-- **Strudel support: dropped by choice** (avoids constraining the design and
-  adding a second vocabulary). Not foreclosed: because GXW and Strudel would
-  both be clients of the same message front door, a superdough adapter could
-  be added later without redesign. Not now.
+- **Strudel is a co-client** (revised — see `design/control-protocol.md`). GXW,
+  Strudel, and a thin MIDI translator all speak the SAME message protocol into
+  the same front door, so no single client constrains the design. Strudel already
+  emits the SuperDirt play format; a superdough-shaped adapter maps its control
+  names onto the protocol’s fields, and Wcoast is the target it would otherwise
+  point at SuperCollider.
 
 ---
 
