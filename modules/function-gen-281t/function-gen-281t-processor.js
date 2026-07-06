@@ -17,9 +17,11 @@
 //           shifts its time exponentially (±CV_OCT octaves per unit CV).
 //   outputs the FUNCTION output (the envelope) and a short PULSE at end of cycle.
 //
-// Quadrature: when a pair is enabled, its combined output is a mix of the two
-// functions (knob = how much B/D). When disabled the quad output is silent. The
-// master/follower phase-coupling (B = A phase + 0.25) is the next DSP step.
+// Quadrature: when a pair is enabled, the follower (B, D) is slaved to its master
+// (A, C) at master-phase + 0.25 — 90 degrees behind — but shaped by its own
+// attack/decay, so the pair's individual outputs run phase-related. The master
+// owns triggering; a trigger into A resets the pair. The paired quad output is a
+// mix of the two functions (knob = how much B/D); it's silent when disabled.
 //
 // ZERO ALLOCATION in process(): all state is preallocated; the loop only
 // reads/writes samples.
@@ -107,40 +109,53 @@ class QuadFn281t extends AudioWorkletProcessor {
 
     for (let i = 0; i < n; i++) {
       for (let ch = 0; ch < NCH; ch++) {
-        const trigIn = inputs[ch];
-        const tl = (trigIn && trigIn.length) ? trigIn[0][i] : 0;
-        const edge = (tl > 0.5 && this.prevTrig[ch] <= 0.5) || this.trigFlag[ch] === 1;
-        this.prevTrig[ch] = tl; this.trigFlag[ch] = 0;
-        const cycIn = inputs[4 + ch];
-        const cycGate = cycIn && cycIn.length ? cycIn[0][i] > 0.5 : false;
-        const mode = this.mode[ch];
-        const forceCyc = mode === 'cyclic' || cycGate;
+        if ((ch & 1) && this.quadEn[ch >> 1]) {
+          // Quadrature follower (B, D): slaved to its master (A, C) a quarter
+          // cycle behind — B's phase = A's phase + 0.25 — shaped by B's own aFrac.
+          // The master owns triggering/mode; a trigger into A resets the pair.
+          const m = ch - 1;
+          const oldPh = this.phase[ch];
+          let ph = this.phase[m] + 0.25; if (ph >= 1) ph -= 1;
+          this.phase[ch] = ph;
+          this.active[ch] = this.active[m];
+          if (this.active[m] && ph < oldPh && oldPh > 0.5) this.pulseRem[ch] = pulseLen;   // follower wrap
+          val[ch] = this.active[m] ? valueAt(ph, aFrac[ch]) : 0;
+        } else {
+          const trigIn = inputs[ch];
+          const tl = (trigIn && trigIn.length) ? trigIn[0][i] : 0;
+          const edge = (tl > 0.5 && this.prevTrig[ch] <= 0.5) || this.trigFlag[ch] === 1;
+          this.prevTrig[ch] = tl; this.trigFlag[ch] = 0;
+          const cycIn = inputs[4 + ch];
+          const cycGate = cycIn && cycIn.length ? cycIn[0][i] > 0.5 : false;
+          const mode = this.mode[ch];
+          const forceCyc = mode === 'cyclic' || cycGate;
 
-        let ph = this.phase[ch], act = this.active[ch], pulse = false;
-        if (forceCyc) {                       // free-running LFO; trigger resets
-          if (!act) { act = 1; ph = 0; }
-          if (edge) ph = 0;
-          ph += dphi[ch];
-          if (ph >= 1) { ph -= 1; pulse = true; }
-        } else if (mode === 'sustained') {    // rise, hold while gated, then fall
-          if (edge) { act = 1; ph = 0; }
-          if (act) {
+          let ph = this.phase[ch], act = this.active[ch], pulse = false;
+          if (forceCyc) {                       // free-running LFO; trigger resets
+            if (!act) { act = 1; ph = 0; }
+            if (edge) ph = 0;
             ph += dphi[ch];
-            if (tl > 0.5 && ph > aFrac[ch]) ph = aFrac[ch];   // hold at the peak while gated
-            if (ph >= 1) { act = 0; ph = 0; pulse = true; }
+            if (ph >= 1) { ph -= 1; pulse = true; }
+          } else if (mode === 'sustained') {    // rise, hold while gated, then fall
+            if (edge) { act = 1; ph = 0; }
+            if (act) {
+              ph += dphi[ch];
+              if (tl > 0.5 && ph > aFrac[ch]) ph = aFrac[ch];   // hold at the peak while gated
+              if (ph >= 1) { act = 0; ph = 0; pulse = true; }
+            }
+          } else {                              // transient: one-shot attack/decay
+            if (edge) { act = 1; ph = 0; }
+            if (act) {
+              ph += dphi[ch];
+              if (ph >= 1) { act = 0; ph = 0; pulse = true; }
+            }
           }
-        } else {                              // transient: one-shot attack/decay
-          if (edge) { act = 1; ph = 0; }
-          if (act) {
-            ph += dphi[ch];
-            if (ph >= 1) { act = 0; ph = 0; pulse = true; }
-          }
+          this.phase[ch] = ph; this.active[ch] = act;
+          val[ch] = (forceCyc || act) ? valueAt(ph, aFrac[ch]) : 0;
+          if (pulse) this.pulseRem[ch] = pulseLen;
         }
-        this.phase[ch] = ph; this.active[ch] = act;
-        val[ch] = (forceCyc || act) ? valueAt(ph, aFrac[ch]) : 0;
 
         outputs[ch][0][i] = val[ch];                             // function output
-        if (pulse) this.pulseRem[ch] = pulseLen;
         outputs[4 + ch][0][i] = this.pulseRem[ch] > 0 ? 1 : 0;   // pulse output
         if (this.pulseRem[ch] > 0) this.pulseRem[ch]--;
       }
