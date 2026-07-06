@@ -1,26 +1,25 @@
 // function-gen-281t-processor.js — the Quad Function Generator DSP.
 //
-// Four independent rise/fall function generators in one process() loop. Each:
+// Four function generators in one process() loop. Each runs on a normalized cycle
+// PHASE (0..1) through an attack-then-decay shape: phase 0..aFrac is the attack
+// (rise 0->1), aFrac..1 is the decay (fall 1->0), where aFrac = attack/(attack+
+// decay). The shape is exponential (RC-style, concave). A normalized phase is what
+// lets the quadrature follower run at master-phase + 0.25 (added later).
 //
-//   phase   idle -> attack -> decay. A trigger starts ATTACK; the output rises on
-//           an exponential (RC-style) curve from its current level toward 1 over
-//           the attack time, then DECAY falls back toward 0 over the decay time —
-//           the concave analog shape, fast at first and easing into each end.
-//   fire    three ways: a rising edge on the TRIG input, the manual TRIG button
-//           (a 'trig' message), or self-cycling.
-//   cycle   self-cycle when the CYCLE switch is on OR the CYCLE gate input is
-//           high: at end of decay the generator immediately re-attacks, turning
-//           the transient into a repeating LFO.
-//   times   ATTACK/DECAY are seconds straight from the knob AudioParam (the host
-//           applies the exponential taper); the per-input CV shifts the time
-//           exponentially (±CV_OCT octaves per unit).
-//   outputs the FUNCTION output (the envelope) and a short PULSE at end of decay.
+//   MODE (three-position switch):
+//     transient — a trigger edge runs one attack/decay, then idle.
+//     sustained — a gate rises through the attack and HOLDS at the top while held,
+//                 then decays when the gate falls (attack/sustain/release).
+//     cyclic    — the phase free-runs and wraps: a repeating LFO. A trigger resets.
+//   The CYCLE gate input forces cyclic behavior in any mode while it is high.
 //
-// Quadrature (PLACEHOLDER — see descriptor header): each pair's output is a
-// crossfade between its two functions set by the pair's time knob, and enabling
-// a pair hands a trigger from the first generator to the second at its peak
-// (A rises, then B rises), for a rough 90° relationship. Revise once the manual
-// is available.
+//   times   ATTACK/DECAY are seconds from the knob AudioParams; each input CV
+//           shifts its time exponentially (±CV_OCT octaves per unit CV).
+//   outputs the FUNCTION output (the envelope) and a short PULSE at end of cycle.
+//
+// Quadrature: when a pair is enabled, its combined output is a mix of the two
+// functions (knob = how much B/D). When disabled the quad output is silent. The
+// master/follower phase-coupling (B = A phase + 0.25) is the next DSP step.
 //
 // ZERO ALLOCATION in process(): all state is preallocated; the loop only
 // reads/writes samples.
@@ -31,19 +30,19 @@ const NCH = 4;
 const LTR = ['A', 'B', 'C', 'D'];
 const CI = { A: 0, B: 1, C: 2, D: 3 };
 
-const PULSE_S = 0.004;        // end-of-decay pulse width (4 ms)
+const PULSE_S = 0.004;        // end-of-cycle pulse width (4 ms)
 const CV_OCT = 2;             // CV time modulation depth (octaves per unit CV)
 const T_MIN = 0.0005, T_MAX = 20;
 const clampTime = (x) => (x < T_MIN ? T_MIN : x > T_MAX ? T_MAX : x);
-const CHASE_K = 4.6;                       // exp chase reaches ~99% of the target in the knob time
-const RISE_DONE = 0.99, FALL_DONE = 0.01;  // segment-transition thresholds
 
-// polyBLAMP — the integral of the 259t's 2-point polyBLEP; band-limits a slope
-// (first-derivative) discontinuity by correcting the two samples that straddle
-// the corner. `frac` is the corner's sub-sample position in the [prev, curr)
-// interval; scale each by the slope change (amplitude per sample).
-const blampPrev = (frac) => { const a = 1 - frac; return (a * a * a) / 3; };
-const blampCurr = (frac) => (frac * frac * frac) / 3;
+// Exponential (RC-style) attack/decay as a function of a 0..1 sub-phase.
+const SHAPE_K = 3.2;
+const SHAPE_E = Math.exp(-SHAPE_K);
+const shapeUp = (x) => (1 - Math.exp(-SHAPE_K * x)) / (1 - SHAPE_E);       // 0 -> 1, concave
+const shapeDn = (x) => (Math.exp(-SHAPE_K * x) - SHAPE_E) / (1 - SHAPE_E); // 1 -> 0, convex
+function valueAt(phase, aFrac) {
+  return phase < aFrac ? shapeUp(phase / aFrac) : shapeDn((phase - aFrac) / (1 - aFrac));
+}
 
 class QuadFn281t extends AudioWorkletProcessor {
   static get parameterDescriptors() {
@@ -61,15 +60,13 @@ class QuadFn281t extends AudioWorkletProcessor {
   constructor(options) {
     super();
     const opt = (options && options.processorOptions) || {};
-    this.aa = opt.antialias !== false;       // band-limit the corners (default on)
-    this.value = new Float32Array(NCH);      // current output level 0..1
-    this.phase = new Int8Array(NCH);         // 0 idle, 1 attack, 2 decay
+    this.aa = opt.antialias !== false;       // reserved; the exponential shape barely aliases
+    this.phase = new Float32Array(NCH);      // cycle phase 0..1
+    this.active = new Uint8Array(NCH);        // envelope running (one-shot modes)
     this.prevTrig = new Float32Array(NCH);
-    this.pulseRem = new Int32Array(NCH);     // samples remaining of the end pulse
-    this.trigFlag = new Uint8Array(NCH);     // a manual-button press, consumed next sample
-    // Per-channel mode: 'transient' | 'sustained' | 'cyclic'. For now only the
-    // cyclic distinction is realized (it repeats); transient/sustained both act
-    // as the one-shot attack/decay until the full mode DSP lands.
+    this.pulseRem = new Int32Array(NCH);      // samples remaining of the end-of-cycle pulse
+    this.trigFlag = new Uint8Array(NCH);      // a manual-button press, consumed next sample
+    // Per-channel mode: 'transient' | 'sustained' | 'cyclic'.
     this.mode = ['transient', 'transient', 'transient', 'transient'];
     this.quadEn = [false, false];            // [A-B, C-D]
 
@@ -92,71 +89,65 @@ class QuadFn281t extends AudioWorkletProcessor {
     const pulseLen = Math.max(1, (PULSE_S * sr) | 0);
     const qAB = parameters.quadTimeAB[0], qCD = parameters.quadTimeCD[0];
 
-    // Per-channel block-rate chase coefficients. Attack/decay time = knob seconds
-    // shifted exponentially by the CV input (sampled at the block start — envelope
-    // times don't need per-sample CV, and this keeps the exp() out of the loop).
-    const kA = this._kA || (this._kA = new Float32Array(NCH));
-    const kD = this._kD || (this._kD = new Float32Array(NCH));
+    // Block-rate per channel: attack fraction and phase increment. Time = knob
+    // seconds shifted by the CV input (sampled at the block start).
+    const aFrac = this._aFrac || (this._aFrac = new Float32Array(NCH));
+    const dphi = this._dphi || (this._dphi = new Float32Array(NCH));
     for (let ch = 0; ch < NCH; ch++) {
       const L = LTR[ch];
       const aCv = inputs[8 + ch], dCv = inputs[12 + ch];
       const aT = clampTime(parameters[`attack${L}`][0] * Math.pow(2, (aCv && aCv.length ? aCv[0][0] : 0) * CV_OCT));
       const dT = clampTime(parameters[`decay${L}`][0] * Math.pow(2, (dCv && dCv.length ? dCv[0][0] : 0) * CV_OCT));
-      kA[ch] = 1 - Math.exp(-CHASE_K / (aT * sr));
-      kD[ch] = 1 - Math.exp(-CHASE_K / (dT * sr));
+      const T = aT + dT;
+      aFrac[ch] = Math.min(0.98, Math.max(0.02, aT / T));
+      dphi[ch] = 1 / (T * sr);
     }
+
+    const val = this._val || (this._val = new Float32Array(NCH));
 
     for (let i = 0; i < n; i++) {
       for (let ch = 0; ch < NCH; ch++) {
-        // --- fire sources: external trig rising edge, or a manual-button press ---
         const trigIn = inputs[ch];
-        const t = (trigIn && trigIn.length) ? trigIn[0][i] : 0;
-        if ((t > 0.5 && this.prevTrig[ch] <= 0.5) || this.trigFlag[ch]) this.phase[ch] = 1;
-        this.prevTrig[ch] = t;
-        this.trigFlag[ch] = 0;
-
-        // cycle in cyclic mode OR while the cycle gate input is high
+        const tl = (trigIn && trigIn.length) ? trigIn[0][i] : 0;
+        const edge = (tl > 0.5 && this.prevTrig[ch] <= 0.5) || this.trigFlag[ch] === 1;
+        this.prevTrig[ch] = tl; this.trigFlag[ch] = 0;
         const cycIn = inputs[4 + ch];
-        const cyc = this.mode[ch] === 'cyclic' || (cycIn && cycIn.length ? cycIn[0][i] > 0.5 : false);
+        const cycGate = cycIn && cycIn.length ? cycIn[0][i] > 0.5 : false;
+        const mode = this.mode[ch];
+        const forceCyc = mode === 'cyclic' || cycGate;
 
-        let v = this.value[ch];
-        let ph = this.phase[ch];
-        let corr = 0;                         // BLAMP correction for the current sample
-        if (ph === 1) {                       // attack: exponential rise toward 1
-          const vNext = v + (1 - v) * kA[ch];
-          if (vNext >= RISE_DONE) {           // corner: attack -> decay
-            const frac = (RISE_DONE - v) / ((vNext - v) || 1);
-            const dm = (-RISE_DONE * kD[ch]) - ((1 - RISE_DONE) * kA[ch]);   // decay slope - attack slope
-            if (this.aa) { if (i > 0) outputs[ch][0][i - 1] += dm * blampPrev(frac); corr = dm * blampCurr(frac); }
-            v = RISE_DONE; ph = 2;
-            // quadrature hand-off: enabling a pair fires its second generator at
-            // the first's peak (A->B, C->D).
-            if (ch === 0 && this.quadEn[0]) this.phase[1] = 1;
-            else if (ch === 2 && this.quadEn[1]) this.phase[3] = 1;
-          } else v = vNext;
-        } else if (ph === 2) {                // decay: exponential fall toward 0
-          const vNext = v - v * kD[ch];
-          if (vNext <= FALL_DONE) {           // corner: decay -> restart (cycle) or idle
-            const frac = (v - FALL_DONE) / ((v - vNext) || 1);
-            const nextPh = cyc ? 1 : 0;
-            const dm = (nextPh === 1 ? kA[ch] : 0) + (FALL_DONE * kD[ch]);   // restart slope - decay slope
-            if (this.aa) { if (i > 0) outputs[ch][0][i - 1] += dm * blampPrev(frac); corr = dm * blampCurr(frac); }
-            v = 0; ph = nextPh; this.pulseRem[ch] = pulseLen;
-          } else v = vNext;
-        } else if (cyc) {                     // idle but cycling -> start
-          ph = 1;
+        let ph = this.phase[ch], act = this.active[ch], pulse = false;
+        if (forceCyc) {                       // free-running LFO; trigger resets
+          if (!act) { act = 1; ph = 0; }
+          if (edge) ph = 0;
+          ph += dphi[ch];
+          if (ph >= 1) { ph -= 1; pulse = true; }
+        } else if (mode === 'sustained') {    // rise, hold while gated, then fall
+          if (edge) { act = 1; ph = 0; }
+          if (act) {
+            ph += dphi[ch];
+            if (tl > 0.5 && ph > aFrac[ch]) ph = aFrac[ch];   // hold at the peak while gated
+            if (ph >= 1) { act = 0; ph = 0; pulse = true; }
+          }
+        } else {                              // transient: one-shot attack/decay
+          if (edge) { act = 1; ph = 0; }
+          if (act) {
+            ph += dphi[ch];
+            if (ph >= 1) { act = 0; ph = 0; pulse = true; }
+          }
         }
-        this.value[ch] = v;
-        this.phase[ch] = ph;
+        this.phase[ch] = ph; this.active[ch] = act;
+        val[ch] = (forceCyc || act) ? valueAt(ph, aFrac[ch]) : 0;
 
-        outputs[ch][0][i] = v + corr;                            // function output (+ BLAMP)
+        outputs[ch][0][i] = val[ch];                             // function output
+        if (pulse) this.pulseRem[ch] = pulseLen;
         outputs[4 + ch][0][i] = this.pulseRem[ch] > 0 ? 1 : 0;   // pulse output
         if (this.pulseRem[ch] > 0) this.pulseRem[ch]--;
       }
 
-      // Quadrature outputs: crossfade each pair by its time knob (placeholder).
-      outputs[8][0][i] = this.value[0] * (1 - qAB) + this.value[1] * qAB;
-      outputs[9][0][i] = this.value[2] * (1 - qCD) + this.value[3] * qCD;
+      // Quadrature outputs: a mix of the pair when enabled, silent when off.
+      outputs[8][0][i] = this.quadEn[0] ? val[0] * (1 - qAB) + val[1] * qAB : 0;
+      outputs[9][0][i] = this.quadEn[1] ? val[2] * (1 - qCD) + val[3] * qCD : 0;
     }
     return true;
   }
