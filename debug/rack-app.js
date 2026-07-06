@@ -17,6 +17,8 @@ import mixerDescriptor from '../modules/mixer/descriptor.js';
 import { create as mixerCreate } from '../modules/mixer/factory.js';
 import lpgDescriptor from '../modules/lpg-292/descriptor.js';
 import { create as lpgCreate } from '../modules/lpg-292/factory.js';
+import fnDescriptor from '../modules/function-gen-281t/descriptor.js';
+import { create as fnCreate } from '../modules/function-gen-281t/factory.js';
 import { serialize, restore, validate } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
 import { buildCatalogue, createMirror } from '../host/mirror.js';
@@ -28,6 +30,7 @@ const registry = new ModuleRegistry();
 registry.register({ descriptor: oscDescriptor, create: oscCreate });
 registry.register({ descriptor: mixerDescriptor, create: mixerCreate });
 registry.register({ descriptor: lpgDescriptor, create: lpgCreate });
+registry.register({ descriptor: fnDescriptor, create: fnCreate });
 
 const MODULE_TYPES = [{
   descriptorId: oscDescriptor.id,
@@ -41,6 +44,12 @@ const MODULE_TYPES = [{
   hp: 32,
   panelUrl: 'modules/lpg-292/panel.svg',
   descriptor: lpgDescriptor,
+}, {
+  descriptorId: fnDescriptor.id,
+  name: 'Quad Function Generator',
+  hp: 30,
+  panelUrl: 'modules/function-gen-281t/panel.svg',
+  descriptor: fnDescriptor,
 }, {
   // The mixer is a pinned singleton placed at boot, so it's hidden from the
   // "Add module" menu (no second mixer). Still a normal module type otherwise.

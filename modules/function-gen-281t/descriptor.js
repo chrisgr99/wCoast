@@ -41,13 +41,15 @@ ports.push({ id: 'quadOutCD', name: 'Quad C-D', section: 'quad', domain: 'contro
 
 // Params. ATTACK/DECAY are exponential time knobs (0.001–10 s, no glide — a time
 // control shouldn't smear). TRIG is a momentary button (each press fires once).
-// CYCLE is a self-cycle on/off switch.
+// MODE is a 3-position switch: transient (one-shot attack/decay), sustained
+// (attack, hold while gated, decay) or cyclic (repeats as an LFO). The separate
+// cycleIn gate forces cycling in any mode while it's held.
 const onoff = () => ({ curve: 'stepped', steps: [{ value: 'off' }, { value: 'on' }] });
 for (const L of CH) {
   params.push({ id: `attack${L}`, name: `Attack ${L}`, section: 'channel', curve: 'exp', min: 0.001, max: 10, default: 0.05, glideMs: 0 });
   params.push({ id: `decay${L}`, name: `Decay ${L}`, section: 'channel', curve: 'exp', min: 0.001, max: 10, default: 0.2, glideMs: 0 });
   params.push({ id: `trigBtn${L}`, name: `Trig ${L}`, section: 'channel', ...onoff(), default: 'off', momentary: true });
-  params.push({ id: `cycle${L}`, name: `Cycle ${L}`, section: 'channel', ...onoff(), default: 'off' });
+  params.push({ id: `mode${L}`, name: `Mode ${L}`, section: 'channel', curve: 'stepped', steps: [{ value: 'transient' }, { value: 'sustained' }, { value: 'cyclic' }], default: 'transient' });
 }
 // Quadrature (placeholder behaviour — see header): a coordinated-time knob per
 // pair plus an enable toggle per pair.

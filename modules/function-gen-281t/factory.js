@@ -86,9 +86,9 @@ export function create(ctx, services) {
     const meta = paramMeta.get(paramId);
     if (!meta) throw new Error(`281t: no param "${paramId}".`);
 
-    // Per-pair quadrature enables and per-channel cycle switches: latching state.
+    // Per-pair quadrature enables and per-channel mode selectors: latching state.
     if (paramId === 'quadEnAB' || paramId === 'quadEnCD') { node.port.postMessage({ type: 'switch', id: paramId, value }); return; }
-    if (isCh(paramId, 'cycle')) { node.port.postMessage({ type: 'switch', id: paramId, value }); return; }
+    if (isCh(paramId, 'mode')) { node.port.postMessage({ type: 'mode', id: paramId, value }); return; }
     // Momentary trig button: fire only on the press ('on'); the release just
     // clears the lamp and must NOT fire again.
     if (isCh(paramId, 'trigBtn')) {

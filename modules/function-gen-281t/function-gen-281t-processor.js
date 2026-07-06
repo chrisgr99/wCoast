@@ -67,7 +67,10 @@ class QuadFn281t extends AudioWorkletProcessor {
     this.prevTrig = new Float32Array(NCH);
     this.pulseRem = new Int32Array(NCH);     // samples remaining of the end pulse
     this.trigFlag = new Uint8Array(NCH);     // a manual-button press, consumed next sample
-    this.cycle = [false, false, false, false];
+    // Per-channel mode: 'transient' | 'sustained' | 'cyclic'. For now only the
+    // cyclic distinction is realized (it repeats); transient/sustained both act
+    // as the one-shot attack/decay until the full mode DSP lands.
+    this.mode = ['transient', 'transient', 'transient', 'transient'];
     this.quadEn = [false, false];            // [A-B, C-D]
 
     this.port.onmessage = (e) => {
@@ -75,7 +78,8 @@ class QuadFn281t extends AudioWorkletProcessor {
       if (m.type === 'switch') {
         if (m.id === 'quadEnAB') this.quadEn[0] = m.value === 'on';
         else if (m.id === 'quadEnCD') this.quadEn[1] = m.value === 'on';
-        else if (m.id.startsWith('cycle')) { const ch = CI[m.id.slice(-1)]; if (ch !== undefined) this.cycle[ch] = m.value === 'on'; }
+      } else if (m.type === 'mode') {
+        const ch = CI[m.id.slice(-1)]; if (ch !== undefined) this.mode[ch] = m.value;
       } else if (m.type === 'trig') {
         if (m.ch >= 0 && m.ch < NCH) this.trigFlag[m.ch] = 1;
       }
@@ -111,9 +115,9 @@ class QuadFn281t extends AudioWorkletProcessor {
         this.prevTrig[ch] = t;
         this.trigFlag[ch] = 0;
 
-        // cycle if the switch is on OR the gate input is high
+        // cycle in cyclic mode OR while the cycle gate input is high
         const cycIn = inputs[4 + ch];
-        const cyc = this.cycle[ch] || (cycIn && cycIn.length ? cycIn[0][i] > 0.5 : false);
+        const cyc = this.mode[ch] === 'cyclic' || (cycIn && cycIn.length ? cycIn[0][i] > 0.5 : false);
 
         let v = this.value[ch];
         let ph = this.phase[ch];
