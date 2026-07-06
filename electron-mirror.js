@@ -32,6 +32,7 @@ let watchTimer = null;       // debounce for watch events
 let reconciling = false;     // a reconcile is in flight (prevents overlap/double-send)
 let pending = false;         // a folder event arrived during a reconcile — run once more
 let lastPatchText = null;    // last patch.json content WE wrote (self-write mute)
+let projected = false;       // the renderer has projected at least once this run
 let getWindow = () => null;  // returns the BrowserWindow (set by initMirror)
 
 const mirrorDir = () => path.join(app.getPath('documents'), 'WCOAST', MIRROR_DIR_NAME);
@@ -120,12 +121,34 @@ async function reconcile() {
     const text = await fsp.readFile(path.join(mirrorDir(), 'patch.json'), 'utf8');
     if (text !== lastPatchText) {          // not our own echo
       lastPatchText = text;                // record BEFORE sending so we don't reprocess
-      const win = getWindow();
-      if (win && !win.isDestroyed()) win.webContents.send('mirror:external', { text });
+      // An external edit only counts once the app has established its own baseline
+      // by projecting. Before that, every folder event is startup noise — last
+      // session's patch.json still on disk, plus stray FSEvents from the folder
+      // prep — so absorb it silently (lastPatchText updated above), never surface
+      // it as an AI edit. This keeps a plain rerun quiet even when a watch event
+      // beats the first projection into the microtask gap after its rename.
+      if (projected) {
+        console.log('[mirror-dbg] EXTERNAL send (projected). newLen=', text.length);
+        const win = getWindow();
+        if (win && !win.isDestroyed()) win.webContents.send('mirror:external', { text });
+      } else {
+        console.log('[mirror-dbg] absorbed pre-projection change. newLen=', text.length);
+      }
     }
   } catch (_e) { /* transient (mid-rename, etc.) */ }
   reconciling = false;
   if (pending) { pending = false; reconcile(); }
+}
+
+// Seed the self-write baseline from the patch.json already on disk BEFORE arming
+// the watch. Otherwise lastPatchText is null while last session's patch.json still
+// sits in the folder, so the first folder event — including a late FSEvent from
+// the startup writes — reconciles that stale file as an external AI edit and pops
+// the accept/reject prompt (on every rerun, or the moment the mirror is toggled
+// on). The renderer's own projection overwrites patch.json and re-seeds this; a
+// genuine edit while the app is running still differs and still prompts.
+async function seedBaseline() {
+  try { lastPatchText = await fsp.readFile(path.join(mirrorDir(), 'patch.json'), 'utf8'); } catch (_e) { /* no prior file */ }
 }
 
 // On quit, flip isLive in active.json (synchronously — the app is ending) so a
@@ -144,7 +167,7 @@ function initMirror(windowGetter) {
 
   ipcMain.handle('mirror:status', async () => ({ enabled: await isEnabled(), dir: mirrorDir() }));
   ipcMain.handle('mirror:setEnabled', async (_e, v) => {
-    if (v) { await enable(); startWatch(); } else { await disable(); stopWatch(); }
+    if (v) { await enable(); await seedBaseline(); startWatch(); } else { await disable(); stopWatch(); }
     return { enabled: !!v, dir: mirrorDir() };
   });
   ipcMain.on('mirror:write', async (_e, files) => {
@@ -153,7 +176,9 @@ function initMirror(windowGetter) {
     for (const name of Object.keys(files)) {
       try {
         await writeAtomic(name, files[name]);
-        if (name === 'patch.json') lastPatchText = files[name];   // mute our own echo
+        // Mute our own echo, and mark that the app has now projected — from here
+        // on a differing patch.json is a genuine external edit worth surfacing.
+        if (name === 'patch.json') { lastPatchText = files[name]; projected = true; }
       } catch (e) { console.warn('Wcoast mirror write failed:', name, e.message); }
     }
   });
@@ -169,7 +194,12 @@ function initMirror(windowGetter) {
   // Prepare the folder at startup when enabled (default on): create it, clear any
   // leftover .tmp from a crash, refresh the docs, and start watching for edits.
   (async () => {
-    if (await isEnabled()) { await ensureFolder(); await cleanLeftoverTmp(); await copyStaticDocs(); startWatch(); }
+    if (!(await isEnabled())) return;
+    await ensureFolder();
+    await cleanLeftoverTmp();
+    await copyStaticDocs();
+    await seedBaseline();
+    startWatch();
   })().catch((e) => console.warn('Wcoast mirror init:', e.message));
 
   app.on('before-quit', () => { stopWatch(); markNotLiveSync(); });
