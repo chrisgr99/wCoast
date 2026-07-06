@@ -701,6 +701,14 @@ generator, rack, polyphony, GXW bridge.
 - Rack coordinate/layout model: still to detail.
 - Random-source scope default (shared vs per-voice): to choose.
 - Exact stub/cable pixel values: empirical, tune on-screen at magnification.
+- Anti-aliasing for audio-rate modules. Every module that can reach audio rate
+  must band-limit its discontinuities. Done: the 259t band-limits its oscillators
+  (PolyBLEP) and its wavefolder (oversampled + windowed-sinc decimation); the
+  281t function generator BLAMP-corrects the two corners of its envelope (a
+  ~2 dB win — the exponential RC shape is already ~−47 dB, so it barely aliases).
+  To verify on the 259t: its phase lock (hard sync) resets phase abruptly and can
+  alias — confirm it's band-limited at the sync point (BLEP), not just the free
+  waveforms.
 
 ---
 
