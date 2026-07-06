@@ -62,6 +62,7 @@ export default {
   id: 'wcoast.quadFn281t',
   apiVersion: 1,
   name: 'Quad Function Generator',
+  abbreviation: 'Fn Gen',
   worklets: ['modules/function-gen-281t/function-gen-281t-processor.js'],
   channels: CH,
   pairs: PAIRS,

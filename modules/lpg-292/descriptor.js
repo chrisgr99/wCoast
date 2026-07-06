@@ -55,6 +55,7 @@ export default {
   id: 'lpg-292',
   apiVersion: 1,
   name: 'Quad Low Pass Gate',
+  abbreviation: 'Low Gate',
   worklets: ['modules/lpg-292/lpg-292-processor.js'],
   channels: CH,
   odd: [...CH].filter((L) => ODD.has(L)),

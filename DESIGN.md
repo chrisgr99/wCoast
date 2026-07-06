@@ -143,14 +143,18 @@ stub always reads clearly.
 
 ### Creation surfaces
 
-1. **Drag-to-patch** on the panel (primary, and the whole pointer story): press
-   a jack and a live cord trails the pointer; drop it on another jack to make
-   the edge (the host orients it output->input). Pressing a **connected input**
-   lifts its cord — drop it on a different input to **re-route**, or on empty
-   space to **delete** (the old drag-off-and-drop-in-space gesture). An input
-   holds **one cable**: a new cord onto an occupied input replaces it. Any jack
-   can reach any jack (cross-domain included; colour still tells you what the
-   cable carries). The author has good pointer control (trackpad + trackball).
+1. **Drag-to-patch** on the panel (primary, and the whole pointer story). Cords
+   are drawn as a stub plug at each end with a drooping cord between. Press a
+   **bare jack** and a live cord trails the pointer; drop it on another jack to
+   make the edge (the host orients it output->input). To move or remove an
+   existing cord, grab it by its **stub** (the plug at either end) and drag:
+   drop on another valid jack to move that end, or on empty space to **delete**
+   (the drag-off-and-drop-in-space gesture). An input holds **one cable**: a
+   drop onto an already-occupied input is rejected (the cord snaps back), so
+   re-patching means moving or deleting the existing cord first. Any jack can
+   reach any jack (cross-domain included; colour tells you what the cable
+   carries); valid targets thicken their rings while you drag. The mixer's
+   toolbar jacks have no stub, so a connected mixer jack is grabbed directly.
    There is **no jack context menu** — a plain click on a jack is reserved for
    the connection list below.
 2. **Dictation** (parallel, no-pointer path): e.g. "connect mod oscillator out

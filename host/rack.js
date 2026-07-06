@@ -138,7 +138,7 @@ export class Rack {
           document.removeEventListener('pointerup', onUp);
         };
         const onMove = (ev) => {
-          if (started || Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
+          if (started || Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
           started = true;
           cleanup();
           const edges = this.patchbay.edgesAtJack(this.mixer.key, portId);
@@ -149,7 +149,7 @@ export class Rack {
             this._startCable(e, this.mixer.key, portId);   // else start a new cord
           }
         };
-        const onUp = () => cleanup();   // clean click: reserved for the connection list
+        const onUp = (ev) => { cleanup(); this._openConnectionList(ev.clientX, ev.clientY); };   // clean click opens the list under the pointer
         document.addEventListener('pointermove', onMove);
         document.addEventListener('pointerup', onUp);
       });
@@ -519,6 +519,7 @@ export class Rack {
   // under the pointer go fully opaque so you can trace them. Purely visual — the
   // body stays click-through either way.
   _cableOpacity(e) {
+    if (this._hoverEdgeId) return e.id === this._hoverEdgeId ? 1 : 0.2;   // list roll-over isolates one cord
     const h = this._hoverRec;
     return (h && (e.src.key === h.key || e.dst.key === h.key)) ? 1 : 0.5;
   }
@@ -645,7 +646,7 @@ export class Rack {
     if (e.button !== 0) return;
     e.preventDefault();
     const startX = e.clientX, startY = e.clientY;
-    const TH = 4;                       // px of movement that means "drag", not "click"
+    const TH = 6;                       // px of movement that means "drag", not "click" (trackball-tolerant)
     let dragging = false;
     const cleanup = () => {
       document.removeEventListener('pointermove', onMove);
@@ -659,7 +660,7 @@ export class Rack {
         this._startCable(e, key, portId);          // hand off to the drag
       }
     };
-    const onUp = () => cleanup();       // clean click: reserved for the connection list
+    const onUp = (ev) => { cleanup(); this._openConnectionList(ev.clientX, ev.clientY); };   // clean click opens the list under the pointer
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
   }
@@ -696,7 +697,11 @@ export class Rack {
       this._tempCable = null;
       this._clearHighlights();
       const drop = this._jackFromPoint(ev.clientX, ev.clientY);
-      if (drop && !(drop.key === key && drop.portId === portId)) this._tryConnect({ key, portId }, drop);
+      if (drop && (drop.key === key && drop.portId === portId)) {
+        this._openConnectionList(ev.clientX, ev.clientY);   // released back on the origin jack: it was really a click
+      } else if (drop) {
+        this._tryConnect({ key, portId }, drop);
+      }
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
@@ -752,6 +757,7 @@ export class Rack {
         this.patchbay.disconnect(edge);                  // dropped on nothing -> delete
         this._drawCables();
         this.onChange();
+        this._refreshConnList();
       }
     };
     document.addEventListener('pointermove', onMove);
@@ -795,6 +801,173 @@ export class Rack {
     }
     this._highlights = [];
   }
+
+  // ---- connection list (read-only) ----
+  // Display name per endpoint key: the module's name, ordinal-disambiguated when a
+  // type repeats (Complex Oscillator 1, 2, …) in rack reading order; the mixer last.
+  _moduleLabelMap() {
+    const abbr = (descId, fallback) => {
+      const d = this.host.registry.descriptor(descId);
+      return (d && d.abbreviation) || fallback;
+    };
+    const byPos = this.moduleRecords().slice().sort((a, b) => (a.row - b.row) || (a.x - b.x));
+    const buckets = new Map();
+    for (const m of byPos) { if (!buckets.has(m.descriptorId)) buckets.set(m.descriptorId, []); buckets.get(m.descriptorId).push(m); }
+    const cand = [];
+    for (const b of buckets.values()) for (const m of b) cand.push(m);
+    const labelOf = (m) => abbr(m.descriptorId, m.name);
+    const count = new Map();
+    for (const m of cand) { const l = labelOf(m); count.set(l, (count.get(l) || 0) + 1); }
+    const seen = new Map();
+    const map = new Map();
+    for (const m of cand) {
+      let nm = labelOf(m);
+      if (count.get(nm) > 1) { const k = (seen.get(nm) || 0) + 1; seen.set(nm, k); nm = `${nm} ${k}`; }
+      map.set(m.key, nm);
+    }
+    if (this.mixer) map.set(this.mixer.key, abbr(this.mixer.descriptorId, 'Mixer'));
+    return map;
+  }
+
+  // Rebuild the list body (a 5-track grid) from the current edges. Each row lays
+  // out label · dot · line · dot · label: labels on the OUTSIDE, each terminal's
+  // domain-coloured dot on the INSIDE, and the cable-coloured line running
+  // directly between the two dots — so a row reads like the cord does in the rack.
+  // Rolling any cell lights that cord and its two jacks.
+  _buildConnRows() {
+    const body = this._connListBody;
+    if (!body) return;
+    body.textContent = '';
+    const names = this._moduleLabelMap();
+    const edges = this.patchbay.list().slice().sort((a, b) => {
+      const ra = this.records.get(a.src.key), rb = this.records.get(b.src.key);
+      return ((ra ? ra.row : 99) - (rb ? rb.row : 99)) || ((ra ? ra.x : 1e9) - (rb ? rb.x : 1e9));
+    });
+    if (!edges.length) {
+      const empty = document.createElement('div');
+      empty.className = 'conn-empty';
+      empty.textContent = 'No connections yet — drag a cord between two jacks.';
+      body.appendChild(empty);
+      return;
+    }
+    const nameFor = (key, portId) => {
+      const ep = this._ep(key, portId);
+      const mod = names.get(key) || key;
+      return { ep, label: `${mod} · ${ep ? ep.meta.name : portId}` };
+    };
+    const dotEl = (ep) => {
+      const d = document.createElement('span');
+      d.className = 'conn-dot';
+      d.style.background = ep ? STYLE_COLOR[domainStyle(ep.meta.domain)] : '#888';
+      return d;
+    };
+    const labelEl = (text, side) => {
+      const t = document.createElement('span');
+      t.className = 'conn-label conn-label-' + side;
+      t.textContent = text;
+      return t;
+    };
+    this._connEdges = new Map();
+    for (const edge of edges) {
+      this._connEdges.set(edge.id, edge);
+      const s = nameFor(edge.src.key, edge.src.portId);
+      const d = nameFor(edge.dst.key, edge.dst.portId);
+      const line = document.createElement('span');
+      line.className = 'conn-line';
+      line.style.background = STYLE_COLOR[edge.style] || STYLE_COLOR.control;
+      const cells = [labelEl(s.label, 'l'), dotEl(s.ep), line, dotEl(d.ep), labelEl(d.label, 'r')];
+      for (const c of cells) { c.dataset.connEdge = edge.id; body.appendChild(c); }
+    }
+    // Roll-over by delegation: one highlight per row, re-evaluated only when the
+    // hovered edge changes (so gliding across a row's cells doesn't re-redraw).
+    this._connHoverId = null;
+    body.onmouseover = (e) => {
+      const id = (e.target && e.target.dataset) ? e.target.dataset.connEdge : null;
+      if (!id || id === this._connHoverId) return;
+      this._connHoverId = id;
+      for (const c of body.children) c.classList.toggle('conn-hover', c.dataset && c.dataset.connEdge === id);
+      this._highlightEdge(this._connEdges.get(id));
+    };
+    body.onmouseleave = () => {
+      this._connHoverId = null;
+      for (const c of body.children) c.classList.remove('conn-hover');
+      this._highlightEdge(null);
+    };
+  }
+
+  // Roll-over: fully opaque the hovered cord (others dimmed) and thicken its two
+  // module-jack rings. Mixer jacks live in the toolbar and aren't ringed here.
+  _highlightEdge(edge) {
+    if (this._edgeHi) {
+      for (const h of this._edgeHi) { if (h.orig == null) h.ring.removeAttribute('stroke-width'); else h.ring.setAttribute('stroke-width', h.orig); }
+      this._edgeHi = null;
+    }
+    this._hoverEdgeId = edge ? edge.id : null;
+    if (edge) {
+      this._edgeHi = [];
+      const delta = 2 / (this.pxPerMm || 1);
+      for (const jp of [edge.src, edge.dst]) {
+        const rec = this.records.get(jp.key);
+        const port = rec && rec.panel.ports.get(jp.portId);
+        const ring = port && port.element.querySelector('circle');
+        if (!ring) continue;
+        const orig = ring.getAttribute('stroke-width');
+        ring.setAttribute('stroke-width', r2((parseFloat(orig) || 0) + delta));
+        this._edgeHi.push({ ring, orig });
+      }
+    }
+    this._drawCables();
+  }
+
+  // Open (or refresh) the floating connection list, popped up under the pointer
+  // (x,y) and clamped on-screen. A plain click on any jack brings it up; it closes
+  // on Escape, the ×, or a click anywhere off the list.
+  _openConnectionList(x, y) {
+    if (!this._connListEl) {
+      const panel = document.createElement('div');
+      panel.className = 'conn-list';
+      const head = document.createElement('div');
+      head.className = 'conn-list-head';
+      const close = document.createElement('button');
+      close.className = 'conn-list-close';
+      close.textContent = '×';
+      close.title = 'Close';
+      close.addEventListener('click', () => this._closeConnectionList());
+      head.appendChild(close);
+      const bodyEl = document.createElement('div');
+      bodyEl.className = 'conn-list-body';
+      panel.appendChild(head);
+      panel.appendChild(bodyEl);
+      document.body.appendChild(panel);
+      this._connListEl = panel;
+      this._connListBody = bodyEl;
+      this._connEsc = (e) => { if (e.key === 'Escape') this._closeConnectionList(); };
+      document.addEventListener('keydown', this._connEsc);
+      // Click anywhere off the list closes it. Capture phase so it lands before a
+      // jack's own press (which, on pointerup, would just reopen it under there).
+      this._connOff = (e) => { if (this._connListEl && !this._connListEl.contains(e.target)) this._closeConnectionList(); };
+      document.addEventListener('pointerdown', this._connOff, true);
+    }
+    this._buildConnRows();
+    // Pop up under the pointer, then nudge back on-screen if it would overflow.
+    if (x != null && y != null) {
+      const p = this._connListEl, pad = 8;
+      p.style.left = x + 'px'; p.style.top = y + 'px';
+      const r = p.getBoundingClientRect();
+      if (r.right > window.innerWidth - pad) p.style.left = Math.max(pad, window.innerWidth - pad - r.width) + 'px';
+      if (r.bottom > window.innerHeight - pad) p.style.top = Math.max(pad, window.innerHeight - pad - r.height) + 'px';
+    }
+  }
+
+  _closeConnectionList() {
+    this._highlightEdge(null);
+    if (this._connEsc) { document.removeEventListener('keydown', this._connEsc); this._connEsc = null; }
+    if (this._connOff) { document.removeEventListener('pointerdown', this._connOff, true); this._connOff = null; }
+    if (this._connListEl) { this._connListEl.remove(); this._connListEl = null; this._connListBody = null; }
+  }
+
+  // Keep an open list in sync after a cable is made or broken.
+  _refreshConnList() { if (this._connListEl) this._buildConnRows(); }
 
   // Press the cable's middle handle (shown on hover): a drag bends the cord (the
   // belly follows the pointer, either side of the chord); a click with no drag
@@ -851,7 +1024,7 @@ export class Rack {
       { key: dst.key, instance: dst.instance, descriptorId: dst.descriptorId, portId: dst.portId },
       initialDepth,
     );
-    if (res.ok) { this._drawCables(); this.onChange(); return res.edge; }
+    if (res.ok) { this._drawCables(); this.onChange(); this._refreshConnList(); return res.edge; }
     return null;
   }
 

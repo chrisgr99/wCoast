@@ -47,6 +47,7 @@ export default {
   id: 'mixer',
   apiVersion: 1,
   name: 'Mixer',
+  abbreviation: 'Mixer',
   worklets: [],          // native Web Audio nodes only
   channels: CH,
   vcPan: [...VC_PAN],
