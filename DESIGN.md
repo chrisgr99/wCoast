@@ -134,16 +134,12 @@ feedback, CPU, FM character), so it wins first — this makes FM and FM-feedback
 cables read as audio automatically, with no FM-specific logic. Otherwise
 trigger-ness is a property of reception, so the destination decides.
 
-Visual encoding (two reinforcing channels; colour stays free for identity):
-
-- **Thickness is the primary domain cue:** audio = thick, control = thin.
-- **Trigger = medium width AND dashed.** Medium (not thick) so the dashed line
-  doesn't consume too much space; medium (not thin) so the dashes stay
-  visible; dashes close together so a short stub still reads as dashed.
-
-All appearances are **subject to tuning on real stubs at working
-magnification** — the principle is fixed (colour=identity, thickness+dash=
-domain), the exact pixel values are empirical.
+Visual encoding: **every cable is one thick, solid weight** — the audio-cable
+thickness — with no thinner grades and no dashes, including the cord you drag.
+Domain reads from the cable's **colour** alone (the three styles above: audio
+orange, control blue, trigger black); thickness and dashes are NOT domain cues.
+A single uniform weight keeps the rack reading like a real patchbay and a short
+stub always reads clearly.
 
 ### Creation surfaces
 

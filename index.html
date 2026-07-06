@@ -66,6 +66,8 @@
     /* overlay for the vertical connection lines that meet the rack cords */
     #toolbar-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; }
 
+    body.grabbing-cable, body.grabbing-cable * { cursor: var(--grip) !important; }
+
 
     /* ---- mixer control panel (floating window) ---- */
     #mixer-panel { position: fixed; z-index: 1200; width: 520px; aspect-ratio: 250 / 174;
@@ -114,6 +116,7 @@
     /* ---- patch cables (SVG overlay; pointer-transparent) ---- */
     .rack-cables { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 12; overflow: visible; }
     .rack-cable { fill: none; stroke-linecap: round; opacity: 0.95; }
+    .rack-cable-temp { opacity: 0.95; }   /* dragged cord looks like a real thick cable — no dash, no fade */
   </style>
 </head>
 <body>

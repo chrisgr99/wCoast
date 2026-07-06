@@ -64,6 +64,10 @@ export class Rack {
     this._ghostEl = null;
     this._hoverCableEdgeId = null;  // cable under the pointer (reveals its reshape handle)
     this._reshaping = false;   // a middle-handle reshape drag is in progress
+    this._tempCable = null;    // live cord element while dragging a new/regrabbed cable
+    this._dragEdgeId = null;   // edge whose end is being dragged (hidden meanwhile)
+    this._highlights = null;   // candidate rings thickened during a drag
+    this._gripTimer = null;    // pending (delayed) grab cursor
     this._contentWmm = 0;
     this._contentHmm = 0;
     this.mixer = null;         // toolbar output mixer (set via setMixer)
@@ -97,6 +101,12 @@ export class Rack {
     // Toolbar (mixer) cords track the rack's scroll: their toolbar end is fixed
     // in screen space while the modules scroll beneath.
     this.container.addEventListener('scroll', () => { if (this.mixer) this._drawCables(); });
+    // Any pointer release ends a cable drag; clear the grip cursor (and cancel a
+    // pending grip so a quick click never flashes it).
+    document.addEventListener('pointerup', () => {
+      if (this._gripTimer) { clearTimeout(this._gripTimer); this._gripTimer = null; }
+      document.body.classList.remove('grabbing-cable');
+    }, true);
     // A cable body is click-through, so it fires no hover events of its own.
     // Detect a hovered cable by proximity and reveal its middle reshape handle.
     this.container.addEventListener('pointermove', (e) => this._updateCableHover(e));
@@ -111,10 +121,38 @@ export class Rack {
     this.mixer = mixer;
     for (const [portId, svg] of mixer.jacks) {
       const el = (svg.closest && svg.closest('.toolbar-jack')) || svg;
-      // Mixer jacks behave like every other terminal: drag a cord to patch by hand.
+      // data-jack-* lets a dropped cord hit-test this jack. The mixer end of a
+      // cord has no stub, so pressing a connected mixer jack GRABS its cord (drag
+      // off to move or delete); an empty jack starts a new one. A plain click is
+      // reserved for the connection list. A small move threshold separates them.
       el.dataset.jackKey = this.mixer.key;
       el.dataset.jackPort = portId;
-      el.addEventListener('pointerdown', (e) => this._onJackPointerDown(e, this.mixer.key, portId));
+      el.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const startX = e.clientX, startY = e.clientY;
+        let started = false;
+        const cleanup = () => {
+          document.removeEventListener('pointermove', onMove);
+          document.removeEventListener('pointerup', onUp);
+        };
+        const onMove = (ev) => {
+          if (started || Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
+          started = true;
+          cleanup();
+          const edges = this.patchbay.edgesAtJack(this.mixer.key, portId);
+          if (edges.length) {   // grab the existing cord (drag off to move/delete)
+            const edge = edges[edges.length - 1];
+            this._startRegrab(e, edge, edge.dst.key === this.mixer.key ? 'dst' : 'src');
+          } else {
+            this._startCable(e, this.mixer.key, portId);   // else start a new cord
+          }
+        };
+        const onUp = () => cleanup();   // clean click: reserved for the connection list
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup', onUp);
+      });
     }
     this._drawCables();
   }
@@ -371,14 +409,14 @@ export class Rack {
     const P = this._bellyPoint(a, b, e.bow);
     const uA = unit(P.x - a.x, P.y - a.y);
     const uB = unit(P.x - b.x, P.y - b.y);
-    // Each end sits in the MIDDLE of the jack's coloured ring (no stub plug) and
-    // the cord is a cubic between those points, departing radially toward the belly.
-    const pA = { x: a.x + uA.x * a.ring, y: a.y + uA.y * a.ring };
-    const pB = { x: b.x + uB.x * b.ring, y: b.y + uB.y * b.ring };
-    const L = Math.hypot(pB.x - pA.x, pB.y - pA.y) * 0.4;
-    const c1 = { x: pA.x + uA.x * L, y: pA.y + uA.y * L };
-    const c2 = { x: pB.x + uB.x * L, y: pB.y + uB.y * L };
-    return { a, b, w, uA, uB, pA, pB, c1, c2 };
+    const rimA = { x: a.x + uA.x * (a.r + w / 2), y: a.y + uA.y * (a.r + w / 2) };
+    const rimB = { x: b.x + uB.x * (b.r + w / 2), y: b.y + uB.y * (b.r + w / 2) };
+    const sA = { x: rimA.x + uA.x * 2 * a.r, y: rimA.y + uA.y * 2 * a.r };
+    const sB = { x: rimB.x + uB.x * 2 * b.r, y: rimB.y + uB.y * 2 * b.r };
+    const L = Math.hypot(sB.x - sA.x, sB.y - sA.y) * 0.4;
+    const c1 = { x: sA.x + uA.x * L, y: sA.y + uA.y * L };
+    const c2 = { x: sB.x + uB.x * L, y: sB.y + uB.y * L };
+    return { a, b, w, uA, uB, rimA, rimB, sA, sB, c1, c2 };
   }
 
   _drawCables() {
@@ -389,6 +427,7 @@ export class Rack {
     this.cables.style.height = (this._contentHmm * s) + 'px';
     this.cables.textContent = '';
     const wmm = CABLE_PX / (this._fit || 1);   // mm width -> CABLE_PX at zoom 1, scales with zoom
+    const hitMm = 9 / (s || 1);                // ~9 px grab target
     const mk = (d, stroke, sw, opacity, pe) => {
       const p = document.createElementNS(SVG_NS, 'path');
       p.setAttribute('d', d);
@@ -402,7 +441,7 @@ export class Rack {
     };
     this._toolbarCords = [];
     for (const e of this.patchbay.list()) {
-      if (e.id === this._draggingEdgeId) continue;   // lifted cord: the drag cord stands in for it
+      if (e.id === this._dragEdgeId) continue; // hidden while its end is being dragged
       if (this.mixer && (e.src.key === this.mixer.key || e.dst.key === this.mixer.key)) {
         this._drawMixerEdge(e, wmm, mk);
         continue;
@@ -411,16 +450,24 @@ export class Rack {
       if (!g) continue;
       const color = STYLE_COLOR[e.style] || STYLE_COLOR.control;
       const op = this._cableOpacity(e);
-      // The whole cable is pointer-events:none, so clicks and drags fall straight
-      // through to the panel behind it. A stub-less cord runs ring-mid to ring-mid;
-      // its only grab point is the middle reshape handle, shown on hover.
-      const bodyD = `M${r2(g.pA.x)},${r2(g.pA.y)} C${r2(g.c1.x)},${r2(g.c1.y)} ${r2(g.c2.x)},${r2(g.c2.y)} ${r2(g.pB.x)},${r2(g.pB.y)}`;
-      mk(bodyD, color, wmm, op, null);
+      // The whole cable body is pointer-events:none, so clicks and drags fall
+      // straight through to the panel behind it. There is NO body hit-path — the
+      // only grab points are the two stubs and (on hover) a middle handle.
+      const ghostD = `M${r2(g.sA.x)},${r2(g.sA.y)} C${r2(g.c1.x)},${r2(g.c1.y)} ${r2(g.c2.x)},${r2(g.c2.y)} ${r2(g.sB.x)},${r2(g.sB.y)}`;
+      mk(ghostD, color, wmm, op, null);
+      // The stub at each end IS the move/delete grab handle — only the stub.
+      for (const en of [{ rim: g.rimA, s: g.sA, end: 'src' }, { rim: g.rimB, s: g.sB, end: 'dst' }]) {
+        const sd = `M${r2(en.rim.x)},${r2(en.rim.y)} L${r2(en.s.x)},${r2(en.s.y)}`;
+        mk(sd, color, wmm, op, null);                      // visible stub
+        const h = mk(sd, 'transparent', hitMm, null, 'stroke');   // grab handle = the stub only
+        h.style.cursor = 'var(--grip)';
+        h.addEventListener('pointerdown', (ev) => this._startRegrab(ev, e, en.end));
+      }
       // Middle reshape handle, shown only while this cable is hovered.
       if (e.id === this._hoverCableEdgeId) {
         const mid = {
-          x: 0.125 * g.pA.x + 0.375 * g.c1.x + 0.375 * g.c2.x + 0.125 * g.pB.x,
-          y: 0.125 * g.pA.y + 0.375 * g.c1.y + 0.375 * g.c2.y + 0.125 * g.pB.y,
+          x: 0.125 * g.sA.x + 0.375 * g.c1.x + 0.375 * g.c2.x + 0.125 * g.sB.x,
+          y: 0.125 * g.sA.y + 0.375 * g.c1.y + 0.375 * g.c2.y + 0.125 * g.sB.y,
         };
         const rMm = 5.5 / (s || 1);
         const hd = document.createElementNS(SVG_NS, 'circle');
@@ -432,16 +479,9 @@ export class Rack {
         this.cables.appendChild(hd);
       }
     }
-    // The live cord trailing the pointer while patching by hand: a cubic that
-    // departs the anchor jack radially (like a real cord) and ends at the pointer.
-    if (this._dragCord && this._dragCord.a) {
-      const a = this._dragCord.a, b = this._dragCord.b;
-      const u = unit(b.x - a.x, b.y - a.y);
-      const pA = { x: a.x + u.x * (a.ring || 0), y: a.y + u.y * (a.ring || 0) };
-      const L = Math.hypot(b.x - pA.x, b.y - pA.y) * 0.4;
-      const c1 = { x: pA.x + u.x * L, y: pA.y + u.y * L };
-      const d = `M${r2(pA.x)},${r2(pA.y)} C${r2(c1.x)},${r2(c1.y)} ${r2(b.x)},${r2(b.y)} ${r2(b.x)},${r2(b.y)}`;
-      mk(d, this._dragCord.color || STYLE_COLOR.control, wmm, 0.85, 'none');
+    if (this._tempCable) {
+      this._tempCable.setAttribute('stroke-width', r2(wmm));
+      this.cables.appendChild(this._tempCable);
     }
     this._drawToolbarCords();
   }
@@ -462,6 +502,17 @@ export class Rack {
     const path = this._toolbarCordPath(T, M, wmm);
     mk(path, color, wmm, op, null);                    // rack part (clipped below the seam)
     this._toolbarCords.push({ path, color, wmm, opacity: op });   // toolbar part (same path, clipped above)
+    // A grab handle (stub) at the module end so the cord can be dragged off to
+    // move or delete it; the toolbar end is grabbed via its jack.
+    const hitMm = 9 / (this.pxPerMm || 1);
+    const uM = unit(M.x - T.x, M.y - T.y);
+    const rim = { x: M.x - uM.x * (M.r + wmm / 2), y: M.y - uM.y * (M.r + wmm / 2) };
+    const stubEnd = { x: rim.x - uM.x * 2 * M.r, y: rim.y - uM.y * 2 * M.r };
+    const sd = `M${r2(rim.x)},${r2(rim.y)} L${r2(stubEnd.x)},${r2(stubEnd.y)}`;
+    mk(sd, color, wmm, op, null);
+    const h = mk(sd, 'transparent', hitMm, null, 'stroke');
+    h.style.cursor = 'var(--grip)';
+    h.addEventListener('pointerdown', (ev) => this._startRegrab(ev, e, moduleEnd));
   }
 
   // A cable is faint (one-third opaque) by default; the cables of the module
@@ -481,12 +532,12 @@ export class Rack {
       if (this.mixer && (e.src.key === this.mixer.key || e.dst.key === this.mixer.key)) continue;
       const g = this._cordGeom(e);
       if (!g) continue;
-      let prev = g.pA;
+      let prev = g.sA;
       for (let i = 1; i <= 16; i++) {
         const t = i / 16, mt = 1 - t;
         const cur = {
-          x: mt * mt * mt * g.pA.x + 3 * mt * mt * t * g.c1.x + 3 * mt * t * t * g.c2.x + t * t * t * g.pB.x,
-          y: mt * mt * mt * g.pA.y + 3 * mt * mt * t * g.c1.y + 3 * mt * t * t * g.c2.y + t * t * t * g.pB.y,
+          x: mt * mt * mt * g.sA.x + 3 * mt * mt * t * g.c1.x + 3 * mt * t * t * g.c2.x + t * t * t * g.sB.x,
+          y: mt * mt * mt * g.sA.y + 3 * mt * mt * t * g.c1.y + 3 * mt * t * t * g.c2.y + t * t * t * g.sB.y,
         };
         const d = this._distToSeg(m, prev, cur);
         if (d < bestD) { bestD = d; best = e; }
@@ -509,7 +560,7 @@ export class Rack {
   // Track the hovered cable (skip while a cable interaction is under way), and
   // redraw only when it changes so the middle handle appears/disappears.
   _updateCableHover(ev) {
-    if (this._reshaping) return;
+    if (this._tempCable || this._reshaping) return;
     const near = this._nearestCable(this._clientToMm(ev.clientX, ev.clientY));
     const id = near ? near.id : null;
     if (id !== this._hoverCableEdgeId) { this._hoverCableEdgeId = id; this._drawCables(); }
@@ -520,7 +571,7 @@ export class Rack {
   // line — before it curves to M's rim aiming at M's centre.
   _toolbarCordPath(T, M, w) {
     const u = unit(M.x - T.x, M.y - T.y);           // T -> M
-    const p3 = { x: M.x - u.x * M.ring, y: M.y - u.y * M.ring };   // middle of M's coloured ring
+    const p3 = { x: M.x - u.x * (M.r + w / 2), y: M.y - u.y * (M.r + w / 2) };   // M's hole rim
     const drop = Math.max(0, -T.y) + 10;            // clear the seam (y=0) vertically
     const c1 = { x: T.x, y: T.y + drop };
     const h = Math.max(8, Math.hypot(p3.x - c1.x, p3.y - c1.y) * 0.4);
@@ -552,79 +603,197 @@ export class Rack {
     svg.appendChild(g);
   }
 
-  // The jack under a client point, as {key, portId}, or null. Cables are drawn
-  // pointer-events:none so the jack beneath a dragged cord still hit-tests.
-  _jackUnder(clientX, clientY) {
+  // ---- drag-to-patch ----
+  // Resolve the DOM element under the cursor to a { key, portId } jack. Cables are
+  // drawn pointer-events:none, so the jack beneath a dragged cord still hit-tests.
+  _jackFromPoint(clientX, clientY) {
     const el = document.elementFromPoint(clientX, clientY);
     const jack = el && el.closest && el.closest('[data-jack-key]');
     if (!jack) return null;
     return { key: jack.dataset.jackKey, portId: jack.dataset.jackPort };
   }
 
-  // Press-and-drag on a jack patches by hand (the primary way to make and break
-  // cables). Grabbing a connected INPUT lifts its cord (anchored at the source);
-  // any other jack starts a fresh cord from itself. While dragging, a live cord
-  // trails the pointer; on release: over another jack it connects (output->input,
-  // replacing any cord already on that input), over empty space it drops — which
-  // deletes the lifted cord, or simply cancels a fresh one. A clean click (no
-  // drag) does nothing yet; the connection list will claim it. stopPropagation
-  // keeps the press off the module drag. `key` is a rack module or the mixer.
+  // Straight cord from a jack centre (cA, radius rA) to a free point (cB, rB=0):
+  // the live cord shown while dragging. It stops at rimA so the round cap butts
+  // the hole without covering it.
+  _cordPath(cA, rA, cB, rB, w) {
+    const dx = cB.x - cA.x, dy = cB.y - cA.y, d = Math.hypot(dx, dy) || 1;
+    const ux = dx / d, uy = dy / d;
+    const p0 = { x: cA.x + ux * (rA + w / 2), y: cA.y + uy * (rA + w / 2) };
+    const p3 = { x: cB.x - ux * (rB + w / 2), y: cB.y - uy * (rB + w / 2) };
+    return `M${r2(p0.x)},${r2(p0.y)} L${r2(p3.x)},${r2(p3.y)}`;
+  }
+
+  // Show the cable-grab cursor, but only after a short delay — so a quick click
+  // never flashes it, while a real drag (held past the delay) gets it. The pending
+  // timer is cancelled on pointerup.
+  _gripCursor() {
+    if (this._gripTimer) clearTimeout(this._gripTimer);
+    this._gripTimer = setTimeout(() => {
+      this._gripTimer = null;
+      document.body.classList.add('grabbing-cable');
+    }, 150);
+  }
+
+  // Jack pointerdown. A left press that moves past a small threshold starts a NEW
+  // cable dragged from this jack; an existing cord is instead grabbed by its stub
+  // (see _startRegrab). A plain click (press-release, no move) does nothing yet —
+  // it is reserved for the connection list. stopPropagation on the press keeps it
+  // from starting a module drag. `key` is a rack module or the mixer.
   _onJackPointerDown(e, key, portId) {
     e.stopPropagation();
     if (e.button !== 0) return;
     e.preventDefault();
-    const ep = this._ep(key, portId);
-    if (!ep) return;
-
-    // Lifting a connected input's cord: drag its input end, anchored at the source.
-    let lifted = null, anchor = { key, portId };
-    if (ep.meta.dir === 'in') {
-      lifted = this.patchbay.list().find((edg) => edg.dst.key === key && edg.dst.portId === portId) || null;
-      if (lifted) anchor = { key: lifted.src.key, portId: lifted.src.portId };
-    }
-    const color = STYLE_COLOR[domainStyle(this._ep(anchor.key, anchor.portId).meta.domain)];
-
-    const sx = e.clientX, sy = e.clientY;
+    const startX = e.clientX, startY = e.clientY;
+    const TH = 4;                       // px of movement that means "drag", not "click"
     let dragging = false;
     const cleanup = () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
-      this._dragCord = null;
-      this._draggingEdgeId = null;
     };
     const onMove = (ev) => {
-      if (!dragging) {
-        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return;
+      if (dragging) return;
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) >= TH) {
         dragging = true;
-        if (lifted) this._draggingEdgeId = lifted.id;   // hide the lifted cord while it trails
+        cleanup();
+        this._startCable(e, key, portId);          // hand off to the drag
       }
-      this._dragCord = { a: this._jackPosMm(anchor.key, anchor.portId), b: this._clientToMm(ev.clientX, ev.clientY), color };
-      this._drawCables();
+    };
+    const onUp = () => cleanup();       // clean click: reserved for the connection list
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }
+
+  // Start a NEW cable by dragging from a jack. A live straight cord trails the
+  // pointer; on release over an opposite-direction jack it connects (the patchbay
+  // orients output->input). Anything can patch into anything (DESIGN §2), so every
+  // opposite-direction jack is a candidate regardless of domain.
+  _startCable(e, key, portId) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    this._gripCursor();
+    const ep = this._ep(key, portId);
+    const a = this._jackPosMm(key, portId);
+    if (!ep || !a) return;
+    const meta = ep.meta;
+    const wmm = CABLE_PX / (this._fit || 1);
+    const tmp = document.createElementNS(SVG_NS, 'path');
+    tmp.setAttribute('class', 'rack-cable rack-cable-temp');
+    tmp.setAttribute('stroke', STYLE_COLOR[domainStyle(meta.domain)]);
+    tmp.setAttribute('stroke-width', r2(wmm));
+    this._tempCable = tmp;
+    this.cables.appendChild(tmp);
+    this._highlightCandidates(meta.dir === 'out' ? 'in' : 'out');
+
+    const onMove = (ev) => {
+      const m = this._clientToMm(ev.clientX, ev.clientY);
+      tmp.setAttribute('d', this._cordPath(a, a.r, m, 0, wmm));
     };
     const onUp = (ev) => {
-      cleanup();
-      if (!dragging) return;   // clean click: reserved for the connection list
-      const target = this._jackUnder(ev.clientX, ev.clientY);
-      const onSelf = target && target.key === key && target.portId === portId;
-      if (lifted) {
-        if (!target) {
-          this.patchbay.disconnect(lifted);   // dropped on empty space: delete
-          this.onChange();
-        } else if (!onSelf) {
-          const tep = this._ep(target.key, target.portId);
-          if (tep && tep.meta.dir === 'in') {   // re-route the input end to a new input
-            this.patchbay.disconnect(lifted);
-            this._tryConnect(anchor, target);
-          }
-          // dropped on an output or invalid jack: leave the cord where it was
-        }
-      } else if (target && !onSelf) {
-        this._tryConnect({ key, portId }, target);   // fresh cord from this jack
-      }
-      this._drawCables();
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      tmp.remove();
+      this._tempCable = null;
+      this._clearHighlights();
+      const drop = this._jackFromPoint(ev.clientX, ev.clientY);
+      if (drop && !(drop.key === key && drop.portId === portId)) this._tryConnect({ key, portId }, drop);
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
+  }
+
+  // Grab an existing cable by one of its stub ends: drag it to another valid port
+  // to move that end, or onto nothing to delete the cable. The fixed end stays.
+  _startRegrab(ev, edge, grabbedEnd) {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    this._gripCursor();
+    const fixed = grabbedEnd === 'src' ? edge.dst : edge.src;
+    const grabbed = grabbedEnd === 'src' ? edge.src : edge.dst;
+    const fixedEp = this._ep(fixed.key, fixed.portId);
+    const fixedPos = this._jackPosMm(fixed.key, fixed.portId);
+    if (!fixedEp || !fixedPos) return;
+    const fixedMeta = fixedEp.meta;
+    const wantDir = fixedMeta.dir === 'out' ? 'in' : 'out';
+    const wmm = CABLE_PX / (this._fit || 1);
+
+    this._dragEdgeId = edge.id;    // hide the grabbed cord while dragging it
+    this._drawCables();
+    const tmp = document.createElementNS(SVG_NS, 'path');
+    tmp.setAttribute('class', 'rack-cable rack-cable-temp');
+    tmp.setAttribute('stroke', STYLE_COLOR[domainStyle(fixedMeta.domain)]);
+    tmp.setAttribute('stroke-width', r2(wmm));
+    this._tempCable = tmp;
+    this.cables.appendChild(tmp);
+    this._highlightCandidates(wantDir, edge);
+
+    const onMove = (e2) => {
+      const m = this._clientToMm(e2.clientX, e2.clientY);
+      tmp.setAttribute('d', this._cordPath(fixedPos, fixedPos.r, m, 0, wmm));
+    };
+    const onUp = (e2) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      tmp.remove();
+      this._tempCable = null;
+      this._clearHighlights();
+      this._dragEdgeId = null;
+      const drop = this._jackFromPoint(e2.clientX, e2.clientY);
+      const droppedBack = drop && drop.key === grabbed.key && drop.portId === grabbed.portId;
+      const candidate = drop && this._isCandidate(drop, wantDir);
+      const occupied = candidate && wantDir === 'in' && this.patchbay.inputOccupied(drop.key, drop.portId, edge);
+      if (droppedBack || (candidate && occupied)) {
+        this._drawCables();                              // unchanged (or target input already taken) — restore
+      } else if (candidate) {
+        this.patchbay.disconnect(edge);                  // move: reconnect fixed end -> new port
+        this._tryConnect({ key: fixed.key, portId: fixed.portId }, drop);
+      } else {
+        this.patchbay.disconnect(edge);                  // dropped on nothing -> delete
+        this._drawCables();
+        this.onChange();
+      }
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }
+
+  // A jack is a valid drop target if it faces opposite the fixed end. Domain is
+  // NOT checked — anything can patch into anything (DESIGN §2).
+  _isCandidate(jack, wantDir) {
+    const ep = this._ep(jack.key, jack.portId);
+    return !!ep && ep.meta.dir === wantDir;
+  }
+
+  // While a cable is dragging, thicken the outer ring of every valid target port
+  // (opposite direction) by ~2 px so candidates stand out. An input already
+  // carrying a cable is NOT a valid target, so it's left at normal size — a subtle
+  // cue that you can't drop there. (exceptEdge: for a regrab, the moving cable's
+  // own edge doesn't count its current input as occupied.)
+  _highlightCandidates(wantDir, exceptEdge) {
+    this._clearHighlights();
+    this._highlights = [];
+    const delta = 2 / (this.pxPerMm || 1);   // 2 screen px expressed in panel mm
+    for (const rec of this.records.values()) {
+      for (const [portId, port] of rec.panel.ports) {
+        if (port.meta.dir !== wantDir) continue;
+        if (wantDir === 'in' && this.patchbay.inputOccupied(rec.key, portId, exceptEdge)) continue;
+        const ring = port.element.querySelector('circle');   // the outer coloured ring
+        if (!ring) continue;
+        const orig = ring.getAttribute('stroke-width');
+        ring.setAttribute('stroke-width', r2((parseFloat(orig) || 0) + delta));
+        this._highlights.push({ ring, orig });
+      }
+    }
+  }
+
+  _clearHighlights() {
+    if (!this._highlights) return;
+    for (const h of this._highlights) {
+      if (h.orig == null) h.ring.removeAttribute('stroke-width');
+      else h.ring.setAttribute('stroke-width', h.orig);
+    }
+    this._highlights = [];
   }
 
   // Press the cable's middle handle (shown on hover): a drag bends the cord (the
@@ -674,11 +843,8 @@ export class Rack {
     else if (A.meta.dir === 'in' && B.meta.dir === 'out') { src = B; dst = A; }
     else return;   // output-to-output or input-to-input: not a valid cord
 
-    // One cable per input: a new cord onto an occupied input replaces the old.
-    for (const edg of this.patchbay.list()) {
-      if (edg.dst.key === dst.key && edg.dst.portId === dst.portId) this.patchbay.disconnect(edg);
-    }
-
+    // An input takes one cable: patchbay.connect rejects a drop onto an occupied
+    // input (moving a cord is done by grabbing its stub, not by dropping over it).
     const initialDepth = (dst.meta.via && dst.rec) ? dst.rec.values.get(dst.meta.via) : undefined;
     const res = this.patchbay.connect(
       { key: src.key, instance: src.instance, descriptorId: src.descriptorId, portId: src.portId },
