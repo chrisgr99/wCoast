@@ -108,38 +108,39 @@ cords are NOT drawn full-length (that reintroduces cord-tracing). Instead:
   **show-all-cords** shortcut exists as a whole-patch sanity check. Both are
   momentary, not the working view.
 
-### Cable colour = identity (end-matching)
+### Terminal + cable colour = signal family
 
-Colours are **auto-assigned** and carry cord identity for end-matching.
-Colour need NOT be globally unique: angle+droop already narrows the search to
-a small region, so colour only disambiguates within that region. The colour
-allocator's real job: **a single source's fan-out cords must be mutually
-contrasting**, because hovering a source to disambiguate its fan-out shows
-those cords side by side. Elsewhere colours may repeat freely.
+Colour is the signal **family**, the same for a jack and the cords that touch
+it, so what-can-patch-into-what reads at a glance:
 
-### Cable style = domain (styled by DESTINATION)
+- **audio → yellow**
+- **CV / control → orange**
+- **trigger / gate / pulse → blue** (a light blue, so the black direction dashes
+  read on it)
+- **1V/oct pitch → green** — kept distinct; pitch is the one CV that earns its
+  own colour.
 
-Domain is shown on channels **independent of colour** (colour is spoken for by
-identity). Styling is by the **destination** domain, via this precedence:
+A **cable takes its DESTINATION jack's colour** (`familyOfPort` in the patchbay),
+so a cord's colour tells you what it feeds. Cross-family patching is allowed
+(free patching) — an audio out into a CV in simply draws an orange (CV) cord.
 
-```
-styleOf(sourceDomain, destDomain):
-  if sourceDomain === "audio"   -> "audio"     // any audio-rate signal, incl. FM & FM feedback
-  if destDomain   === "trigger" -> "trigger"
-  else                          -> "control"
-```
+Every cable is **one thick, solid weight** — no thinner grades, no dashes,
+including the cord you drag — so a short stub always reads and the rack looks
+like a real patchbay.
 
-Rationale: audio-rate presence is the loudest fact about a cable (aliasing,
-feedback, CPU, FM character), so it wins first — this makes FM and FM-feedback
-cables read as audio automatically, with no FM-specific logic. Otherwise
-trigger-ness is a property of reception, so the destination decides.
+### Direction = a dashed ring on the jack
 
-Visual encoding: **every cable is one thick, solid weight** — the audio-cable
-thickness — with no thinner grades and no dashes, including the cord you drag.
-Domain reads from the cable's **colour** alone (the three styles above: audio
-orange, control blue, trigger black); thickness and dashes are NOT domain cues.
-A single uniform weight keeps the rack reading like a real patchbay and a short
-stub always reads clearly.
+The same family colour serves both an input and an output; **direction is a bold
+black dashed ring** on the coloured band, a third of the band wide:
+
+- **output** — ring on the **outer** third, hugging the outer edge;
+- **input** — ring on the **inner** third, hugging the hole.
+
+Dashes at the rim read as "signal leaves here"; dashes at the porthole as
+"signal enters here". The host paints both the fill and the ring from each
+port's domain and `dir` (`jackFill` / `addDirRing` in the panel loader) — nothing
+is baked into panel art, so every module and both light/dark panels stay in
+lockstep.
 
 ### Creation surfaces
 
@@ -422,9 +423,10 @@ this automatically from `descriptor.name` — authors leave the left margin clea
 ink at `0.55`, tagged `data-wcoast-role="indicator"`. Seven tick marks over a
 ±150° sweep in ink at `0.3`.
 
-**Jacks.** Ring radius `3.0` with a black hole radius `1.6`, stroke `#000` at
-`0.3`. Colour by signal domain: **audio = `#ff7300`** (orange), **control/CV =
-`#1f7fe0`** (blue).
+**Jacks.** Author only the geometry — an outer ring (radius ~`3.0`) around a
+concentric hole (radius ~`1.6`). The host paints the rest: the family **colour**
+and the dashed **direction ring** from the port's domain and `dir` (see "Terminal
++ cable colour = signal family" above), so jack art carries no colour of its own.
 
 **Lamps / push-button LEDs.** Red LED, radius `1.8`, radial `#ff4a4a → #d00000 →
 #650000`, stroke `#7c0000` at `0.2366`, with a small pink highlight dot. Used for

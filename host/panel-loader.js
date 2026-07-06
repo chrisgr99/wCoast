@@ -438,17 +438,16 @@ export function attachControlInteraction(binding, hooks) {
 }
 
 // ---- jack colour code + dark-mode decoration (applied, not authored) ----
-// Jack colours follow one rule keyed on each port's domain + direction (and a
-// pitch tag), applied HERE — not baked per-jack in the art — so the one colour
-// code paints both the light and dark panels and every future module. Adapted
-// from Buchla: pulse(=trigger) in orange / out red; CV(=control) in black (grey
-// on the dark panel so it doesn't vanish) / out blue, with 1V/oct pitch inputs
-// green; audio in a muted grey-yellow / out a brighter yellow — direction reads
-// from colour, no direction ring. The pale audio jacks get a thin black edge on
-// the LIGHT panel only (they'd wash into the light face otherwise). Every jack's
-// centre hole is dark grey with a hair-thin light-grey rim to lift it off the
-// fill. Unlit lamps show dark grey (not cream) on the dark panel; a vertical
-// TITLE up the left edge is added in both modes.
+// Jacks carry TWO reads, applied HERE (not baked per-jack in the art) so one code
+// paints both panels and every module. COLOUR = signal family: audio yellow,
+// CV/control orange, trigger/gate/pulse blue, with 1V/oct pitch inputs kept green;
+// the same colour serves an input and an output. DIRECTION = a bold black dashed
+// ring (addDirRing): an output's hugs the OUTER edge of the coloured band, an
+// input's hugs the HOLE, each a third of the band wide so it reads at a glance.
+// Every jack gets a thin black edge on the LIGHT panel only (black would vanish on
+// the dark face). The centre hole is dark grey with a hair-thin light-grey rim.
+// Unlit lamps show dark grey (not cream) on the dark panel; a vertical TITLE up
+// the left edge is added in both modes.
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const DARK_LINE = '#b8b8bc';        // dark-mode vertical title (light gray)
@@ -458,31 +457,29 @@ const DARK_LINE = '#b8b8bc';        // dark-mode vertical title (light gray)
 const BUTTON_OFF = '#505055';        // unlit push-button body: dark-medium gray
 const BUTTON_EDGE_LIGHT = '#141414'; // button edge on the light panel (black); dark uses DARK_LINE
 
-// The jack colour code.
+const round3 = (x) => Math.round(x * 1000) / 1000;
+
+// The jack colour code — one colour per SIGNAL FAMILY, the same for in and out
+// (direction is carried by the dashed ring, addDirRing).
 const JACK = {
-  pulseIn: '#ff7300',   // trigger in  — orange
-  pulseOut: '#dd0000',  // trigger out — red
-  cvInLight: '#1a1a1a', // control in  — black on the light panel…
-  cvInDark: '#8f8f94',  // …grey on the dark panel (so it doesn't vanish)
-  cvOut: '#1f7fe0',     // control out — blue
-  pitchIn: '#39a85a',   // 1V/oct pitch/keyboard in — green
-  audioIn: '#cabf7a',   // audio in  — muted grey-yellow
-  audioOut: '#f3c40b',  // audio out — brighter yellow
-  hole: '#2f2f33',      // centre plug-hole
-  holeRim: '#cfcfd3',   // hair-thin light rim around the hole
+  audio: '#f3c40b',    // audio — yellow
+  cv: '#ff7300',       // CV / control — orange
+  trigger: '#5aa0e6',  // trigger / gate / pulse — light blue (black dashes read on it)
+  pitch: '#39a85a',    // 1V/oct pitch — green (kept distinct)
+  ring: '#000000',     // the direction dashes
+  hole: '#2f2f33',     // centre plug-hole
+  holeRim: '#cfcfd3',  // hair-thin light rim around the hole
   holeRimW: '0.15',
-  edge: '#111111',      // thin black edge on every jack (light panel only)
+  edge: '#111111',     // thin black edge on every jack (light panel only)
   edgeW: '0.22',
 };
 
 function isPitch(meta) { return meta.role === 'pitch' || meta.name === '1V/Oct'; }
-function jackFill(meta, dark) {
-  if (meta.domain === 'trigger') return meta.dir === 'in' ? JACK.pulseIn : JACK.pulseOut;
-  if (meta.domain === 'audio') return meta.dir === 'in' ? JACK.audioIn : JACK.audioOut;
-  // control
-  if (meta.dir === 'out') return JACK.cvOut;
-  if (isPitch(meta)) return JACK.pitchIn;
-  return dark ? JACK.cvInDark : JACK.cvInLight;
+function jackFill(meta) {
+  if (isPitch(meta)) return JACK.pitch;         // 1V/oct pitch stays green
+  if (meta.domain === 'audio') return JACK.audio;
+  if (meta.domain === 'trigger') return JACK.trigger;
+  return JACK.cv;                               // control / CV
 }
 
 // Paint one jack: outer ring = type colour with a thin black edge on the light
@@ -494,10 +491,37 @@ function paintJack(port, dark) {
   if (!circles.length || !port.meta) return;
   let outer = circles[0], hole = circles[0], ro = -1, rh = Infinity;
   for (const c of circles) { const r = parseFloat(c.getAttribute('r')) || 0; if (r > ro) { ro = r; outer = c; } if (r < rh) { rh = r; hole = c; } }
-  outer.setAttribute('fill', jackFill(port.meta, dark));
+  outer.setAttribute('fill', jackFill(port.meta));
   if (!dark) { outer.setAttribute('stroke', JACK.edge); outer.setAttribute('stroke-width', JACK.edgeW); }
   else { outer.setAttribute('stroke', 'none'); outer.setAttribute('stroke-width', '0'); }
   if (hole !== outer) { hole.setAttribute('fill', JACK.hole); hole.setAttribute('stroke', JACK.holeRim); hole.setAttribute('stroke-width', JACK.holeRimW); }
+  addDirRing(port, outer, ro, rh);
+}
+
+// The direction ring: a bold black dashed band a THIRD of the coloured surround
+// wide, laid on the OUTER third (touching the outer edge) for an output and the
+// INNER third (touching the hole) for an input — so one family colour reads as in
+// or out. Dashes are equal and short, fitted to a whole number of periods so the
+// ring closes cleanly. Idempotent: a re-paint (e.g. dark-mode toggle) replaces it.
+function addDirRing(port, outer, ro, rh) {
+  const old = port.element.querySelector('.jack-dir-ring');
+  if (old) old.remove();
+  if (!(ro > 0) || !(rh < ro) || !port.meta.dir) return;
+  const band = ro - rh, w = band / 3;
+  const cx = parseFloat(outer.getAttribute('cx')) || 0;
+  const cy = parseFloat(outer.getAttribute('cy')) || 0;
+  const ringR = port.meta.dir === 'out' ? ro - w / 2 : rh + w / 2;
+  const circ = 2 * Math.PI * ringR;
+  const n = Math.max(6, Math.round(circ / (w * 1.6)));   // dash+gap ≈ 1.6·w
+  const seg = circ / (2 * n);                            // equal dash and gap
+  const ring = port.element.ownerDocument.createElementNS(SVG_NS, 'circle');
+  ring.setAttribute('class', 'jack-dir-ring');
+  ring.setAttribute('cx', round3(cx)); ring.setAttribute('cy', round3(cy)); ring.setAttribute('r', round3(ringR));
+  ring.setAttribute('fill', 'none');
+  ring.setAttribute('stroke', JACK.ring);
+  ring.setAttribute('stroke-width', round3(w));
+  ring.setAttribute('stroke-dasharray', round3(seg) + ' ' + round3(seg));
+  port.element.appendChild(ring);
 }
 
 // The lit-button gradient: a red LED core fading to the gray button body, so an

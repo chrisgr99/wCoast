@@ -27,10 +27,11 @@ const ROW_GAP_MM = 0;           // vertical gap between rows (0 = flush, facepla
 const GAP_MM = 4;               // horizontal margin at the right of the case, in mm
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-// Cable colour encodes DOMAIN (matching the port bodies), not identity: audio
-// orange, control blue, trigger black. One thin weight for every cord — thin
-// lines obscure less as they cross the panel, and colour separates them.
-const STYLE_COLOR = { audio: '#ff7300', control: '#1f7fe0', trigger: '#000000' };
+// Cable colour = signal family, matching the port bodies: audio yellow, CV/control
+// orange, trigger blue, 1V/oct pitch green. A cord takes its DESTINATION port's
+// colour (see patchbay familyOfPort). One thin weight for every cord — thin lines
+// obscure less as they cross the panel, and colour separates them.
+const STYLE_COLOR = { audio: '#f3c40b', control: '#ff7300', trigger: '#5aa0e6', pitch: '#39a85a' };
 const domainStyle = (domain) => (domain === 'audio' ? 'audio' : domain === 'trigger' ? 'trigger' : 'control');
 const CABLE_PX = 3.8;   // cord thickness in px at zoom 1 (scales up as you zoom in)
 

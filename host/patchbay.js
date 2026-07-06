@@ -35,11 +35,12 @@ export function canConnect(srcDomain, dstDomain) {
   return WARN;                                                          // trigger mismatches / oddities
 }
 
-// Cable style is chosen by the DESTINATION domain, with audio winning first
-// (DESIGN §3), so FM and FM-feedback cords read as audio automatically.
-export function styleOf(srcDomain, dstDomain) {
-  if (srcDomain === 'audio') return 'audio';
-  if (dstDomain === 'trigger') return 'trigger';
+// A cord takes its DESTINATION port's signal family, so its colour matches the
+// jack it lands on (DESIGN §3): audio, trigger, 1V/oct pitch (green), else control.
+export function familyOfPort(port) {
+  if (port.role === 'pitch' || port.name === '1V/Oct') return 'pitch';
+  if (port.domain === 'audio') return 'audio';
+  if (port.domain === 'trigger') return 'trigger';
   return 'control';
 }
 
@@ -79,7 +80,7 @@ export class Patchbay {
       id: 'e' + (this._seq++),
       src: { ...src }, dst: { ...dst },
       srcDomain: srcPort.domain, dstDomain: dstPort.domain,
-      style: styleOf(srcPort.domain, dstPort.domain),
+      style: familyOfPort(dstPort),
       viaParamId: dstPort.via || null,
       out, nodeIn: null, gainNode: null, target: null,
       verdict,
