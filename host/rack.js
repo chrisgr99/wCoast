@@ -47,6 +47,7 @@ export class Rack {
     this.moduleTypes = opts.moduleTypes;
     this.onChange = opts.onChange || (() => {});
     this.onSelect = opts.onSelect || (() => {});   // module the pointer entered (deixis)
+    this.onNetMode = opts.onNetMode || (() => {});  // net-explore mode toggled (for the toolbar button)
     this.dark = !!opts.dark;                        // dark-mode faceplates
     this.rowCount = opts.rowCount || 2;
     this.rows = [];
@@ -419,6 +420,7 @@ export class Rack {
 
   _drawCables() {
     if (!this.cables) return;
+    this._netEdges = this._netOrigin ? this._computeNet(this._netOrigin) : null;   // recompute so it tracks patch edits
     const s = this.pxPerMm;
     this.cables.setAttribute('viewBox', `0 0 ${r2(this._contentWmm)} ${r2(this._contentHmm)}`);
     this.cables.style.width = (this._contentWmm * s) + 'px';
@@ -497,6 +499,7 @@ export class Rack {
   // under the pointer go fully opaque so you can trace them. Purely visual — the
   // body stays click-through either way.
   _cableOpacity(e) {
+    if (this._netEdges) return this._netEdges.has(e.id) ? 1 : 0.5;          // net highlight: members full, rest as normal
     if (this._hoverEdgeId) return e.id === this._hoverEdgeId ? 1 : 0.2;   // list roll-over isolates one cord
     const h = this._hoverRec;
     return (h && (e.src.key === h.key || e.dst.key === h.key)) ? 1 : 0.5;
@@ -865,6 +868,96 @@ export class Rack {
     this._armedTag = null;
   }
 
+  // ---- signal-net highlight ----
+  // A patch node key for net tracing. A whole module by default; a "sectioned"
+  // module (the quads) splits into per-channel nodes (key:A …) from the port's
+  // trailing letter, so one channel's net never bleeds into its neighbours. Shared
+  // ports (quad/sum/clock) form their own node; the mixer/unknown is one node.
+  _sectionKey(key, portId) {
+    const rec = this.records.get(key);
+    if (!rec) return key;
+    const desc = this.host.registry.descriptor(rec.descriptorId);
+    if (!desc || !desc.sectioned) return key;
+    const port = rec.panel.ports.get(portId);
+    const sec = port && port.meta && port.meta.section;
+    const ch = /([A-D])$/.exec(portId);
+    return (sec === 'channel' && ch) ? `${key}:${ch[1]}` : `${key}:${sec || 'x'}`;
+  }
+
+  // The origin node under a pointer over a module: the whole module, or (for a
+  // sectioned quad) the CHANNEL it's on. The channel is chosen by nearest per-
+  // channel jack CENTROID — a Voronoi partition of the panel — so anywhere in a
+  // channel's region maps to it, and shared (non-channel) ports never hijack it.
+  _netOriginAt(rec, clientX, clientY) {
+    const desc = this.host.registry.descriptor(rec.descriptorId);
+    if (!desc || !desc.sectioned) return rec.key;
+    const m = this._clientToMm(clientX, clientY);
+    const cen = new Map();   // channel letter -> { x, y, n }
+    for (const [portId, port] of rec.panel.ports) {
+      if (!port.meta || port.meta.section !== 'channel') continue;
+      const ch = /([A-D])$/.exec(portId);
+      if (!ch) continue;
+      const p = this._jackPosMm(rec.key, portId);
+      if (!p) continue;
+      const c = cen.get(ch[1]) || { x: 0, y: 0, n: 0 };
+      c.x += p.x; c.y += p.y; c.n++;
+      cen.set(ch[1], c);
+    }
+    let best = null, bestD = Infinity;
+    for (const [letter, c] of cen) {
+      const d = Math.hypot(c.x / c.n - m.x, c.y / c.n - m.y);
+      if (d < bestD) { bestD = d; best = letter; }
+    }
+    return best ? `${rec.key}:${best}` : rec.key;
+  }
+
+  // The set of cable ids in `origin`'s net: every cord downstream of it (to the
+  // outputs) plus every cord upstream (its feeders/modulators), traced over the
+  // section graph so a quad channel stays clean even where sections reconverge.
+  _computeNet(origin) {
+    const edges = this.patchbay.list();
+    const fwd = new Map(), bwd = new Map();
+    const link = (map, a, b) => { if (!map.has(a)) map.set(a, new Set()); map.get(a).add(b); };
+    const pair = edges.map((e) => ({ e, s: this._sectionKey(e.src.key, e.src.portId), d: this._sectionKey(e.dst.key, e.dst.portId) }));
+    for (const { s, d } of pair) { link(fwd, s, d); link(bwd, d, s); }
+    const closure = (start, adj) => {
+      const seen = new Set([start]), stack = [start];
+      while (stack.length) { for (const n of (adj.get(stack.pop()) || [])) if (!seen.has(n)) { seen.add(n); stack.push(n); } }
+      return seen;
+    };
+    const down = closure(origin, fwd), up = closure(origin, bwd);
+    const net = new Set();
+    for (const { e, s, d } of pair) if (down.has(s) || up.has(d)) net.add(e.id);
+    return net;
+  }
+
+  // Signal-net EXPLORE MODE. While on, whatever module (or quad channel) you HOVER
+  // lights its net — the whole downstream chain to the outputs plus everything
+  // upstream that feeds or modulates it — full-opaque, the rest at their normal
+  // 50%. It's a mode, not a per-click pin: the hovered scope drives the highlight,
+  // not where you invoked it. Off by default, so the plain overview is never
+  // dimmed. Toggle from the panel right-click menu; Escape also exits.
+  // Public toggle (the toolbar button); the origin follows hover, so none is needed.
+  toggleNetMode() { if (this._netMode) this._exitNetMode(); else this._enterNetMode(null); }
+  isNetMode() { return !!this._netMode; }
+
+  _enterNetMode(origin) {
+    this._netMode = true;
+    this._netOrigin = origin || null;
+    this._netEsc = (ev) => { if (ev.key === 'Escape') this._exitNetMode(); };
+    document.addEventListener('keydown', this._netEsc);
+    this.onNetMode(true);
+    this._drawCables();
+  }
+
+  _exitNetMode() {
+    this._netMode = false;
+    this._netOrigin = null;
+    if (this._netEsc) { document.removeEventListener('keydown', this._netEsc); this._netEsc = null; }
+    this.onNetMode(false);
+    this._drawCables();
+  }
+
   // ---- connection list (read-only) ----
   // Display name per endpoint key: the module's name, ordinal-disambiguated when a
   // type repeats (Complex Oscillator 1, 2, …) in rack reading order; the mixer last.
@@ -1188,8 +1281,11 @@ export class Rack {
     // Module-level handlers live on the wrapper element, so they survive a skin swap.
     el.addEventListener('pointerdown', (e) => this._startDrag(e, rec));
     el.addEventListener('contextmenu', (e) => this._onModuleContextMenu(e, rec));
-    el.addEventListener('pointerenter', () => { this._hoverRec = rec; this.onSelect(rec); this._drawCables(); });
-    el.addEventListener('pointerleave', () => { if (this._hoverRec === rec) { this._hoverRec = null; this._drawCables(); } });
+    el.addEventListener('pointerenter', (ev) => { this._hoverRec = rec; this.onSelect(rec); if (this._netMode) this._netOrigin = this._netOriginAt(rec, ev.clientX, ev.clientY); this._drawCables(); });
+    // In net-explore mode, moving within a module retargets the highlight to the
+    // module (or the quad channel) under the pointer.
+    el.addEventListener('pointermove', (ev) => { if (!this._netMode) return; const o = this._netOriginAt(rec, ev.clientX, ev.clientY); if (o !== this._netOrigin) { this._netOrigin = o; this._drawCables(); } });
+    el.addEventListener('pointerleave', () => { if (this._hoverRec === rec) { this._hoverRec = null; if (this._netMode) this._netOrigin = null; this._drawCables(); } });
 
     this.records.set(rec.key, rec);
     this.rows[rowIndex].push(rec);
@@ -1230,6 +1326,7 @@ export class Rack {
   deleteModule(rec) {
     if (this._hoverRec === rec) this._hoverRec = null;
     if (this._focusRec === rec) { this._focusRec = null; this.zoom = 1; }
+    if (this._netOrigin && this._netOrigin.split(':')[0] === rec.key) this._netOrigin = null;
     this.patchbay.disconnectModule(rec.key);   // pull its cords before the nodes go
     const row = this.rows[rec.row];
     const i = row.indexOf(rec);
@@ -1344,10 +1441,12 @@ export class Rack {
   _onModuleContextMenu(e, rec) {
     e.preventDefault();
     e.stopPropagation();
-    if (rec.pinned) return;   // the mixer is a fixed singleton — no Delete
-    this._openMenu(e.clientX, e.clientY, [
-      { label: `Delete ${rec.name}`, action: () => this.deleteModule(rec) },
-    ]);
+    const netItem = this._netMode
+      ? { label: 'Stop exploring nets', action: () => this._exitNetMode() }
+      : { label: 'Explore signal nets', action: () => this._enterNetMode(this._netOriginAt(rec, e.clientX, e.clientY)) };
+    const items = [netItem];
+    if (!rec.pinned) items.push({ label: `Delete ${rec.name}`, action: () => this.deleteModule(rec) });   // the mixer is a fixed singleton
+    this._openMenu(e.clientX, e.clientY, items);
   }
 
   // items: { label, action } clickable rows, plus optional { header:true } group
@@ -1442,8 +1541,7 @@ export class Rack {
     const GAP = 8;
     let left = Math.min(x + GAP, vw - pad - mw);
     if (left < pad) left = pad;
-    const focusCenter = focusEl ? focusEl.offsetTop + focusEl.offsetHeight / 2 : 0;
-    top = focusEl ? (y - focusCenter) : y;
+    top = y;   // anchor the menu at the click; never centre a checked row at the pointer (it can push the top off-screen)
     recomputeBounds();
     menu.style.left = left + 'px';
     menu.style.top = top + 'px';

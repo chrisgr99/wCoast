@@ -19,12 +19,42 @@ import lpgDescriptor from '../modules/lpg-292/descriptor.js';
 import { create as lpgCreate } from '../modules/lpg-292/factory.js';
 import fnDescriptor from '../modules/function-gen-281t/descriptor.js';
 import { create as fnCreate } from '../modules/function-gen-281t/factory.js';
+import { parsePanel, attachControlInteraction, showValue } from '../host/panel-loader.js';
 import { serialize, restore, validate } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
 import { buildCatalogue, createMirror } from '../host/mirror.js';
 import { createAudioTrace } from '../host/audio-trace.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
+
+// The toolbar master knob: the house blue-ring knob (dark theme) as a self-
+// contained SVG, tagged data-wcoast-param="master" so the panel loader binds it
+// and gives it the scroll-flywheel — the same control the module panels use.
+function masterKnobSvg() {
+  const ink = '#b8b8bc', ringStroke = '#6fa8d6', capStroke = '#b8b8bc';
+  const cap0 = '#3a3d43', cap1 = '#4c5058', cap2 = '#5a5f67', cap3 = '#6b7079';
+  const cx = 8, cy = 8, r = 5, cap = +(r * 0.72).toFixed(2), N = 7, angMin = -150, angMax = 150;
+  const a0 = angMin * Math.PI / 180, a1 = angMax * Math.PI / 180;
+  let ticks = '';
+  for (let k = 0; k < N; k++) {
+    const a = a0 + (k / (N - 1)) * (a1 - a0);
+    const x1 = (cx + Math.sin(a) * (r + 0.3)).toFixed(2), y1 = (cy - Math.cos(a) * (r + 0.3)).toFixed(2);
+    const x2 = (cx + Math.sin(a) * (r + 1.0)).toFixed(2), y2 = (cy - Math.cos(a) * (r + 1.0)).toFixed(2);
+    ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${ink}" stroke-width="0.3"/>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="1 1 14 14">
+    <defs>
+      <filter id="mkShadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0.47" dy="0.59" stdDeviation="0.47" flood-color="#000" flood-opacity=".28"/></filter>
+      <radialGradient id="mkCap"><stop offset="0" stop-color="${cap0}"/><stop offset="0.4" stop-color="${cap1}"/><stop offset="0.62" stop-color="${cap2}"/><stop offset="1" stop-color="${cap3}"/></radialGradient>
+      <radialGradient id="mkRing"><stop offset="0" stop-color="#1688cc"/><stop offset="0.55" stop-color="#006da8"/><stop offset="1" stop-color="#003d62"/></radialGradient>
+    </defs>
+    <g data-wcoast-param="master" data-wcoast-cx="${cx}" data-wcoast-cy="${cy}" data-wcoast-angle-min="${angMin}" data-wcoast-angle-max="${angMax}">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#mkRing)" stroke="${ringStroke}" stroke-width="0.355" filter="url(#mkShadow)"/>${ticks}
+      <circle cx="${cx}" cy="${cy}" r="${cap}" fill="url(#mkCap)" stroke="${capStroke}" stroke-width="0.2366"/>
+      <line x1="${cx}" y1="${cy}" x2="${cx}" y2="${(cy - cap).toFixed(2)}" stroke="${ink}" stroke-width="0.55" data-wcoast-role="indicator"/>
+    </g>
+  </svg>`;
+}
 
 const registry = new ModuleRegistry();
 registry.register({ descriptor: oscDescriptor, create: oscCreate });
@@ -85,6 +115,7 @@ async function boot() {
   let dirty = false, patchName = null, mirror = null;
   rack = new Rack(document.getElementById('rack'), {
     host, moduleTypes: MODULE_TYPES, rowCount: 2, dark: darkMode, onChange: () => onEdit(),
+    onNetMode: (on) => document.getElementById('netmode').classList.toggle('on', on),
   });
   rack.relayout();
 
@@ -97,8 +128,6 @@ async function boot() {
 
   // Controls.
   const onoff = document.getElementById('onoff');
-  const masterSlider = document.getElementById('master');
-  const masterLabel = document.getElementById('masterLabel');
 
   // Unsaved-changes tracking (state declared above the rack). Any knob, switch,
   // cable, or mixer change dirties the patch; loading or saving cleans it. The
@@ -110,21 +139,23 @@ async function boot() {
   // Any patch edit: mark dirty and re-project the mirror.
   function onEdit() { markDirty(); if (mirror) mirror.project(); }
 
-  // Master level: the mixer module's own master fader is the control; the TOOLBAR
-  // slider mirrors it (both write the module's master param, which drives the
-  // panel fader + the audio). The On/Off toggle gates the output through the
-  // master MUTE, so it silences without disturbing the level.
+  // Master level: a house-style KNOB (a one-knob panel run through the panel loader,
+  // so it gets the exact look and the scroll-flywheel) mirrors the mixer module's
+  // master param — both drive the panel fader and the audio. The On/Off toggle
+  // gates the output through the master MUTE, so it silences without changing level.
   let masterValue = Number(mixRec.values.get('master'));
-  const syncToolbarMaster = () => {
-    masterValue = Number(mixRec.values.get('master'));
-    masterSlider.value = String(masterValue);
-    masterLabel.textContent = masterValue.toFixed(2);
-  };
-  masterSlider.addEventListener('input', () => {
-    masterValue = Math.max(0, Math.min(1, Number(masterSlider.value)));
-    masterLabel.textContent = masterValue.toFixed(2);
-    rack.applyParam(mixRec, 'master', masterValue);
+  const knobHost = document.getElementById('master-knob');
+  knobHost.innerHTML = masterKnobSvg();
+  const { controls: masterControls } = parsePanel(knobHost.querySelector('svg'),
+    { params: [{ id: 'master', curve: 'linear', min: 0, max: 1, default: 0.7 }], ports: [] });
+  const masterKnob = masterControls.get('master');
+  const syncToolbarMaster = () => { masterValue = Number(mixRec.values.get('master')); showValue(masterKnob, masterValue); };
+  attachControlInteraction(masterKnob, {
+    get: () => masterValue,
+    set: (v) => { masterValue = Math.max(0, Math.min(1, v)); showValue(masterKnob, masterValue); rack.applyParam(mixRec, 'master', masterValue); },
   });
+  // Net-explore toggle (Escape also exits; the rack keeps the button's state in sync).
+  document.getElementById('netmode').addEventListener('click', () => rack.toggleNetMode());
   syncToolbarMaster();
 
   onoff.addEventListener('click', async () => {

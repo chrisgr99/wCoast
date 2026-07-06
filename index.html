@@ -25,43 +25,40 @@
 
     /* ---- top toolbar (full width; global controls + the output mixer) ---- */
     #toolbar {
-      position: relative; flex: 0 0 auto; display: flex; align-items: flex-end; gap: 12px;
-      padding: 2px 12px 0; background: var(--rail);
+      position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
+      padding: 4px 12px; background: var(--rail);
       border-top: 1px solid #fff; border-bottom: 1px solid #fff; z-index: 30;
     }
-    #onoff {
-      width: 26px; height: 26px; padding: 0; display: inline-flex; margin-bottom: 2px;
+    #tools { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .tool-sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
+    #onoff, #hamburger, #netmode {
+      width: 26px; height: 26px; padding: 0; display: inline-flex; flex: none;
       align-items: center; justify-content: center; cursor: pointer;
-      background: var(--accent); border: 1px solid var(--line); border-radius: 6px;
+      border: 1px solid var(--line); border-radius: 6px;
     }
+    #onoff { background: var(--accent); }
     #onoff svg { width: 14px; height: 14px; fill: var(--accent-ink); }
     #onoff .ico-stop { display: none; }
     #onoff.on .ico-play { display: none; }
     #onoff.on .ico-stop { display: inline; }
-    #hamburger {
-      width: 26px; height: 26px; padding: 0; display: inline-flex; margin-bottom: 2px;
-      align-items: center; justify-content: center; cursor: pointer;
-      background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-    }
+    #hamburger { background: var(--panel); }
     #hamburger svg { width: 16px; height: 16px; fill: var(--ink); }
     #hamburger:hover { background: var(--accent); }
     #hamburger:hover svg { fill: var(--accent-ink); }
+    #netmode { background: var(--panel); color: var(--ink); }
+    #netmode svg { width: 23px; height: 23px; }
+    #netmode:hover { background: var(--accent); color: var(--accent-ink); }
+    #netmode.on { background: var(--accent); color: var(--accent-ink); }
 
-    /* the mixer strip in the toolbar */
-    #mixer { display: flex; align-items: flex-end; gap: 10px; }
-    #mixer-jacks { display: flex; align-items: flex-end; gap: 8px; padding-top: 9px; }
-    #mixer-jacks .grp { display: flex; align-items: flex-end; gap: 8px; padding-right: 8px; border-right: 1px solid var(--line); }
+    /* master group at the far right: house-style knob + horizontal VU */
+    #master-group { display: flex; align-items: center; gap: 8px; flex: none; }
+    #master-knob { width: 44px; height: 44px; }
+    #master-knob svg { display: block; width: 100%; height: 100%; }
     .toolbar-jack { position: relative; cursor: crosshair; }
     .toolbar-jack svg { display: block; width: 22px; height: 22px; }
     .toolbar-jack .lbl { position: absolute; top: -2px; left: -3px; font-size: 9px; font-weight: 600; color: var(--ink-dim); line-height: 1; pointer-events: none; }
-    #mixer label, #mixer #masterLabel { font-size: 12px; color: var(--ink-dim); }
-    #master-vu.vu { display: inline-flex; gap: 2px; align-items: center; height: 12px; margin-left: 8px; }
-    #master-vu.vu span { width: 3px; height: 100%; background: #2a2d33; border-radius: 1px; }
-    #mixer input[type=range] { width: 120px; height: 14px; accent-color: var(--accent); margin-bottom: 3px; }
-    #mixer-open {
-      font: inherit; font-size: 12px; padding: 4px 10px; margin-bottom: 2px; border-radius: 6px; cursor: pointer;
-      background: transparent; color: var(--ink); border: 1px solid var(--line);
-    }
+    #master-vu.vu { display: inline-flex; gap: 2px; align-items: center; height: 12px; }
+    #master-vu.vu span { width: 3px; height: 100%; background: #56585f; border-radius: 1px; }
 
     /* overlay for the vertical connection lines that meet the rack cords */
     #toolbar-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; }
@@ -145,16 +142,32 @@
         <rect x="4" y="16" width="16" height="2.4" rx="1"/>
       </svg>
     </button>
-    <button id="onoff" aria-label="Sound on/off" title="Sound on/off">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <polygon class="ico-play" points="7,5 19,12 7,19"/>
-        <rect class="ico-stop" x="6" y="6" width="12" height="12" rx="2"/>
-      </svg>
-    </button>
-    <div id="mixer">
-      <label for="master">Master</label>
-      <input id="master" type="range" min="0" max="1" step="0.01" value="0.7">
-      <span id="masterLabel">0.70</span>
+    <div id="tools">
+      <button id="onoff" aria-label="Sound on/off" title="Sound on/off">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polygon class="ico-play" points="7,5 19,12 7,19"/>
+          <rect class="ico-stop" x="6" y="6" width="12" height="12" rx="2"/>
+        </svg>
+      </button>
+      <span class="tool-sep" aria-hidden="true"></span>
+      <button id="netmode" aria-label="Explore signal nets" title="Explore signal nets">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <g stroke="currentColor" stroke-linecap="round">
+            <g opacity="0.6">
+              <line x1="12" y1="12" x2="20" y2="4.5" stroke-width="2.1"/>
+              <line x1="12" y1="12" x2="18.5" y2="21" stroke-width="2.1"/>
+              <circle cx="20" cy="4.5" r="3.2" fill="currentColor" stroke="none"/>
+              <circle cx="18.5" cy="21" r="3.2" fill="currentColor" stroke="none"/>
+            </g>
+            <line x1="3.5" y1="6" x2="12" y2="12" stroke-width="2.9"/>
+            <circle cx="3.5" cy="6" r="3.7" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="12" r="3.7" fill="currentColor" stroke="none"/>
+          </g>
+        </svg>
+      </button>
+    </div>
+    <div id="master-group">
+      <div id="master-knob"></div>
       <div id="master-vu" class="vu" aria-hidden="true"></div>
     </div>
     <svg id="toolbar-lines" aria-hidden="true"></svg>

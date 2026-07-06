@@ -56,6 +56,7 @@ export default {
   apiVersion: 1,
   name: 'Quad Low Pass Gate',
   abbreviation: 'Low Gate',
+  sectioned: true,   // four independent channels — net highlight scopes to one
   worklets: ['modules/lpg-292/lpg-292-processor.js'],
   channels: CH,
   odd: [...CH].filter((L) => ODD.has(L)),

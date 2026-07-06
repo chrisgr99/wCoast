@@ -174,6 +174,25 @@ add editing (drag a row's end to re-route, drop to delete) so it becomes a
 co-equal editing surface, not just an audit view. The full global matrix is
 dropped as too large.
 
+### Reading: signal-net highlight
+
+A deliberate, in-the-rack way to see the network a module belongs to. It is an
+**explore mode**, toggled from a panel's right-click menu (**Explore signal
+nets**), not an always-on hover. While the mode is on, whatever module you
+**hover** lights its net — every cord downstream to the outputs plus everything
+upstream that feeds or modulates it, traced both ways (`_computeNet`) — full
+opaque, the rest at their normal half-strength; move to another module and the
+highlight follows. The **hovered scope drives it, not where you invoked it**. Off
+by default so the plain view is never dimmed; exit with Escape or the menu again.
+
+A **sectioned** module (a quad — `sectioned: true` in its descriptor) scopes to
+the **channel** under the click, not the whole module: its four channels are
+usually unrelated nets, so the trace runs over per-channel nodes (`_sectionKey`)
+and one channel's net never bleeds into its neighbours, even where two channels
+reconverge downstream (e.g. at a shared mixer). Emphasis is opacity only — no
+dimming of modules, no width change. Later: a toolbar toggle, and a right-button
+pie menu for one-gesture access.
+
 ---
 
 ## 4. Module abstraction (pluggability)

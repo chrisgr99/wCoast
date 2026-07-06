@@ -63,6 +63,7 @@ export default {
   apiVersion: 1,
   name: 'Quad Function Generator',
   abbreviation: 'Fn Gen',
+  sectioned: true,   // four independent channels — net highlight scopes to one
   worklets: ['modules/function-gen-281t/function-gen-281t-processor.js'],
   channels: CH,
   pairs: PAIRS,
