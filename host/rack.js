@@ -20,14 +20,7 @@
 //     width in mm (no HP grid); neighbours butt together edge to edge.
 
 import { loadPanel, showValue, attachControlInteraction, FACE_H_MM, FACE_TOP_MM, FACE_LEFT_MM } from './panel-loader.js';
-import { Patchbay, canConnect, DENY } from './patchbay.js';
-
-// Friendly section prefixes so duplicate port names (two "FM In", two "CV In")
-// read unambiguously in the connect menu.
-// Section prefixes disambiguate ports that share a name (both oscillators have a
-// "CV In", "FM In", "1V/Oct"). The middle section's ports ("Phase Lock In", "Mod
-// Index CV") are already unique, so they carry no prefix — just the name.
-const SECTION_LABEL = { modOsc: 'Mod osc', prinOsc: 'Principal', timbre: 'Timbre' };
+import { Patchbay } from './patchbay.js';
 
 const PANEL_H_MM = FACE_H_MM;   // modules display only the cropped functional face
 const ROW_GAP_MM = 0;           // vertical gap between rows (0 = flush, faceplates touch)
@@ -71,8 +64,6 @@ export class Rack {
     this._ghostEl = null;
     this._hoverCableEdgeId = null;  // cable under the pointer (reveals its reshape handle)
     this._reshaping = false;   // a middle-handle reshape drag is in progress
-    this._menuJack = null;     // the terminal whose connection menu is currently open
-    this._justClosedJack = null;   // terminal whose menu a press just closed (for click-again-to-close)
     this._contentWmm = 0;
     this._contentHmm = 0;
     this.mixer = null;         // toolbar output mixer (set via setMixer)
@@ -93,14 +84,7 @@ export class Rack {
 
     window.addEventListener('resize', () => this.relayout());
     document.addEventListener('pointerdown', (e) => {
-      if (this._menuEl && !this._menuEl.contains(e.target)) {
-        // Remember which terminal's menu this press is closing, so a press on that
-        // SAME terminal toggles the menu shut instead of closing-then-reopening.
-        this._justClosedJack = this._menuJack;
-        this._closeMenu();
-      } else if (!this._menuEl) {
-        this._justClosedJack = null;   // fresh press, no menu open: clear any stale toggle flag
-      }
+      if (this._menuEl && !this._menuEl.contains(e.target)) this._closeMenu();   // click-away closes a row/module menu
     }, true);
     // Pinch / ctrl-wheel to zoom (capture phase, so it beats a knob's wheel).
     this.container.addEventListener('wheel', (e) => {
@@ -127,10 +111,10 @@ export class Rack {
     this.mixer = mixer;
     for (const [portId, svg] of mixer.jacks) {
       const el = (svg.closest && svg.closest('.toolbar-jack')) || svg;
-      // Mixer jacks behave like every other terminal: a click (or right-click)
-      // opens their connection menu; patching is menu-only.
+      // Mixer jacks behave like every other terminal: drag a cord to patch by hand.
+      el.dataset.jackKey = this.mixer.key;
+      el.dataset.jackPort = portId;
       el.addEventListener('pointerdown', (e) => this._onJackPointerDown(e, this.mixer.key, portId));
-      el.addEventListener('contextmenu', (e) => this._onJackContextMenu(e, this.mixer.key, portId));
     }
     this._drawCables();
   }
@@ -418,6 +402,7 @@ export class Rack {
     };
     this._toolbarCords = [];
     for (const e of this.patchbay.list()) {
+      if (e.id === this._draggingEdgeId) continue;   // lifted cord: the drag cord stands in for it
       if (this.mixer && (e.src.key === this.mixer.key || e.dst.key === this.mixer.key)) {
         this._drawMixerEdge(e, wmm, mk);
         continue;
@@ -446,6 +431,17 @@ export class Rack {
         hd.addEventListener('pointerdown', (ev) => this._startReshape(ev, e));
         this.cables.appendChild(hd);
       }
+    }
+    // The live cord trailing the pointer while patching by hand: a cubic that
+    // departs the anchor jack radially (like a real cord) and ends at the pointer.
+    if (this._dragCord && this._dragCord.a) {
+      const a = this._dragCord.a, b = this._dragCord.b;
+      const u = unit(b.x - a.x, b.y - a.y);
+      const pA = { x: a.x + u.x * (a.ring || 0), y: a.y + u.y * (a.ring || 0) };
+      const L = Math.hypot(b.x - pA.x, b.y - pA.y) * 0.4;
+      const c1 = { x: pA.x + u.x * L, y: pA.y + u.y * L };
+      const d = `M${r2(pA.x)},${r2(pA.y)} C${r2(c1.x)},${r2(c1.y)} ${r2(b.x)},${r2(b.y)} ${r2(b.x)},${r2(b.y)}`;
+      mk(d, this._dragCord.color || STYLE_COLOR.control, wmm, 0.85, 'none');
     }
     this._drawToolbarCords();
   }
@@ -556,25 +552,76 @@ export class Rack {
     svg.appendChild(g);
   }
 
-  // A LEFT click on a jack — press and release without dragging — opens its
-  // connection menu. Cables are made and broken only through that menu now, so a
-  // drag off a jack does nothing. `key` is the endpoint (a rack module or the
-  // mixer). stopPropagation keeps the press off the module drag; right-click also
-  // opens the menu via its contextmenu handler.
+  // The jack under a client point, as {key, portId}, or null. Cables are drawn
+  // pointer-events:none so the jack beneath a dragged cord still hit-tests.
+  _jackUnder(clientX, clientY) {
+    const el = document.elementFromPoint(clientX, clientY);
+    const jack = el && el.closest && el.closest('[data-jack-key]');
+    if (!jack) return null;
+    return { key: jack.dataset.jackKey, portId: jack.dataset.jackPort };
+  }
+
+  // Press-and-drag on a jack patches by hand (the primary way to make and break
+  // cables). Grabbing a connected INPUT lifts its cord (anchored at the source);
+  // any other jack starts a fresh cord from itself. While dragging, a live cord
+  // trails the pointer; on release: over another jack it connects (output->input,
+  // replacing any cord already on that input), over empty space it drops — which
+  // deletes the lifted cord, or simply cancels a fresh one. A clean click (no
+  // drag) does nothing yet; the connection list will claim it. stopPropagation
+  // keeps the press off the module drag. `key` is a rack module or the mixer.
   _onJackPointerDown(e, key, portId) {
     e.stopPropagation();
     if (e.button !== 0) return;
     e.preventDefault();
+    const ep = this._ep(key, portId);
+    if (!ep) return;
+
+    // Lifting a connected input's cord: drag its input end, anchored at the source.
+    let lifted = null, anchor = { key, portId };
+    if (ep.meta.dir === 'in') {
+      lifted = this.patchbay.list().find((edg) => edg.dst.key === key && edg.dst.portId === portId) || null;
+      if (lifted) anchor = { key: lifted.src.key, portId: lifted.src.portId };
+    }
+    const color = STYLE_COLOR[domainStyle(this._ep(anchor.key, anchor.portId).meta.domain)];
+
     const sx = e.clientX, sy = e.clientY;
-    let moved = false;
+    let dragging = false;
     const cleanup = () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
+      this._dragCord = null;
+      this._draggingEdgeId = null;
     };
-    const onMove = (ev) => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) >= 4) moved = true; };
+    const onMove = (ev) => {
+      if (!dragging) {
+        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return;
+        dragging = true;
+        if (lifted) this._draggingEdgeId = lifted.id;   // hide the lifted cord while it trails
+      }
+      this._dragCord = { a: this._jackPosMm(anchor.key, anchor.portId), b: this._clientToMm(ev.clientX, ev.clientY), color };
+      this._drawCables();
+    };
     const onUp = (ev) => {
       cleanup();
-      if (!moved) this._onJackContextMenu(ev, key, portId);   // clean click -> menu
+      if (!dragging) return;   // clean click: reserved for the connection list
+      const target = this._jackUnder(ev.clientX, ev.clientY);
+      const onSelf = target && target.key === key && target.portId === portId;
+      if (lifted) {
+        if (!target) {
+          this.patchbay.disconnect(lifted);   // dropped on empty space: delete
+          this.onChange();
+        } else if (!onSelf) {
+          const tep = this._ep(target.key, target.portId);
+          if (tep && tep.meta.dir === 'in') {   // re-route the input end to a new input
+            this.patchbay.disconnect(lifted);
+            this._tryConnect(anchor, target);
+          }
+          // dropped on an output or invalid jack: leave the cord where it was
+        }
+      } else if (target && !onSelf) {
+        this._tryConnect({ key, portId }, target);   // fresh cord from this jack
+      }
+      this._drawCables();
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
@@ -627,6 +674,11 @@ export class Rack {
     else if (A.meta.dir === 'in' && B.meta.dir === 'out') { src = B; dst = A; }
     else return;   // output-to-output or input-to-input: not a valid cord
 
+    // One cable per input: a new cord onto an occupied input replaces the old.
+    for (const edg of this.patchbay.list()) {
+      if (edg.dst.key === dst.key && edg.dst.portId === dst.portId) this.patchbay.disconnect(edg);
+    }
+
     const initialDepth = (dst.meta.via && dst.rec) ? dst.rec.values.get(dst.meta.via) : undefined;
     const res = this.patchbay.connect(
       { key: src.key, instance: src.instance, descriptorId: src.descriptorId, portId: src.portId },
@@ -635,136 +687,6 @@ export class Rack {
     );
     if (res.ok) { this._drawCables(); this.onChange(); return res.edge; }
     return null;
-  }
-
-  _portLabel(port) {
-    const sec = SECTION_LABEL[port.section];
-    return sec ? `${sec} · ${port.name}` : port.name;
-  }
-
-  // The edge (if any) directly joining two jacks, either orientation.
-  _edgeBetween(aKey, aPort, bKey, bPort) {
-    return this.patchbay.list().find((e) =>
-      (e.src.key === aKey && e.src.portId === aPort && e.dst.key === bKey && e.dst.portId === bPort)
-      || (e.src.key === bKey && e.src.portId === bPort && e.dst.key === aKey && e.dst.portId === aPort));
-  }
-
-  // Open a jack's connection menu: every port it can sensibly connect to, on this
-  // module and others (and the mixer), checkmarked where the cord already exists.
-  // Clicking an item toggles that connection. `key` is any endpoint — a rack
-  // module or the mixer — so the same menu serves every jack. Anything can patch
-  // into anything (DESIGN §2); cross-domain candidates just show dimmed so a
-  // cable's signal type still reads at a glance.
-  _onJackContextMenu(e, key, portId) {
-    e.preventDefault();
-    e.stopPropagation();
-    // Clicking the same terminal whose menu is open toggles it shut: the press
-    // already closed the menu (above), so just don't reopen it.
-    if (this._justClosedJack && this._justClosedJack.key === key && this._justClosedJack.portId === portId) {
-      this._justClosedJack = null;
-      return;
-    }
-    this._justClosedJack = null;
-    const ep = this._ep(key, portId);
-    if (!ep) return;
-    const here = ep.meta;
-    const wantDir = here.dir === 'out' ? 'in' : 'out';
-    const items = [];
-    // Candidates: every rack module PLUS the mixer (its jacks live in the
-    // toolbar, but it is a real patch endpoint, so its channels must show here —
-    // checkmarked and removable — like any module). Disambiguate repeated module
-    // names with an ordinal so a header reads as the actual module, not "Module 2".
-    // Order candidates the way the rack reads — row by row, left to right — but
-    // keep instances of the SAME module type together (Complex Oscillator 1, 2, …),
-    // the types ordered by their first (topmost-leftmost) instance and numbered in
-    // that positional order. The mixer, which has no rack position, comes last.
-    const byPos = [...this.moduleRecords()].sort((a, b) => (a.row - b.row) || (a.x - b.x));
-    const buckets = new Map();
-    for (const m of byPos) {
-      if (!buckets.has(m.descriptorId)) buckets.set(m.descriptorId, []);
-      buckets.get(m.descriptorId).push(m);
-    }
-    const cand = [];
-    for (const bucket of buckets.values()) for (const m of bucket) cand.push(m);
-    if (this.mixer) cand.push({ key: this.mixer.key, descriptorId: this.mixer.descriptorId, name: 'Mixer' });
-    const nameCount = new Map();
-    for (const m of cand) nameCount.set(m.name, (nameCount.get(m.name) || 0) + 1);
-    const nameSeen = new Map();
-    const nameOf = new Map();
-    for (const m of cand) {
-      let nm = m.name;
-      if (nameCount.get(m.name) > 1) { const k = (nameSeen.get(m.name) || 0) + 1; nameSeen.set(m.name, k); nm = `${nm} ${k}`; }
-      nameOf.set(m.key, nm);
-    }
-    for (const m of cand) {
-      const group = [];
-      // Ports in the module's declared menu-section order (so e.g. the Complex
-      // Oscillator lists PRINCIPAL before MODULATION), else declaration order.
-      const secOrder = this.host.registry.descriptor(m.descriptorId).menuSectionOrder;
-      let ports = this.host.registry.ports(m.descriptorId);
-      if (secOrder) {
-        const rank = (s) => { const i = secOrder.indexOf(s); return i < 0 ? secOrder.length : i; };
-        ports = ports.map((p, i) => [p, i])
-          .sort((a, b) => (rank(a[0].section) - rank(b[0].section)) || (a[1] - b[1]))
-          .map((x) => x[0]);
-      }
-      for (const p of ports) {
-        if (p.dir !== wantDir) continue;
-        if (m.key === key && p.id === portId) continue;           // never itself
-        const sameDomain = p.domain === here.domain;
-        const srcDomain = here.dir === 'out' ? here.domain : p.domain;
-        const dstDomain = here.dir === 'out' ? p.domain : here.domain;
-        if (canConnect(srcDomain, dstDomain) === DENY) continue;  // never today; future-proof
-        // An input holds one cable. Selecting a candidate makes the connection,
-        // replacing whatever is already on the input side (the checkmark moves to
-        // it); clicking the checked row disconnects. checkFn keeps the mark live so
-        // the menu can stay open while you repatch.
-        group.push({
-          label: this._portLabel(p),
-          checkFn: () => !!this._edgeBetween(key, portId, m.key, p.id),
-          dim: !sameDomain,
-          action: () => this._toggleConnection(key, portId, m.key, p.id),
-        });
-      }
-      if (group.length) {
-        const anyConn = group.some((g) => g.checkFn && g.checkFn());
-        items.push({
-          header: true,
-          label: nameOf.get(m.key) + (m.key === key ? ' (this one)' : ''),
-          collapsible: true,
-          // Open by default ONLY a module that holds a current connection to this
-          // terminal (so its checkmark shows) — including this module itself if the
-          // terminal is patched within it. With no connection at all, every module
-          // opens collapsed, since the user usually patches to a different module.
-          open: anyConn,
-        });
-        for (const it of group) items.push(it);
-      }
-    }
-    if (!items.length) items.push({ header: true, label: 'No compatible ports' });
-    this._openMenu(e.clientX, e.clientY, items);
-    this._menuJack = { key, portId };   // for click-again-on-this-terminal-to-close
-  }
-
-  _toggleConnection(thisKey, thisPort, candKey, candPort) {
-    const edge = this._edgeBetween(thisKey, thisPort, candKey, candPort);
-    if (edge) {   // clicking the connected row disconnects it
-      this.patchbay.disconnect(edge);
-      this._drawCables();
-      this.onChange();
-      return;
-    }
-    // Make the connection, first clearing any cable already on the INPUT side —
-    // an input holds one cable, so this moves it (the checkmark follows).
-    const a = this._ep(thisKey, thisPort);
-    const b = this._ep(candKey, candPort);
-    const inEp = (a && a.meta.dir === 'in') ? a : (b && b.meta.dir === 'in') ? b : null;
-    if (inEp) {
-      for (const e of this.patchbay.edgesAtJack(inEp.key, inEp.portId)) {
-        if (e.dst.key === inEp.key && e.dst.portId === inEp.portId) this.patchbay.disconnect(e);
-      }
-    }
-    this._tryConnect({ key: thisKey, portId: thisPort }, { key: candKey, portId: candPort });
   }
 
   _onPinch(e) {
@@ -827,12 +749,14 @@ export class Rack {
       });
       b.group.addEventListener('pointerdown', (e) => e.stopPropagation());
     }
-    // Jacks: pointerdown drags a cord (patching); right-click offers disconnect.
-    // stopPropagation keeps a jack press from starting a module drag.
+    // Jacks: pointerdown drags a cord (patching). The data-jack-* attributes let
+    // a dropped cord hit-test the jack it lands on. stopPropagation (in the
+    // handler) keeps a jack press from starting a module drag.
     for (const [portId, port] of panel.ports) {
       port.element.style.cursor = 'crosshair';
+      port.element.dataset.jackKey = rec.key;
+      port.element.dataset.jackPort = portId;
       port.element.addEventListener('pointerdown', (e) => this._onJackPointerDown(e, rec.key, portId));
-      port.element.addEventListener('contextmenu', (e) => this._onJackContextMenu(e, rec.key, portId));
     }
   }
 
@@ -993,12 +917,26 @@ export class Rack {
   _onRowContextMenu(e, rowIndex) {
     if (e.target.closest('.rack-module')) return;
     e.preventDefault();
-    const xMm = this._xUnderCursor(this._rowEls[rowIndex], e.clientX);
+    const cursorX = this._xUnderCursor(this._rowEls[rowIndex], e.clientX);
+    const xMm = this._snapLeftX(rowIndex, cursorX);
     const items = this.moduleTypes.filter((t) => !t.hidden).map((t) => ({
       label: `Add ${t.name}`,
       action: () => this.addModule(t.descriptorId, rowIndex, xMm),
     }));
     this._openMenu(e.clientX, e.clientY, items);
+  }
+
+  // A newly added module packs against the nearest module to the left of the
+  // cursor (its right edge), or the row's left edge if there's none — no manual
+  // sliding to close the gap.
+  _snapLeftX(rowIndex, cursorX) {
+    let x = 0;
+    for (const rec of this.moduleRecords()) {
+      if (rec.row !== rowIndex) continue;
+      const right = rec.x + (rec.panelWmm || 0);
+      if (right <= cursorX && right > x) x = right;
+    }
+    return x;
   }
 
   _onModuleContextMenu(e, rec) {
@@ -1119,6 +1057,5 @@ export class Rack {
 
   _closeMenu() {
     if (this._menuEl) { this._menuEl.remove(); this._menuEl = null; }
-    this._menuJack = null;
   }
 }

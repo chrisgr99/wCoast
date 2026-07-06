@@ -145,29 +145,31 @@ All appearances are **subject to tuning on real stubs at working
 magnification** — the principle is fixed (colour=identity, thickness+dash=
 domain), the exact pixel values are empirical.
 
-### Creation surfaces (three doors to the same edge)
+### Creation surfaces
 
-1. **Drag-to-patch** on the panel (primary): grab an output jack, drop on an
-   input jack. The author has good pointer control (trackpad + trackball).
-2. **Context menu** at the pointer (accessibility-friendly under zoom because
-   it appears inside the current magnified viewport): right-click an output ->
-   menu of destination modules -> pick one -> a **half-size mini-panel of that
-   module** appears at the pointer showing its real inputs in their real
-   layout -> click the real input jack to connect. Drill-down happens **in
-   place** (menu redraws / panel appears at pointer); **no fly-out submenus**
-   (they demand a hover-corridor and can open off-screen under zoom). The
-   mini-panel also truthfully shows which inputs are already occupied.
-3. **Dictation** (parallel, no-pointer path): e.g. "connect mod oscillator out
+1. **Drag-to-patch** on the panel (primary, and the whole pointer story): press
+   a jack and a live cord trails the pointer; drop it on another jack to make
+   the edge (the host orients it output->input). Pressing a **connected input**
+   lifts its cord — drop it on a different input to **re-route**, or on empty
+   space to **delete** (the old drag-off-and-drop-in-space gesture). An input
+   holds **one cable**: a new cord onto an occupied input replaces it. Any jack
+   can reach any jack (cross-domain included; colour still tells you what the
+   cable carries). The author has good pointer control (trackpad + trackball).
+   There is **no jack context menu** — a plain click on a jack is reserved for
+   the connection list below.
+2. **Dictation** (parallel, no-pointer path): e.g. "connect mod oscillator out
    to carrier FM, amount forty percent" makes the same edge.
 
-### Reading/removing: sparse grid (optional, demoted)
+### Reading/editing: connection list (planned)
 
-An optional **sparse connection grid** shows only rows/columns that carry a
-connection, in a **stable canonical order** (positions don't reshuffle as
-edges come and go, so spatial memory can form). It is a reading/pruning
-surface (click a filled cell to break), not required for creation. The full
-global matrix is dropped. The grid is an on-demand audit view, not a co-equal
-interface.
+A floating **connection list** — every cable as a source->destination row, a
+coloured dot at each end matching its terminal, joined by a line in the cable's
+own colour and thickness — read as **patch documentation**. All modules appear
+even with no connections. Roll-over a row to **highlight that cable and its two
+terminals** in the rack. A plain click on a jack opens this list; later phases
+add editing (drag a row's end to re-route, drop to delete) so it becomes a
+co-equal editing surface, not just an audit view. The full global matrix is
+dropped as too large.
 
 ---
 
@@ -177,7 +179,7 @@ A module is up to **three separable artifacts**:
 
 1. **Descriptor (data, required):** the single source of truth. Declares
    identity, sections, parameters, and ports (with domains). The host reads
-   ONLY the descriptor to build panels, the connection grid, patching menus,
+   ONLY the descriptor to build panels, the connection list, drag-to-patch,
    dictation names, save/load, and GXW routing. The host is never coupled to
    specific modules — it just reads descriptors, which is what makes
    third-party modules work like built-ins.
@@ -261,7 +263,7 @@ the host can adapt/refuse modules gracefully as the contract evolves.
 Panels are a **custom appearance layer only**, never a behaviour layer. Each
 module's panel **faithfully emulates the look of the real hardware** (dense,
 distinctive, recognisable); the **host owns all connection interaction**
-(stub-and-droop, grid, menus, dictation). This preserves per-module visual
+(drag-to-patch, dictation, connection list). This preserves per-module visual
 character AND guarantees every module patches identically — the accessibility
 win.
 
