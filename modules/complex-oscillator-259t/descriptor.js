@@ -55,6 +55,10 @@ export default {
   scope: "voice",          // one full copy per polyphonic voice
   hp: 34,                  // panel width reference, for faithful layout
 
+  // Connect-menu order: PRINCIPAL oscillator before MODULATION, then the folder
+  // and centre controls. Menu-only — declaration order still fixes worklet I/O.
+  menuSectionOrder: ["prinOsc", "modOsc", "timbre", "middle"],
+
   // Worklet DSP module paths the host must addModule() before instantiating
   // this module. Paths are relative to the app:// origin root. Per the
   // one-module-one-worklet rule the whole 259t (both oscillators AND the

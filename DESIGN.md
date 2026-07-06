@@ -59,6 +59,13 @@ governs connections and returns allow / warn / deny:
 The whole policy lives in one `canConnect(sourceDomain, destDomain)` function
 so the rules are in one place and adjustable.
 
+**Free patching is the default (Serge-spirit).** Because nothing is denied, the
+connect menu surfaces **every compatible port, cross-domain included**, not just
+same-domain ones — so anything can patch into anything (a function generator's CV
+or pulse into the mixer, etc.). The domains survive purely as **identity**: a
+cable's colour/style still tells you what it carries, and cross-domain candidates
+are shown dimmed. The domains no longer gate connectivity, only inform it.
+
 ### Trigger transport (internal, invisible to user)
 
 Triggers are a first-class *cable type* in the UI, but under the hood a trigger

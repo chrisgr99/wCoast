@@ -652,8 +652,9 @@ export class Rack {
   // Open a jack's connection menu: every port it can sensibly connect to, on this
   // module and others (and the mixer), checkmarked where the cord already exists.
   // Clicking an item toggles that connection. `key` is any endpoint — a rack
-  // module or the mixer — so the same menu serves every jack. Normal open shows
-  // only same-domain candidates; Command widens to cross-domain ones, dimmed.
+  // module or the mixer — so the same menu serves every jack. Anything can patch
+  // into anything (DESIGN §2); cross-domain candidates just show dimmed so a
+  // cable's signal type still reads at a glance.
   _onJackContextMenu(e, key, portId) {
     e.preventDefault();
     e.stopPropagation();
@@ -668,7 +669,6 @@ export class Rack {
     if (!ep) return;
     const here = ep.meta;
     const wantDir = here.dir === 'out' ? 'in' : 'out';
-    const showCross = e.metaKey;   // Command+right-click widens to cross-domain
     const items = [];
     // Candidates: every rack module PLUS the mixer (its jacks live in the
     // toolbar, but it is a real patch endpoint, so its channels must show here —
@@ -698,11 +698,20 @@ export class Rack {
     }
     for (const m of cand) {
       const group = [];
-      for (const p of this.host.registry.ports(m.descriptorId)) {
+      // Ports in the module's declared menu-section order (so e.g. the Complex
+      // Oscillator lists PRINCIPAL before MODULATION), else declaration order.
+      const secOrder = this.host.registry.descriptor(m.descriptorId).menuSectionOrder;
+      let ports = this.host.registry.ports(m.descriptorId);
+      if (secOrder) {
+        const rank = (s) => { const i = secOrder.indexOf(s); return i < 0 ? secOrder.length : i; };
+        ports = ports.map((p, i) => [p, i])
+          .sort((a, b) => (rank(a[0].section) - rank(b[0].section)) || (a[1] - b[1]))
+          .map((x) => x[0]);
+      }
+      for (const p of ports) {
         if (p.dir !== wantDir) continue;
         if (m.key === key && p.id === portId) continue;           // never itself
         const sameDomain = p.domain === here.domain;
-        if (!sameDomain && !showCross) continue;                  // normal menu: same domain only
         const srcDomain = here.dir === 'out' ? here.domain : p.domain;
         const dstDomain = here.dir === 'out' ? p.domain : here.domain;
         if (canConnect(srcDomain, dstDomain) === DENY) continue;  // never today; future-proof
