@@ -128,11 +128,8 @@ async function reconcile() {
       // it as an AI edit. This keeps a plain rerun quiet even when a watch event
       // beats the first projection into the microtask gap after its rename.
       if (projected) {
-        console.log('[mirror-dbg] EXTERNAL send (projected). newLen=', text.length);
         const win = getWindow();
         if (win && !win.isDestroyed()) win.webContents.send('mirror:external', { text });
-      } else {
-        console.log('[mirror-dbg] absorbed pre-projection change. newLen=', text.length);
       }
     }
   } catch (_e) { /* transient (mid-rename, etc.) */ }
