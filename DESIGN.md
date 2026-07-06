@@ -184,6 +184,11 @@ upstream that feeds or modulates it, traced both ways (`_computeNet`) — full
 opaque, the rest at their normal half-strength; move to another module and the
 highlight follows. The **hovered scope drives it, not where you invoked it**. Off
 by default so the plain view is never dimmed; exit with Escape or the menu again.
+The lit net's cords also show **flow direction**: black dashes crawl each cord
+source->destination at a slow constant drift (one clock, so it survives redraws),
+with dash LENGTH encoding the destination family — audio shortest, CV medium,
+trigger longest — a shape cue on top of colour. The toolbar's network button
+toggles the same mode.
 
 A **sectioned** module (a quad — `sectioned: true` in its descriptor) scopes to
 the **channel** under the click, not the whole module: its four channels are

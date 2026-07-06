@@ -34,6 +34,12 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const STYLE_COLOR = { audio: '#f3c40b', control: '#ff7300', trigger: '#5aa0e6', pitch: '#39a85a' };
 const domainStyle = (domain) => (domain === 'audio' ? 'audio' : domain === 'trigger' ? 'trigger' : 'control');
 const CABLE_PX = 3.8;   // cord thickness in px at zoom 1 (scales up as you zoom in)
+// Flow animation (net-explore mode): black dashes crawl each cord source->dest to
+// show direction. Dash LENGTH (in cable-widths) encodes the DESTINATION family —
+// audio shortest, CV/pitch medium, trigger longest — a shape cue on top of colour.
+const FLOW_DASH = { audio: 1.6, control: 3.4, pitch: 3.4, trigger: 5.6 };
+const FLOW_GAP = 2.6;        // gap between dashes, in cable-widths
+const FLOW_SPEED = 5.5;      // crawl speed, mm/s (content space) — a slow drift
 
 function r2(x) { return Math.round(x * 100) / 100; }
 function unit(dx, dy) { const d = Math.hypot(dx, dy) || 1; return { x: dx / d, y: dy / d }; }
@@ -454,6 +460,17 @@ export class Rack {
       // from the cord itself. Its only grab point is the middle reshape handle.
       const bodyD = `M${r2(g.pA.x)},${r2(g.pA.y)} C${r2(g.c1.x)},${r2(g.c1.y)} ${r2(g.c2.x)},${r2(g.c2.y)} ${r2(g.pB.x)},${r2(g.pB.y)}`;
       mk(bodyD, color, wmm, op, null);
+      // Flow direction: while a net is lit in explore mode, its cords carry black
+      // dashes crawling source->dest (the path runs pA=src -> pB=dst). Dash length
+      // (per destination family) and half-width are set here; the crawl offset is
+      // driven by a clock in _startFlow so it survives the frequent redraws.
+      if (this._netMode && this._netEdges && this._netEdges.has(e.id)) {
+        const fd = mk(bodyD, '#000', wmm / 2, 1, null);
+        fd.setAttribute('class', 'flow-dash');
+        fd.setAttribute('stroke-linecap', 'butt');
+        fd.setAttribute('stroke-dasharray', `${r2((FLOW_DASH[e.style] || FLOW_DASH.control) * wmm)} ${r2(FLOW_GAP * wmm)}`);
+        fd.setAttribute('stroke-dashoffset', r2(this._flowOffset()));
+      }
       // Middle reshape handle, shown only while this cable is hovered.
       if (e.id === this._hoverCableEdgeId) {
         const mid = {
@@ -947,6 +964,7 @@ export class Rack {
     this._netEsc = (ev) => { if (ev.key === 'Escape') this._exitNetMode(); };
     document.addEventListener('keydown', this._netEsc);
     this.onNetMode(true);
+    this._startFlow();
     this._drawCables();
   }
 
@@ -955,7 +973,31 @@ export class Rack {
     this._netOrigin = null;
     if (this._netEsc) { document.removeEventListener('keydown', this._netEsc); this._netEsc = null; }
     this.onNetMode(false);
+    this._stopFlow();
     this._drawCables();
+  }
+
+  // The crawl offset (content mm) from one running clock, so the dashes drift
+  // continuously even though _drawCables rebuilds the dash paths constantly.
+  _flowOffset() {
+    if (this._flowT0 == null) this._flowT0 = performance.now();
+    return -((performance.now() - this._flowT0) / 1000) * FLOW_SPEED;
+  }
+
+  _startFlow() {
+    if (this._flowRaf) return;
+    this._flowT0 = performance.now();
+    const tick = () => {
+      if (!this._netMode) { this._flowRaf = null; return; }
+      const off = r2(this._flowOffset());
+      for (const p of this.cables.querySelectorAll('.flow-dash')) p.setAttribute('stroke-dashoffset', off);
+      this._flowRaf = requestAnimationFrame(tick);
+    };
+    this._flowRaf = requestAnimationFrame(tick);
+  }
+
+  _stopFlow() {
+    if (this._flowRaf) { cancelAnimationFrame(this._flowRaf); this._flowRaf = null; }
   }
 
   // ---- connection list (read-only) ----
