@@ -185,11 +185,12 @@ Order:
    regenerates byte-identical. (The canonical donor.)
 3. Extract the mixer's inline primitives into `panel/*` (the jack color model,
    knob, slider); the mixer keeps drawing from its own copies for now.
-4. Rebuild each hand-tuned panel as a new `*-v2` module beside the original —
-   `complex-oscillator-259t-v2`, `lpg-292-v2`, `mixer-v2`, and
-   `function-gen-281t-v2` — reusing the original descriptor, factory, and worklet
-   (only the panel is new), now drawn entirely from the shared library. (The 281t
-   and mixer donated their primitives to the library but kept drawing from their
-   own inline copies until their v2.) Each is validated by render comparison and
-   human judgment; the original stays registered for side-by-side comparison, and
-   each v2 is committed once approved.
+4. Rebuild each hand-tuned panel on the shared library — first validated as a
+   `*-v2` module beside the original for side-by-side review, then **promoted in
+   place**: the generated panel replaces the original's, keeping the module's id,
+   descriptor, factory, and worklet unchanged (only the panel art is new), so
+   previously saved patches keep loading. The `*-v2` duplicates are then removed.
+   (The 281t and mixer had donated their primitives to the library but kept
+   drawing from their own inline copies until this step.) All four modules —
+   `complex-oscillator-259t`, `lpg-292`, `mixer`, `function-gen-281t` — now draw
+   entirely from `panel/*`, and the mixer's new panel is the default pinned output.

@@ -1,4 +1,4 @@
-// Generator for the Complex Oscillator v2 faceplate — the original 259t layout,
+// Generator for the Complex Oscillator faceplate — the original 259t layout,
 // every control rebuilt on the shared faceplate library (panel/*). Same overall
 // dimensions (171.333 × 128.5 mm) and the same control positions as the original;
 // only the drawing comes from the canonical primitives.
@@ -85,4 +85,4 @@ function build(dark) {
 
 fs.writeFileSync(__dirname + '/panel.svg', build(false));
 fs.writeFileSync(__dirname + '/panel.dark.svg', build(true));
-console.log('wrote complex-oscillator-259t-v2 panel.svg + panel.dark.svg');
+console.log('wrote panel.svg + panel.dark.svg');

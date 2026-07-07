@@ -1,10 +1,10 @@
-// Generator for the Quad Low Pass Gate v2 faceplate — the original lpg-292
+// Generator for the Quad Low Pass Gate faceplate — the original lpg-292
 // layout rebuilt on the shared faceplate library (panel/*), ~20mm narrower
 // (140mm vs 160mm). The per-channel controls are placed so the *visual* white
 // space (edge-to-edge, not centre-to-centre) between neighbours is equal: each
 // control declares its left/right visual extent and a single gap G is solved to
 // fill the row. Row y-positions and the inter-track divider lines follow the
-// original. The original lpg-292 is kept intact for comparison.
+// original.
 'use strict';
 const fs = require('fs');
 const { THEME } = require('../../panel/theme');
@@ -101,4 +101,4 @@ function build(dark) {
 
 fs.writeFileSync(__dirname + '/panel.svg', build(false));
 fs.writeFileSync(__dirname + '/panel.dark.svg', build(true));
-console.log('wrote lpg-292-v2 panel.svg + panel.dark.svg  (gap=' + GAP.toFixed(2) + 'mm)');
+console.log('wrote panel.svg + panel.dark.svg  (gap=' + GAP.toFixed(2) + 'mm)');
