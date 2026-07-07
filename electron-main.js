@@ -43,6 +43,8 @@ async function patchesDir() {
 }
 
 let hasUnsavedChanges = false;   // mirrored from the renderer, to guard window close
+let appQuitting = false;         // ⌘Q / app-quit in progress — bypass the unsaved-changes guard
+app.on('before-quit', () => { appQuitting = true; });
 
 function registerPatchIpc() {
   ipcMain.on('patch:dirty', (_e, v) => { hasUnsavedChanges = !!v; });
@@ -209,11 +211,13 @@ function createWindow() {
 
   // Guard the close if the renderer has unsaved changes.
   mainWindow.on('close', (e) => {
-    if (!hasUnsavedChanges) return;
+    // ⌘Q (app quit) forces the exit without prompting — the unsaved-changes guard
+    // only protects an accidental click of the window's own close button.
+    if (appQuitting || !hasUnsavedChanges) return;
     const choice = dialog.showMessageBoxSync(mainWindow, {
       type: 'warning',
       buttons: ['Cancel', 'Discard & Close'],
-      defaultId: 0,
+      defaultId: 1,
       cancelId: 0,
       message: 'You have unsaved changes.',
       detail: 'Close the window without saving your patch?',
