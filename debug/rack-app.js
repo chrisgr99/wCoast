@@ -23,6 +23,8 @@ import galleryDescriptor from '../modules/gallery/descriptor.js';
 import { create as galleryCreate } from '../modules/gallery/factory.js';
 import osc2Descriptor from '../modules/complex-oscillator-259t-v2/descriptor.js';
 import { create as osc2Create } from '../modules/complex-oscillator-259t-v2/factory.js';
+import lpg2Descriptor from '../modules/lpg-292-v2/descriptor.js';
+import { create as lpg2Create } from '../modules/lpg-292-v2/factory.js';
 import { parsePanel, attachControlInteraction, showValue } from '../host/panel-loader.js';
 import { serialize, restore, validate } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
@@ -67,6 +69,7 @@ registry.register({ descriptor: lpgDescriptor, create: lpgCreate });
 registry.register({ descriptor: fnDescriptor, create: fnCreate });
 registry.register({ descriptor: galleryDescriptor, create: galleryCreate });
 registry.register({ descriptor: osc2Descriptor, create: osc2Create });
+registry.register({ descriptor: lpg2Descriptor, create: lpg2Create });
 
 const MODULE_TYPES = [{
   descriptorId: oscDescriptor.id,
@@ -98,6 +101,12 @@ const MODULE_TYPES = [{
   hp: 34,
   panelUrl: 'modules/complex-oscillator-259t-v2/panel.svg',
   descriptor: osc2Descriptor,
+}, {
+  descriptorId: lpg2Descriptor.id,
+  name: 'Quad Low Pass Gate v2',
+  hp: 28,
+  panelUrl: 'modules/lpg-292-v2/panel.svg',
+  descriptor: lpg2Descriptor,
 }, {
   // The mixer is a pinned singleton placed at boot, so it's hidden from the
   // "Add module" menu (no second mixer). Still a normal module type otherwise.
