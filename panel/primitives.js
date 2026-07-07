@@ -215,8 +215,12 @@ function waveGlyph(kind, gx, gy, color = '#163a69', w = 1.3) {
 
 // Momentary / toggle push-button — a single step-indicator lamp. kind 'red' (LED)
 // or 'white' (light disc). Covers strike, trig, mute, clock-on.
-function button(id, cx, cy, { r = 2.2, kind = 'red' } = {}) {
-  return `  <g data-wcoast-param="${id}">${ledLamp(cx, cy, { r, white: kind === 'white', role: 'step-indicator', step: 'on' })}</g>`;
+function button(id, cx, cy, { r = 2.2, kind = 'red', label: lb = null } = {}) {
+  const lamp = ledLamp(cx, cy, { r, white: kind === 'white', role: 'step-indicator', step: 'on' });
+  // Label placement goes through attachedLabel so it always clears the lamp
+  // (first line sits gap+cap below the edge), the same as jack/knob labels.
+  const lbl = lb ? '\n    ' + attachedLabel(cx, cy, r, r, { fill: '#163a69', ...lb }) : '';
+  return `  <g data-wcoast-param="${id}">${lamp}${lbl}</g>`;
 }
 
 // Radio group — one stepped param shown as a row/column of LED lamps (one lit).
