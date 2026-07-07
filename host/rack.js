@@ -54,6 +54,8 @@ export class Rack {
     this.onChange = opts.onChange || (() => {});
     this.onSelect = opts.onSelect || (() => {});   // module the pointer entered (deixis)
     this.onNetMode = opts.onNetMode || (() => {});  // net-explore mode toggled (for the toolbar button)
+    this.onScopeArm = opts.onScopeArm || (() => {});  // "add scope" armed/disarmed (for the toolbar button)
+    this._scopes = new Set();       // live floating signal scopes (transient, not saved)
     this.dark = !!opts.dark;                        // dark-mode faceplates
     this.rowCount = opts.rowCount || 2;
     this.rows = [];
@@ -643,6 +645,9 @@ export class Rack {
     e.stopPropagation();
     if (e.button !== 0) return;
     e.preventDefault();
+    // "Add scope" armed: press a port and drag off; on release a scope drops there,
+    // probing this port. Never touches the cable logic.
+    if (this._scopeArm) { this._placeScope(e, key, portId); return; }
     const startX = e.clientX, startY = e.clientY;
     const TH = 6;                       // px of movement that means "drag", not "click" (trackball-tolerant)
     let dragging = false;
@@ -998,6 +1003,323 @@ export class Rack {
 
   _stopFlow() {
     if (this._flowRaf) { cancelAnimationFrame(this._flowRaf); this._flowRaf = null; }
+  }
+
+  // ---- floating signal scopes (transient probes) ----
+  // A small oscilloscope you attach to a port to watch its signal. Armed from the
+  // toolbar, then a drag off a port drops one there. Auto-ranging (no controls);
+  // it auto-switches between a triggered audio waveform and a scrolling history for
+  // slow CV/envelopes/gates. Callout: a ring around the port + a line to the scope.
+  // Not part of the patch — never serialized.
+  setScopeArm(on) { this._scopeArm = !!on; document.body.classList.toggle('arming-scope', this._scopeArm); this.onScopeArm(this._scopeArm); }
+  toggleScopeArm() { this.setScopeArm(!this._scopeArm); }
+
+  // The audio node + output index to tap for a port: an output taps itself; an
+  // input taps whatever source feeds it (the incoming cable), else nothing.
+  _probeTap(key, portId) {
+    const ep = this._ep(key, portId);
+    if (!ep || !ep.instance) return null;
+    if (ep.meta.dir === 'out') return ep.instance.getOutput ? ep.instance.getOutput(portId) : null;
+    const edge = this.patchbay.list().find((e) => e.dst.key === key && e.dst.portId === portId);
+    return edge ? edge.out : null;
+  }
+
+  _scopeOverlay() {
+    if (!this._scopeOv) {
+      const svg = document.createElementNS(SVG_NS, 'svg');
+      svg.setAttribute('class', 'scope-callouts');
+      document.body.appendChild(svg);
+      this._scopeOv = svg;
+    }
+    return this._scopeOv;
+  }
+
+  // Armed drag off a port: track to a drop point, drop a scope probing this port.
+  // Mouse-down on a port while armed: loop the port and drag out a scope-sized frame
+  // (with its callout) so you can see where the scope will land; it appears there on
+  // release.
+  _placeScope(e, key, portId) {
+    const sx = e.clientX, sy = e.clientY;
+    const ov = this._scopeOverlay();
+    const col = this.dark ? '#ffffff' : '#000000';
+    const ring = document.createElementNS(SVG_NS, 'circle'); ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', col); ring.setAttribute('stroke-width', '1.8'); ov.appendChild(ring);
+    const line = document.createElementNS(SVG_NS, 'line'); line.setAttribute('stroke', col); line.setAttribute('stroke-width', '1.8'); ov.appendChild(line);
+    const frame = document.createElement('div'); frame.className = 'scope scope-preview';
+    frame.style.width = '246px'; frame.style.height = '80px'; document.body.appendChild(frame);
+    const jel = this._jackElement(key, portId);
+    const place = (fx, fy) => {
+      frame.style.left = Math.round(fx) + 'px'; frame.style.top = Math.round(fy) + 'px';
+      if (!jel) return;
+      const jr = jel.getBoundingClientRect();
+      const px = jr.left + jr.width / 2, py = jr.top + jr.height / 2, rr = Math.max(jr.width, jr.height) / 2 + 3;
+      ring.setAttribute('cx', r2(px)); ring.setAttribute('cy', r2(py)); ring.setAttribute('r', r2(rr));
+      const fr = frame.getBoundingClientRect();
+      const cx = px < fr.left + fr.width / 2 ? fr.left : fr.right, cy = py < fr.top + fr.height / 2 ? fr.top : fr.bottom;
+      const u = unit(cx - px, cy - py);
+      line.setAttribute('x1', r2(px + u.x * rr)); line.setAttribute('y1', r2(py + u.y * rr));
+      line.setAttribute('x2', r2(cx)); line.setAttribute('y2', r2(cy));
+    };
+    let moved = false;
+    place(sx + 30, sy - 90);   // initial frame near the port, before any drag
+    const onMove = (ev) => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) >= 4) moved = true; place(ev.clientX, ev.clientY); };
+    const onUp = (ev) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      ring.remove(); line.remove(); frame.remove();
+      const x = moved ? ev.clientX : sx + 30, y = moved ? ev.clientY : sy - 90;
+      this._createScope(key, portId, x, y);
+      this.setScopeArm(false);   // one scope per arm
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }
+
+  _createScope(key, portId, x, y) {
+    const el = document.createElement('div');
+    el.className = 'scope';
+    el.style.left = Math.round(x) + 'px';
+    el.style.top = Math.round(y) + 'px';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'scope-canvas';
+    canvas.width = 240; canvas.height = 74;
+    const close = document.createElement('button');
+    close.className = 'scope-close'; close.textContent = '×'; close.title = 'Close';
+    const resize = document.createElement('div');
+    resize.className = 'scope-resize'; resize.title = 'Drag to resize';
+    el.appendChild(canvas); el.appendChild(resize); el.appendChild(close);
+    document.body.appendChild(el);
+
+    const an = this.host.ctx.createAnalyser();
+    an.fftSize = 16384; an.smoothingTimeConstant = 0;   // ~340ms so low audio-rate waves still hold a few cycles to trigger on
+    const sc = {
+      key, portId, el, canvas, g2: canvas.getContext('2d'), analyser: an,
+      buf: new Float32Array(an.fftSize), hist: new Array(200).fill(null), histIdx: 0,
+      hi: null, lo: null, fastVotes: 0, tap: null,
+      gainMul: 1, timeMul: 1, gainVel: 0, timeVel: 0, trigger: true, frozen: false, forceMode: 'auto',
+      armed: false, recFrames: 0, prevPeak: null,
+      ring: document.createElementNS(SVG_NS, 'circle'), line: document.createElementNS(SVG_NS, 'line'),
+      dot: document.createElement('div'),
+    };
+    this._scopeTapConnect(sc);
+    const ov = this._scopeOverlay();
+    sc.line.setAttribute('fill', 'none'); ov.appendChild(sc.line);
+    sc.ring.setAttribute('fill', 'none'); sc.ring.style.pointerEvents = 'none'; ov.appendChild(sc.ring);
+    // The grab handle is a white dot where the line meets the loop — a reliable HTML
+    // target (an SVG hit-ring in a pointer-events:none overlay proved unhittable).
+    sc.dot.className = 'scope-dot'; document.body.appendChild(sc.dot);
+
+    close.addEventListener('click', (ev) => { ev.stopPropagation(); this._closeScope(sc); });
+    el.addEventListener('pointerdown', (ev) => this._dragScope(ev, sc));
+    el.addEventListener('contextmenu', (ev) => this._scopeMenu(ev, sc));
+    sc.dot.addEventListener('pointerdown', (ev) => this._regrabScope(ev, sc));
+    resize.addEventListener('pointerdown', (ev) => this._resizeScope(ev, sc));
+    canvas.addEventListener('wheel', (ev) => this._scopeWheel(ev, sc), { passive: false });
+
+    this._scopes.add(sc);
+    this._updateCallout(sc);
+    this._startScopeLoop();
+  }
+
+  _scopeTapConnect(sc) {
+    const tap = this._probeTap(sc.key, sc.portId);
+    if (tap && tap.node) { try { tap.node.connect(sc.analyser, tap.index || 0); sc.tap = tap; } catch (_e) { sc.tap = null; } }
+  }
+  _scopeTapDisconnect(sc) {
+    if (sc.tap && sc.tap.node) { try { sc.tap.node.disconnect(sc.analyser, sc.tap.index || 0); } catch (_e) { /* already gone */ } }
+    sc.tap = null;
+  }
+
+  _startScopeLoop() {
+    if (this._scopeRaf) return;
+    const tick = () => {
+      if (!this._scopes.size) { this._scopeRaf = null; return; }
+      for (const sc of this._scopes) {
+        // Momentum wheel: integrate velocity into the multiplier (log space so it
+        // zooms evenly), then damp it. Snaps to rest below a floor so it settles.
+        if (sc.gainVel) { sc.gainMul = Math.max(0.1, Math.min(24, sc.gainMul * Math.exp(sc.gainVel / 60))); sc.gainVel *= 0.9; if (Math.abs(sc.gainVel) < 2e-3) sc.gainVel = 0; }
+        if (sc.timeVel) { sc.timeMul = Math.max(0.25, Math.min(12, sc.timeMul * Math.exp(sc.timeVel / 60))); sc.timeVel *= 0.9; if (Math.abs(sc.timeVel) < 2e-3) sc.timeVel = 0; }
+        this._drawScope(sc); if (!sc.regrabbing) this._updateCallout(sc);
+      }
+      this._scopeRaf = requestAnimationFrame(tick);
+    };
+    this._scopeRaf = requestAnimationFrame(tick);
+  }
+
+  _drawScope(sc) {
+    const an = sc.analyser, buf = sc.buf, n = buf.length;
+    if (!sc.frozen) an.getFloatTimeDomainData(buf);   // frozen: keep the captured buffer, still redraw so scroll re-scales it
+    let lo = Infinity, hi = -Infinity, sum = 0;
+    for (let i = 0; i < n; i++) { const v = buf[i]; if (v < lo) lo = v; if (v > hi) hi = v; sum += v; }
+    const mean = sum / n;
+    let cross = 0, prev = buf[0] - mean;
+    for (let i = 1; i < n; i++) { const d = buf[i] - mean; if ((d >= 0) !== (prev >= 0)) cross++; prev = d; }
+    if (!sc.frozen) {
+      sc.fastVotes = Math.max(-8, Math.min(8, sc.fastVotes + (cross >= 2 ? 1 : -1)));   // at least one full cycle → triggerable waveform; else roll
+      const DEC = 0.985;
+      sc.hi = sc.hi == null ? hi : Math.max(hi, sc.hi * DEC);
+      sc.lo = sc.lo == null ? lo : Math.min(lo, sc.lo * DEC);
+    }
+    const fast = sc.forceMode === 'wave' ? true : sc.forceMode === 'roll' ? false : sc.fastVotes > 0;
+    // One-shot: armed, wait for the level to rise through an auto threshold, capture
+    // one sweep, then freeze. Fast signals capture a single buffer; slow signals
+    // record forward for the full history window so the whole shape is held.
+    if (sc.armed) {
+      const curPeak = Math.max(Math.abs(hi), Math.abs(lo));
+      const ref = sc.hi != null ? Math.max(Math.abs(sc.hi), Math.abs(sc.lo)) : curPeak;
+      const level = Math.max(0.02, 0.25 * ref);
+      if (sc.recFrames > 0) { if (--sc.recFrames <= 0) { sc.armed = false; sc.frozen = true; } }
+      else if (sc.prevPeak != null && sc.prevPeak < level && curPeak >= level) {
+        if (fast) { sc.armed = false; sc.frozen = true; }
+        else { sc.recFrames = sc.hist.length; sc.hist.fill(null); sc.histIdx = 0; }
+      }
+      sc.prevPeak = curPeak;
+    }
+    let rlo = sc.lo != null ? sc.lo : lo, rhi = sc.hi != null ? sc.hi : hi;
+    if (rhi - rlo < 1e-3) { rhi = 0.05; rlo = -0.05; }
+    const pad = (rhi - rlo) * 0.14; rlo -= pad; rhi += pad;
+    const mid = (rlo + rhi) / 2, halfR = (rhi - rlo) / 2 / sc.gainMul;   // vertical-scroll gain zoom
+    rlo = mid - halfR; rhi = mid + halfR;
+    const W = sc.canvas.width, H = sc.canvas.height, g = sc.g2;
+    const yOf = (v) => H - ((v - rlo) / (rhi - rlo)) * H;
+    g.clearRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(150,160,150,0.28)'; g.lineWidth = 1;
+    g.beginPath(); const y0 = yOf(0); g.moveTo(0, y0); g.lineTo(W, y0); g.stroke();
+    g.strokeStyle = '#66ffa6'; g.lineWidth = 1.4; g.beginPath();
+    if (fast) {
+      // Auto timebase: estimate the period from crossings, show ~3 cycles, and
+      // trigger on the first rising zero-crossing of the mean so the trace locks.
+      const perSamp = n / Math.max(1, cross / 2);                 // samples per cycle (estimate)
+      let span = Math.round(perSamp * 3 / sc.timeMul);
+      span = Math.max(48, Math.min(n, span));
+      let start = 0;
+      if (sc.trigger) { const limit = Math.max(1, n - span); for (let i = 1; i < limit; i++) { if (buf[i - 1] - mean < 0 && buf[i] - mean >= 0) { start = i; break; } } }
+      const step = Math.max(1, Math.floor(span / (W * 2)));       // decimate to ~2 pts/px
+      let first = true;
+      for (let i = 0; i < span; i += step) { const x = (i / (span - 1)) * W, y = yOf(buf[start + i]); if (first) { g.moveTo(x, y); first = false; } else g.lineTo(x, y); }
+    } else {
+      if (!sc.frozen) { const peak = Math.abs(hi) >= Math.abs(lo) ? hi : lo; sc.hist[sc.histIdx] = peak; sc.histIdx = (sc.histIdx + 1) % sc.hist.length; }
+      const L = sc.hist.length, show = Math.max(8, Math.min(L, Math.round(L / sc.timeMul)));
+      let started = false;
+      for (let i = 0; i < show; i++) {
+        const v = sc.hist[((sc.histIdx - show + i) % L + L) % L]; if (v == null) continue;
+        const x = (i / (show - 1)) * W, y = yOf(v); if (!started) { g.moveTo(x, y); started = true; } else g.lineTo(x, y);
+      }
+    }
+    g.stroke();
+  }
+
+  // Scroll on the face feeds a flywheel: vertical spins the gain, horizontal (or
+  // shift+wheel) the scan. The scope loop integrates the velocity and bleeds it off,
+  // so a flick coasts smoothly to a stop. Rate kept gentle for fine control.
+  _scopeWheel(ev, sc) {
+    ev.preventDefault(); ev.stopPropagation();
+    const norm = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;   // lines/pages → px
+    const K = 0.006;
+    if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY) || ev.shiftKey) {
+      const d = (ev.shiftKey ? ev.deltaY : ev.deltaX) * norm;
+      sc.timeVel = Math.max(-3, Math.min(3, sc.timeVel - d * K));
+    } else {
+      sc.gainVel = Math.max(-3, Math.min(3, sc.gainVel - ev.deltaY * norm * K));
+    }
+  }
+
+  // Drag the right edge to set the canvas width (resizing clears it; the loop redraws).
+  _resizeScope(ev, sc) {
+    if (ev.button !== 0) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const startX = ev.clientX, startW = sc.canvas.width;
+    const onMove = (e2) => { sc.canvas.width = Math.round(Math.max(120, Math.min(640, startW + (e2.clientX - startX)))); this._updateCallout(sc); };
+    const onUp = () => { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); };
+    document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
+  }
+
+  _updateCallout(sc) {
+    const jel = this._jackElement(sc.key, sc.portId);
+    const col = this.dark ? '#ffffff' : '#000000';
+    const lw = 1.8;
+    if (!jel) { sc.ring.setAttribute('r', '0'); sc.line.setAttribute('stroke', 'none'); return; }
+    const jr = jel.getBoundingClientRect();
+    const px = jr.left + jr.width / 2, py = jr.top + jr.height / 2;
+    const rr = Math.max(jr.width, jr.height) / 2 + 3;
+    sc.ring.setAttribute('cx', r2(px)); sc.ring.setAttribute('cy', r2(py)); sc.ring.setAttribute('r', r2(rr));
+    sc.ring.setAttribute('stroke', col); sc.ring.setAttribute('stroke-width', lw);
+    // Line from the loop's scope-facing point to the nearest corner of the scope box.
+    const sr = sc.el.getBoundingClientRect();
+    const cx = px < sr.left + sr.width / 2 ? sr.left : sr.right;
+    const cy = py < sr.top + sr.height / 2 ? sr.top : sr.bottom;
+    const u = unit(cx - px, cy - py);
+    const jx = px + u.x * rr, jy = py + u.y * rr;   // where the line meets the loop
+    sc.line.setAttribute('x1', r2(jx)); sc.line.setAttribute('y1', r2(jy));
+    sc.line.setAttribute('x2', r2(cx)); sc.line.setAttribute('y2', r2(cy));
+    sc.line.setAttribute('stroke', col); sc.line.setAttribute('stroke-width', lw);
+    sc.dot.style.left = r2(jx) + 'px'; sc.dot.style.top = r2(jy) + 'px';
+  }
+
+  // Press the scope body: a drag repositions it (the callout follows); a click with
+  // no drag toggles FREEZE, so you can hold a trace to study it and click to resume.
+  _dragScope(ev, sc) {
+    if (ev.button !== 0 || ev.target.classList.contains('scope-close') || ev.target.classList.contains('scope-resize')) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const r = sc.el.getBoundingClientRect();
+    const ox = ev.clientX - r.left, oy = ev.clientY - r.top, sx = ev.clientX, sy = ev.clientY;
+    let moved = false;
+    const onMove = (e2) => {
+      if (!moved && Math.hypot(e2.clientX - sx, e2.clientY - sy) < 4) return;
+      moved = true;
+      sc.el.style.left = Math.round(e2.clientX - ox) + 'px'; sc.el.style.top = Math.round(e2.clientY - oy) + 'px'; this._updateCallout(sc);
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
+      if (!moved) sc.frozen = !sc.frozen;
+    };
+    document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
+  }
+
+  // Right-click a scope: trigger mode, display override, reset scaling. (Freeze is a
+  // click on the face, not a menu item.)
+  _scopeMenu(ev, sc) {
+    ev.preventDefault(); ev.stopPropagation();
+    const mode = (m, label) => ({ label, checkFn: () => sc.forceMode === m, action: () => { sc.forceMode = m; } });
+    this._openMenu(ev.clientX, ev.clientY, [
+      { label: sc.armed ? 'Cancel single' : 'Single (arm)', action: () => {
+          if (sc.armed) { sc.armed = false; }
+          else { sc.armed = true; sc.frozen = false; sc.recFrames = 0; sc.prevPeak = null; sc.hi = sc.lo = null; sc.hist.fill(null); sc.histIdx = 0; }
+        } },
+      { label: sc.trigger ? 'Free-running' : 'Triggered', action: () => { sc.trigger = !sc.trigger; } },
+      { header: true, label: 'Display' },
+      mode('auto', 'Auto'), mode('wave', 'Waveform'), mode('roll', 'Roll'),
+      { label: 'Reset scaling', action: () => { sc.gainMul = 1; sc.timeMul = 1; sc.gainVel = 0; sc.timeVel = 0; sc.hi = sc.lo = null; } },
+    ]);
+  }
+
+  // Drag the ring off its port and onto another to re-probe that port.
+  _regrabScope(ev, sc) {
+    if (ev.button !== 0) return;
+    ev.preventDefault(); ev.stopPropagation();
+    sc.regrabbing = true;                  // stop the loop resetting the loop/dot to the old port
+    sc.dot.style.pointerEvents = 'none';   // so the drop hit-test finds the jack, not this dot
+    const onMove = (e2) => {
+      const px = e2.clientX, py = e2.clientY;
+      sc.ring.setAttribute('cx', r2(px)); sc.ring.setAttribute('cy', r2(py));
+      sc.line.setAttribute('x1', r2(px)); sc.line.setAttribute('y1', r2(py));
+      sc.dot.style.left = r2(px) + 'px'; sc.dot.style.top = r2(py) + 'px';
+    };
+    const onUp = (e2) => {
+      document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
+      const drop = this._jackFromPoint(e2.clientX, e2.clientY);
+      if (drop) { this._scopeTapDisconnect(sc); sc.key = drop.key; sc.portId = drop.portId; sc.hi = sc.lo = null; sc.hist.fill(null); this._scopeTapConnect(sc); }
+      sc.dot.style.pointerEvents = '';
+      sc.regrabbing = false;
+      this._updateCallout(sc);
+    };
+    document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
+  }
+
+  _closeScope(sc) {
+    this._scopeTapDisconnect(sc);
+    sc.el.remove(); sc.ring.remove(); sc.line.remove(); sc.dot.remove();
+    this._scopes.delete(sc);
+    if (!this._scopes.size && this._scopeRaf) { cancelAnimationFrame(this._scopeRaf); this._scopeRaf = null; }
   }
 
   // ---- connection list (read-only) ----

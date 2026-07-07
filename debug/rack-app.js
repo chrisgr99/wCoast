@@ -112,10 +112,11 @@ async function boot() {
   // Unsaved-changes state, declared BEFORE the rack: its onChange fires during
   // relayout and the mixer addModule below, calling onEdit -> markDirty, which
   // reads `dirty` — so `dirty` must already be initialized (no temporal dead zone).
-  let dirty = false, patchName = null, mirror = null;
+  let dirty = false, patchName = null, mirror = null, booted = false;
   rack = new Rack(document.getElementById('rack'), {
     host, moduleTypes: MODULE_TYPES, rowCount: 2, dark: darkMode, onChange: () => onEdit(),
     onNetMode: (on) => document.getElementById('netmode').classList.toggle('on', on),
+    onScopeArm: (on) => document.getElementById('scopebtn').classList.toggle('on', on),
   });
   rack.relayout();
 
@@ -137,7 +138,7 @@ async function boot() {
   function markDirty() { if (dirty) return; dirty = true; updateTitle(); window.wcoast?.patch?.setDirty?.(true); }
   function markClean() { dirty = false; updateTitle(); window.wcoast?.patch?.setDirty?.(false); if (mirror) mirror.project(); }
   // Any patch edit: mark dirty and re-project the mirror.
-  function onEdit() { markDirty(); if (mirror) mirror.project(); }
+  function onEdit() { markDirty(); autosaveSession(); if (mirror) mirror.project(); }
 
   // Master level: a house-style KNOB (a one-knob panel run through the panel loader,
   // so it gets the exact look and the scroll-flywheel) mirrors the mixer module's
@@ -156,6 +157,8 @@ async function boot() {
   });
   // Net-explore toggle (Escape also exits; the rack keeps the button's state in sync).
   document.getElementById('netmode').addEventListener('click', () => rack.toggleNetMode());
+  // "Add scope" arm: next drag off a port drops a probe there; disarms after one.
+  document.getElementById('scopebtn').addEventListener('click', () => rack.toggleScopeArm());
   syncToolbarMaster();
 
   onoff.addEventListener('click', async () => {
@@ -254,6 +257,15 @@ async function boot() {
   // Save/load: the environment-chosen storage adapter drives the shared core.
   const storage = createStorage();
   const patchText = () => JSON.stringify(serialize(rack, mixerIO), null, 2);
+  // Session autosave: persist the live patch to localStorage on every edit
+  // (debounced) so a relaunch resumes exactly where you left off. Separate from
+  // named File saves — this just remembers the last working state.
+  const SESSION_KEY = 'wcoast.session';
+  let sessTimer = null;
+  // Guarded by `booted`: the many addModule edits DURING boot must not overwrite the
+  // session with a half-built (e.g. mixer-only) rack — only genuine post-boot edits save.
+  function autosaveSession() { if (!booted) return; clearTimeout(sessTimer); sessTimer = setTimeout(() => { try { localStorage.setItem(SESSION_KEY, patchText()); } catch (_e) { /* no storage */ } }, 400); }
+  function flushSession() { if (!booted) return; clearTimeout(sessTimer); try { localStorage.setItem(SESSION_KEY, patchText()); } catch (_e) { /* no storage */ } }
   // Guard the destructive actions (New / Open / Reopen) when there's unsaved work.
   const okToDiscard = () => !dirty || window.confirm('You have unsaved changes. Discard them?');
 
@@ -345,11 +357,29 @@ async function boot() {
   if (!(window.wcoast && window.wcoast.isElectron)) {
     window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
   }
+  // Persist the session on unload (both environments) so a relaunch resumes it.
+  window.addEventListener('pagehide', flushSession);
 
-  // Start with one of each so there's something to patch.
-  await rack.addModule(oscDescriptor.id, 0, 0);
-  await rack.addModule(lpgDescriptor.id, 1, 0);
-  markClean();   // the starting patch is the clean baseline, not unsaved work
+  // Resume the last session if one was saved; otherwise start with one of each so
+  // there's something to patch.
+  let resumed = false;
+  try {
+    const saved = localStorage.getItem(SESSION_KEY);
+    if (saved) {
+      const obj = JSON.parse(saved);
+      const v = validate(obj, registry);
+      // Require at least one module — a module-less session is boot-transient junk,
+      // not a patch worth resuming; fall through to the default instead.
+      if (v.ok && obj.modules && obj.modules.length) { await restore(obj, rack, mixerIO); syncToolbarMaster(); resumed = true; }
+      else if (!v.ok) log(`session ignored: ${v.error}`);
+    }
+  } catch (e) { log(`session restore failed: ${e.message}`); }
+  if (!resumed) {
+    await rack.addModule(oscDescriptor.id, 0, 0);
+    await rack.addModule(lpgDescriptor.id, 1, 0);
+  }
+  booted = true;   // from here on, real edits autosave the session
+  markClean();     // the resumed/starting patch is the clean baseline, not unsaved work
   await mirror.init();   // read enabled state + push the first mirror snapshot
 
   // Re-fit once after the toolbar has claimed its final height. In Electron the

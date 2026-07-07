@@ -26,12 +26,12 @@
     /* ---- top toolbar (full width; global controls + the output mixer) ---- */
     #toolbar {
       position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
-      padding: 4px 12px; background: var(--rail);
+      padding: 1px 12px; background: var(--rail);
       border-top: 1px solid #fff; border-bottom: 1px solid #fff; z-index: 30;
     }
     #tools { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; gap: 8px; }
     .tool-sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
-    #onoff, #hamburger, #netmode {
+    #onoff, #hamburger, #netmode, #scopebtn {
       width: 26px; height: 26px; padding: 0; display: inline-flex; flex: none;
       align-items: center; justify-content: center; cursor: pointer;
       border: 1px solid var(--line); border-radius: 6px;
@@ -49,10 +49,26 @@
     #netmode svg { width: 23px; height: 23px; }
     #netmode:hover { background: var(--accent); color: var(--accent-ink); }
     #netmode.on { background: var(--accent); color: var(--accent-ink); }
+    #scopebtn { background: var(--panel); color: var(--ink); }
+    #scopebtn svg { width: 20px; height: 20px; }
+    #scopebtn:hover, #scopebtn.on { background: var(--accent); color: var(--accent-ink); }
+    body.arming-scope { cursor: crosshair; }
+
+    /* floating signal scopes + their callouts */
+    .scope { position: fixed; z-index: 1250; background: #0d0f0c; border: 1px solid #8a8d92; border-radius: 6px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.5); padding: 3px; cursor: move; }
+    .scope-canvas { display: block; border-radius: 3px; }
+    .scope-preview { pointer-events: none; opacity: 0.8; border-style: dashed; cursor: default; }
+    .scope-resize { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: ew-resize; }
+    .scope-dot { position: fixed; z-index: 1246; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 1px solid rgba(0,0,0,0.55); transform: translate(-50%,-50%); cursor: var(--grip); }
+    .scope-close { position: absolute; top: 2px; right: 2px; width: 15px; height: 15px; border-radius: 3px; padding: 0;
+      background: rgba(0,0,0,0.4); color: #cfcfcf; border: none; font: 13px/13px sans-serif; text-align: center; cursor: pointer; }
+    .scope-close:hover { background: rgba(255,80,80,0.65); color: #fff; }
+    .scope-callouts { position: fixed; inset: 0; pointer-events: none; z-index: 1240; overflow: visible; }
 
     /* master group at the far right: house-style knob + horizontal VU */
     #master-group { display: flex; align-items: center; gap: 8px; flex: none; }
-    #master-knob { width: 44px; height: 44px; }
+    #master-knob { width: 28px; height: 28px; }
     #master-knob svg { display: block; width: 100%; height: 100%; }
     .toolbar-jack { position: relative; cursor: crosshair; }
     .toolbar-jack svg { display: block; width: 22px; height: 22px; }
@@ -94,7 +110,7 @@
 
     /* ---- context menu ---- */
     .rack-menu {
-      position: fixed; z-index: 1000; min-width: 150px; max-height: 72vh; overflow-y: auto; font-size: 12px; line-height: 1.25;
+      position: fixed; z-index: 1400; min-width: 150px; max-height: 72vh; overflow-y: auto; font-size: 12px; line-height: 1.25;
       background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
       padding: 3px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
     }
@@ -163,6 +179,12 @@
             <circle cx="3.5" cy="6" r="3.7" fill="currentColor" stroke="none"/>
             <circle cx="12" cy="12" r="3.7" fill="currentColor" stroke="none"/>
           </g>
+        </svg>
+      </button>
+      <button id="scopebtn" aria-label="Add signal scope" title="Add signal scope">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M5 13 Q8 7 11 13 T17 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
       </button>
     </div>
