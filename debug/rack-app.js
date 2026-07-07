@@ -19,6 +19,8 @@ import lpgDescriptor from '../modules/lpg-292/descriptor.js';
 import { create as lpgCreate } from '../modules/lpg-292/factory.js';
 import fnDescriptor from '../modules/function-gen-281t/descriptor.js';
 import { create as fnCreate } from '../modules/function-gen-281t/factory.js';
+import galleryDescriptor from '../modules/gallery/descriptor.js';
+import { create as galleryCreate } from '../modules/gallery/factory.js';
 import { parsePanel, attachControlInteraction, showValue } from '../host/panel-loader.js';
 import { serialize, restore, validate } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
@@ -61,6 +63,7 @@ registry.register({ descriptor: oscDescriptor, create: oscCreate });
 registry.register({ descriptor: mixerDescriptor, create: mixerCreate });
 registry.register({ descriptor: lpgDescriptor, create: lpgCreate });
 registry.register({ descriptor: fnDescriptor, create: fnCreate });
+registry.register({ descriptor: galleryDescriptor, create: galleryCreate });
 
 const MODULE_TYPES = [{
   descriptorId: oscDescriptor.id,
@@ -80,6 +83,12 @@ const MODULE_TYPES = [{
   hp: 30,
   panelUrl: 'modules/function-gen-281t/panel.svg',
   descriptor: fnDescriptor,
+}, {
+  descriptorId: galleryDescriptor.id,
+  name: 'Control Gallery',
+  hp: 53,
+  panelUrl: 'modules/gallery/panel.svg',
+  descriptor: galleryDescriptor,
 }, {
   // The mixer is a pinned singleton placed at boot, so it's hidden from the
   // "Add module" menu (no second mixer). Still a normal module type otherwise.
