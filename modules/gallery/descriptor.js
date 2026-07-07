@@ -45,6 +45,9 @@ for (const id of ['btnToggle', 'btnOn']) {      // latching toggles (push on, pu
   params.push({ id, name: id, section: 'controls', curve: 'stepped', steps: ['off', 'on'].map(step), default: 'off' });
 }
 params.push({ id: 'sliderLevel', name: 'Level', section: 'controls', curve: 'linear', min: 0, max: 1, default: 0.7, glideMs: 0 });
+// Stepper buttons: one button cycles a one-of-N setting shown on a lamp row.
+params.push({ id: 'stepWave', name: 'Wave', section: 'controls', curve: 'stepped', steps: ['sawtooth', 'square', 'triangle', 'sustained'].map(step), default: 'sawtooth' });
+params.push({ id: 'stepRange', name: 'Range', section: 'controls', curve: 'stepped', steps: ['lo', 'mid', 'hi'].map(step), default: 'lo' });
 
 export default {
   id: 'wcoast.gallery',

@@ -5,7 +5,7 @@
 'use strict';
 const fs = require('fs');
 const { THEME } = require('../../panel/theme');
-const { defs, jack, knob, label, evenScale, bipolarMark, radioGroup, button, slider, vuMeter } = require('../../panel/primitives');
+const { defs, jack, knob, label, evenScale, bipolarMark, radioGroup, button, stepButton, slider, vuMeter } = require('../../panel/primitives');
 
 const FACE_W = 270, FACE_H = 113.5912, MID = 104, MID2 = 160, MID3 = 230;
 const FAMILIES = ['audio', 'cv', 'trig', 'pitch'];
@@ -77,6 +77,13 @@ function build(dark) {
   p.push(button('btnToggle', 192, 60, { r: 2.4, kind: 'white' })); p.push(ink(192, 65.5, 'toggle', { size: 1.8 }));
   p.push(button('btnOn', 210, 60, { r: 2.16, kind: 'red' })); p.push(ink(210, 65, 'on', { size: 1.8 }));
   p.push(ink(201, 73, 'momentary (strike/trig) · toggle · lamp', { size: 1.8 }));
+  // Stepper buttons: one button cycles a one-of-N lamp row. Two layouts.
+  p.push(stepButton('stepWave', 178, 84, { orientation: 'v', theme: th, steps: [
+    { value: 'sawtooth', glyph: 'sawtooth' }, { value: 'square', glyph: 'square' }, { value: 'triangle', glyph: 'triangle' }, { value: 'sustained', glyph: 'sustained' }] }));
+  p.push(ink(178, 98, 'stepper · button above · glyphs', { size: 1.7 }));
+  p.push(stepButton('stepRange', 165, 106, { orientation: 'h', theme: th, steps: [
+    { value: 'lo', label: 'lo' }, { value: 'mid', label: 'mid' }, { value: 'hi', label: 'hi' }] }));
+  p.push(ink(178, 112, 'stepper · button left · text', { size: 1.7 }));
   // Slider (vertical fader), on the far right of the column.
   p.push(slider('sliderLevel', 222, { top: 30, bot: 84, valuePos: 0.7, theme: th }));
   p.push(ink(222, 90, 'slider', { size: 2.0 }));

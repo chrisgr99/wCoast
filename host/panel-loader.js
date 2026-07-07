@@ -230,6 +230,7 @@ export function parsePanel(svg, descriptor) {
       pivot: (cx != null && cy != null) ? { x: cx, y: cy } : null,
       indicator: el.querySelector('[data-wcoast-role="indicator"]'),
       operator: el.querySelector('[data-wcoast-role="operator"]'),
+      stepper: el.querySelector('[data-wcoast-role="stepper"]'),
       switchStyle: el.getAttribute('data-wcoast-switch') || null,
       stepIndicators: new Map(),
       stepValues: (meta.steps || []).map((s) => s.value),
@@ -407,7 +408,16 @@ export function attachControlInteraction(binding, hooks) {
     // Waveshape) jumps to whichever lamp you click; a single-lamp on/off switch
     // (the centre mod switches) flips between its two states when clicked.
     const lamps = [...binding.stepIndicators.entries()];
-    if (binding.meta.momentary && lamps.length >= 1) {
+    if (binding.stepper) {
+      // A stepper: one button advances the param to its next step (wrapping); the
+      // lamps only indicate the current step and are not clickable.
+      binding.stepper.style.cursor = 'pointer';
+      binding.stepper.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = binding.stepValues, i = v.indexOf(hooks.get());
+        hooks.set(v[(i + 1) % v.length]);
+      });
+    } else if (binding.meta.momentary && lamps.length >= 1) {
       // Momentary push button (STRIKE): ON only while held, OFF on release, and
       // every press is a fresh trigger. Capture the pointer so the release still
       // registers if it happens off the lamp.

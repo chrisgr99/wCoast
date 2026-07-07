@@ -201,6 +201,7 @@
   <text x="130" y="110" font-size="2.706" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">259t frequency · calibration scale</text>
   <text x="192" y="15.5" font-size="3.106" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">radio · button · slider</text>
   <g data-wcoast-param="radioMode">
+    <line x1="178.00" y1="28.51" x2="190.00" y2="28.51" stroke="#808085" stroke-width="0.3"/>
     <circle cx="178" cy="26" r="2.16" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="transient"/><circle cx="177.40" cy="25.40" r="0.65" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
     <polyline points="176.70,31.26 178,29.86 179.30,31.26" fill="none" stroke="#b8b8bc" stroke-width="0.3" stroke-linejoin="round"/>
     <circle cx="184" cy="26" r="2.16" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="sustained"/><circle cx="183.40" cy="25.40" r="0.65" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
@@ -210,6 +211,7 @@
   </g>
   <text x="184" y="36" font-size="2.606" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">radio · horizontal + glyphs</text>
   <g data-wcoast-param="radioRange">
+    <line x1="172.51" y1="45.40" x2="172.51" y2="50.60" stroke="#808085" stroke-width="0.3"/>
     <circle cx="170" cy="45.4" r="2.16" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="low"/><circle cx="169.40" cy="44.80" r="0.65" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
       <text x="173.46" y="46.135" font-size="2.806" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="start" font-family="Arial Narrow, Helvetica, Arial, sans-serif">low</text>
     <circle cx="170" cy="50.6" r="2.16" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="high"/><circle cx="169.40" cy="50.00" r="0.65" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
@@ -225,6 +227,32 @@
   <g data-wcoast-param="btnOn"><circle cx="210" cy="60" r="2.16" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/><circle cx="209.40" cy="59.40" r="0.65" fill="#ffb4b4" opacity="0.85" pointer-events="none"/></g>
   <text x="210" y="65" font-size="2.5060000000000002" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">on</text>
   <text x="201" y="73" font-size="2.5060000000000002" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">momentary (strike/trig) · toggle · lamp</text>
+  <g data-wcoast-param="stepWave">
+    <circle cx="178" cy="84" r="2.2" fill="url(#knobCap)" stroke="#b8b8bc" stroke-width="0.3" filter="url(#softShadow)" data-wcoast-role="stepper" style="cursor:pointer"/>
+    <circle cx="178" cy="84" r="1.14" fill="url(#knobCap)" stroke="#b8b8bc" stroke-width="0.18" pointer-events="none"/>
+    <circle cx="177.56" cy="83.56" r="0.35" fill="#ffffff" opacity="0.55" pointer-events="none"/>
+    <circle cx="171.25" cy="88.35000000000001" r="0.95" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="sawtooth"/><circle cx="170.98" cy="88.08" r="0.28" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+    <polyline points="169.95,92.00 172.55,90.60 172.55,92.00" fill="none" stroke="#b8b8bc" stroke-width="0.3" stroke-linejoin="round"/>
+    <circle cx="175.75" cy="88.35000000000001" r="0.95" fill="#505055" stroke="#4a4a4a" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="square"/><circle cx="175.48" cy="88.08" r="0.28" fill="#ffb4b4" opacity="0" pointer-events="none"/>
+    <path d="M 174.45 92.00 L 174.45 90.60 L 175.75 90.60 L 175.75 92.00 L 177.05 92.00 L 177.05 90.60" fill="none" stroke="#b8b8bc" stroke-width="0.3" stroke-linejoin="round"/>
+    <circle cx="180.25" cy="88.35000000000001" r="0.95" fill="#505055" stroke="#4a4a4a" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="triangle"/><circle cx="179.98" cy="88.08" r="0.28" fill="#ffb4b4" opacity="0" pointer-events="none"/>
+    <polyline points="178.95,92.00 179.60,90.60 180.25,92.00 180.90,90.60 181.55,92.00" fill="none" stroke="#b8b8bc" stroke-width="0.3" stroke-linejoin="round"/>
+    <circle cx="184.75" cy="88.35000000000001" r="0.95" fill="#505055" stroke="#4a4a4a" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="sustained"/><circle cx="184.48" cy="88.08" r="0.28" fill="#ffb4b4" opacity="0" pointer-events="none"/>
+    <polyline points="183.45,92.00 184.25,90.60 185.25,90.60 186.05,92.00" fill="none" stroke="#b8b8bc" stroke-width="0.3" stroke-linejoin="round"/>
+  </g>
+  <text x="178" y="98" font-size="2.4059999999999997" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">stepper · button above · glyphs</text>
+  <g data-wcoast-param="stepRange">
+    <circle cx="165" cy="106" r="2.2" fill="url(#knobCap)" stroke="#b8b8bc" stroke-width="0.3" filter="url(#softShadow)" data-wcoast-role="stepper" style="cursor:pointer"/>
+    <circle cx="165" cy="106" r="1.14" fill="url(#knobCap)" stroke="#b8b8bc" stroke-width="0.18" pointer-events="none"/>
+    <circle cx="164.56" cy="105.56" r="0.35" fill="#ffffff" opacity="0.55" pointer-events="none"/>
+    <circle cx="169.34999999999997" cy="106" r="0.95" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="lo"/><circle cx="169.08" cy="105.73" r="0.28" fill="#ffb4b4" opacity="0.85" pointer-events="none"/>
+      <text x="169.34999999999997" y="109.35000000000001" font-size="2.606" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">lo</text>
+    <circle cx="173.84999999999997" cy="106" r="0.95" fill="#505055" stroke="#4a4a4a" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="mid"/><circle cx="173.58" cy="105.73" r="0.28" fill="#ffb4b4" opacity="0" pointer-events="none"/>
+      <text x="173.84999999999997" y="109.35000000000001" font-size="2.606" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">mid</text>
+    <circle cx="178.34999999999997" cy="106" r="0.95" fill="#505055" stroke="#4a4a4a" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="hi"/><circle cx="178.08" cy="105.73" r="0.28" fill="#ffb4b4" opacity="0" pointer-events="none"/>
+      <text x="178.34999999999997" y="109.35000000000001" font-size="2.606" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">hi</text>
+  </g>
+  <text x="178" y="112" font-size="2.4059999999999997" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">stepper · button left · text</text>
   <g data-wcoast-param="sliderLevel" data-wcoast-role="slider" data-wcoast-cx="222" data-wcoast-top="30" data-wcoast-bot="84">
     <rect x="220.80" y="28.00" width="2.4" height="58.00" rx="1.2" fill="#626771" stroke="#1b1b1e" stroke-width="0.3"/>
     <g data-wcoast-role="handle" transform="translate(0 -10.800)">

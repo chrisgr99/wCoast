@@ -192,10 +192,12 @@ function attachedLabel(cx, cy, hw, hh, spec = {}) {
 // A red LED lamp with a highlight — the shared building block for radios, buttons,
 // and indicators. Pass role/step to make it a bindable step-indicator; `white` for
 // the light push-button disc instead of the red LED.
-function ledLamp(cx, cy, { r = 1.66, role = null, step = null, white = false } = {}) {
-  const fill = white ? '#e9e9ec' : 'url(#redLed)', stroke = white ? '#8a8a8e' : '#7c0000', sw = white ? '0.35' : '0.2366';
+function ledLamp(cx, cy, { r = 1.66, role = null, step = null, white = false, on = true } = {}) {
+  // `on` bakes the lit (red) / unlit (grey) state for a static render; the host's
+  // showStep repaints step-indicators live, so it only matters before load.
+  const fill = white ? '#e9e9ec' : (on ? 'url(#redLed)' : '#505055'), stroke = white ? '#8a8a8e' : (on ? '#7c0000' : '#4a4a4a'), sw = white ? '0.35' : '0.2366';
   const roleAttr = role ? ` data-wcoast-role="${role}"${step != null ? ` data-wcoast-step="${step}"` : ''}` : '';
-  const hr = 0.3 * r, hx = cx - 0.28 * r, hy = cy - 0.28 * r, hFill = white ? '#ffffff' : '#ffb4b4', hOp = white ? '0.8' : '0.85';
+  const hr = 0.3 * r, hx = cx - 0.28 * r, hy = cy - 0.28 * r, hFill = white ? '#ffffff' : '#ffb4b4', hOp = white ? '0.8' : (on ? '0.85' : '0');
   return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" filter="url(#softShadow)"${roleAttr}/>`
     + `<circle cx="${hx.toFixed(2)}" cy="${hy.toFixed(2)}" r="${hr.toFixed(2)}" fill="${hFill}" opacity="${hOp}" pointer-events="none"/>`;
 }
@@ -226,9 +228,19 @@ function button(id, cx, cy, { r = 2.2, kind = 'red', label: lb = null } = {}) {
 // Radio group — one stepped param shown as a row/column of LED lamps (one lit).
 // steps: [{ value, label?, glyph? }]. orientation 'h' | 'v'. Each LED can carry a
 // side label (v → right, h → below) or a wave glyph (below).
-function radioGroup(id, cx, cy, { steps = [], orientation = 'v', spacing = 5.6, ledR = 2.16, size = 2.1, theme = {} } = {}) {
-  const ink = theme.ink || '#163a69', n = steps.length;
+function radioGroup(id, cx, cy, { steps = [], orientation = 'v', spacing = 5.6, ledR = 2.16, size = 2.1, outline = true, theme = {} } = {}) {
+  const ink = theme.ink || '#163a69', frame = theme.frame || '#7d7d7d', n = steps.length;
   let g = `  <g data-wcoast-param="${id}">`;
+  // Grouping line: a single grey line running alongside the lamps on their
+  // label/glyph side (below a horizontal group, right of a vertical one) — the
+  // straight side of a lozenge hugging the lamps, without the caps or far side.
+  if (outline && n > 1) {
+    const R = ledR + 0.35, half = (n - 1) / 2 * spacing;
+    const ln = orientation === 'h'
+      ? `<line x1="${(cx - half).toFixed(2)}" y1="${(cy + R).toFixed(2)}" x2="${(cx + half).toFixed(2)}" y2="${(cy + R).toFixed(2)}" stroke="${frame}" stroke-width="0.3"/>`
+      : `<line x1="${(cx + R).toFixed(2)}" y1="${(cy - half).toFixed(2)}" x2="${(cx + R).toFixed(2)}" y2="${(cy + half).toFixed(2)}" stroke="${frame}" stroke-width="0.3"/>`;
+    g += `\n    ${ln}`;
+  }
   steps.forEach((s, i) => {
     const off = (i - (n - 1) / 2) * spacing;
     const lx = orientation === 'h' ? cx + off : cx, ly = orientation === 'h' ? cy : cy + off;
@@ -242,6 +254,32 @@ function radioGroup(id, cx, cy, { steps = [], orientation = 'v', spacing = 5.6, 
       g += `\n    ${label(tx, ty, s.label, { size, fill: ink, anchor: orientation === 'h' ? 'middle' : 'start' })}`;
     }
   });
+  return g + `\n  </g>`;
+}
+
+// Stepper button — ONE momentary push-button that cycles a stepped param, with a
+// row of small indicator lamps (one per step: the active one lit red, the rest
+// grey), each carrying a text label or a wave glyph. `steps.length` sets the lamp
+// count. orientation 'v' puts the button ABOVE the lamp row, 'h' to its LEFT. The
+// button carries data-wcoast-role="stepper" (the host advances the param on each
+// click, wrapping); the lamps are step-indicators and are NOT clickable, so they
+// can be small. Same one-of-N model as radioGroup, but a single actuator.
+function stepButton(id, cx, cy, { steps = [], orientation = 'v', btnR = 2.2, ledR = 0.95, spacing = 4.5, size = 1.9, active = 0, theme = {} } = {}) {
+  const ink = theme.ink || '#163a69', capStroke = theme.capStroke || '#666';
+  const n = steps.length, rowW = (n - 1) * spacing;
+  const lx0 = orientation === 'h' ? cx + btnR + 1.2 + ledR : cx - rowW / 2;
+  const ly = orientation === 'h' ? cy : cy + btnR + 1.2 + ledR;
+  let g = `  <g data-wcoast-param="${id}">`;
+  // metal-dome push button with a slightly raised centre; the actuator (role=stepper)
+  g += `\n    <circle cx="${cx}" cy="${cy}" r="${btnR}" fill="url(#knobCap)" stroke="${capStroke}" stroke-width="0.3" filter="url(#softShadow)" data-wcoast-role="stepper" style="cursor:pointer"/>`;
+  g += `\n    <circle cx="${cx}" cy="${cy}" r="${(btnR * 0.52).toFixed(2)}" fill="url(#knobCap)" stroke="${capStroke}" stroke-width="0.18" pointer-events="none"/>`;
+  g += `\n    <circle cx="${(cx - btnR * 0.2).toFixed(2)}" cy="${(cy - btnR * 0.2).toFixed(2)}" r="${(btnR * 0.16).toFixed(2)}" fill="#ffffff" opacity="0.55" pointer-events="none"/>`;
+  for (let i = 0; i < n; i++) {
+    const s = steps[i], px = lx0 + i * spacing;
+    g += `\n    ${ledLamp(px, ly, { r: ledR, role: 'step-indicator', step: s.value, on: i === active })}`;
+    if (s.glyph) g += `\n    ${waveGlyph(s.glyph, px, ly + ledR + 2.0, ink)}`;
+    else if (s.label) g += `\n    ${label(px, ly + ledR + 2.4, s.label, { size, fill: ink })}`;
+  }
   return g + `\n  </g>`;
 }
 
@@ -324,4 +362,4 @@ function bipolarMark(kx, ky, kr, { gap = 2.0, spanDeg = 23, r = 1.27, color = '#
   return `  <g>\n    ${parts.join('\n    ')}\n  </g>`;
 }
 
-module.exports = { defs, jack, knob, label, attachedLabel, evenScale, bipolarMark, ledLamp, waveGlyph, button, radioGroup, slider, vuMeter, textWidth, wrapLines };
+module.exports = { defs, jack, knob, label, attachedLabel, evenScale, bipolarMark, ledLamp, waveGlyph, button, radioGroup, stepButton, slider, vuMeter, textWidth, wrapLines };
