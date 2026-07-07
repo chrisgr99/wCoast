@@ -8,17 +8,17 @@
 const fs = require('fs');
 
 const CH = ['A', 'B', 'C', 'D'];
-const FACE_W = 106, FACE_H = 113.5912;
+const FACE_W = 98, FACE_H = 113.5912;
 
 // Channel-row columns. The channel letter sits BETWEEN the two output jacks, so
 // the divider can slide in tight against the outputs and the panel packs tighter.
-const COL_TRIG = 10, COL_CYCLE = 22, COL_ACV = 33, COL_ATK = 44,
-  COL_DEC = 62, COL_DCV = 73, COL_OUT = 81, COL_LED = 87;
-const DIVIDER_X = 90;                        // channels | quadrature
+const COL_TRIG = 10, COL_CYCLE = 19, COL_ACV = 28, COL_ATK = 39,
+  COL_DCV = 50, COL_DEC = 61, COL_OUT = 73, COL_LED = 79;   // tightened to ~knob-cluster spacing; decay CV LEFT of decay knob
+const DIVIDER_X = 82;                        // channels | quadrature
 // Quadrature band (right of the divider): two stacked regions (A-B, C-D). Each
 // mix knob sits snug to the divider on the projected A-B / C-D row line, its CV
 // output jack below it, and the enable button in the triangular gap between them.
-const Q_KNOB_X = 98, Q_HDR_X = 99;
+const Q_KNOB_X = 90, Q_HDR_X = 91;
 
 const Y_TITLE = 5.5, Y_RULE = 9;            // title + underline
 const ROW_Y = [21.5, 46.5, 71.5, 96.5];     // row centres
