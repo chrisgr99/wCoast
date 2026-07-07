@@ -27,6 +27,8 @@ import lpg2Descriptor from '../modules/lpg-292-v2/descriptor.js';
 import { create as lpg2Create } from '../modules/lpg-292-v2/factory.js';
 import mixer2Descriptor from '../modules/mixer-v2/descriptor.js';
 import { create as mixer2Create } from '../modules/mixer-v2/factory.js';
+import fn2Descriptor from '../modules/function-gen-281t-v2/descriptor.js';
+import { create as fn2Create } from '../modules/function-gen-281t-v2/factory.js';
 import { parsePanel, attachControlInteraction, showValue } from '../host/panel-loader.js';
 import { serialize, restore, validate } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
@@ -73,6 +75,7 @@ registry.register({ descriptor: galleryDescriptor, create: galleryCreate });
 registry.register({ descriptor: osc2Descriptor, create: osc2Create });
 registry.register({ descriptor: lpg2Descriptor, create: lpg2Create });
 registry.register({ descriptor: mixer2Descriptor, create: mixer2Create });
+registry.register({ descriptor: fn2Descriptor, create: fn2Create });
 
 const MODULE_TYPES = [{
   descriptorId: oscDescriptor.id,
@@ -116,6 +119,12 @@ const MODULE_TYPES = [{
   hp: 20,
   panelUrl: 'modules/mixer-v2/panel.svg',
   descriptor: mixer2Descriptor,
+}, {
+  descriptorId: fn2Descriptor.id,
+  name: 'Quad Function Generator v2',
+  hp: 19,
+  panelUrl: 'modules/function-gen-281t-v2/panel.svg',
+  descriptor: fn2Descriptor,
 }, {
   // The mixer is a pinned singleton placed at boot, so it's hidden from the
   // "Add module" menu (no second mixer). Still a normal module type otherwise.
