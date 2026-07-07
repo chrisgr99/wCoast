@@ -267,9 +267,9 @@ function slider(id, cx, { top = 24, bot = 78, valuePos = 0.5, theme = {} } = {})
 // carry the binding tags so the host's RMS loop finds and fills them; `lit` pre-fills
 // N bars (green→yellow→red) for a static preview where there's no live signal. A
 // label (default 'VU') sits just past the anchor end.
-function vuMeter(role, cx, cy, { length = 44, orientation = 'v', segments = 12, chan = '', label: lab = 'VU', lit = 0, theme = {} } = {}) {
+function vuMeter(role, cx, cy, { length = 44, orientation = 'v', segments = 12, chan = '', label: lab = 'VU', lit = 0, thick = 1.5, theme = {} } = {}) {
   const frame = theme.frame || '#7d7d7d', ink = theme.ink || '#163a69';
-  const T = 1.5, L = T * 3, half = T / 2, lhalf = L / 2;   // short side (run) / long side (across)
+  const T = thick, L = T * 3, half = T / 2, lhalf = L / 2;   // short side (run) / long side (across); thick shrinks both for tight columns
   const vertical = orientation !== 'h';
   const litColour = (f) => f > 0.85 ? '#ff5a4a' : f > 0.6 ? '#f4c430' : '#3ad16b';
   let segs = '';
