@@ -183,11 +183,11 @@ Order:
 1. Commit a clean baseline; render every panel (light + dark) as reference.
 2. Extract the function generator's primitives verbatim into `panel/*`; the 281t
    regenerates byte-identical. (The canonical donor.)
-3. Move the mixer onto the library, one primitive at a time; reconcile drift
-   (the jack color model, the knob) with localized diffs and render review.
-4. The two hand-authored panels (259t, 292) have no old code to diff, so each is
-   **rebuilt as a new `*-v2` module beside the original** — `complex-oscillator-
-   259t-v2` and `lpg-292-v2` — reusing the original descriptor, factory, and
-   worklet (only the panel is new). They are validated by render comparison and
-   human judgment; the original stays registered for side-by-side comparison, and
-   the v2 is committed once approved.
+3. Extract the mixer's inline primitives into `panel/*` (the jack color model,
+   knob, slider); the mixer keeps drawing from its own copies for now.
+4. Rebuild each remaining hand-tuned panel as a new `*-v2` module beside the
+   original — `complex-oscillator-259t-v2`, `lpg-292-v2`, and `mixer-v2` —
+   reusing the original descriptor, factory, and worklet (only the panel is new),
+   now drawn entirely from the shared library. They are validated by render
+   comparison and human judgment; the original stays registered for side-by-side
+   comparison, and each v2 is committed once approved.
