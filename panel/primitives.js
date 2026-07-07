@@ -229,7 +229,10 @@ function radioGroup(id, cx, cy, { steps = [], orientation = 'v', spacing = 5.6, 
     const off = (i - (n - 1) / 2) * spacing;
     const lx = orientation === 'h' ? cx + off : cx, ly = orientation === 'h' ? cy : cy + off;
     g += `\n    ${ledLamp(lx, ly, { r: ledR, role: 'step-indicator', step: s.value })}`;
-    if (s.glyph) g += `\n    ${waveGlyph(s.glyph, lx, ly + ledR + 2.4, ink)}`;
+    if (s.glyph) {
+      const gx = orientation === 'h' ? lx : lx + ledR + 2.2, gy = orientation === 'h' ? ly + ledR + 2.4 : ly;
+      g += `\n    ${waveGlyph(s.glyph, gx, gy, ink)}`;
+    }
     if (s.label) {
       const tx = orientation === 'h' ? lx : lx + ledR + 1.3, ty = orientation === 'h' ? ly + ledR + 3 : ly + size * 0.35;
       g += `\n    ${label(tx, ty, s.label, { size, fill: ink, anchor: orientation === 'h' ? 'middle' : 'start' })}`;
