@@ -61,6 +61,8 @@ fork of the code. Designed open from the start, e.g.:
 - `jack` — `{ kind? }`. Neutral by default (the loader repaints by port domain at
   runtime); an explicit color/kind is available for panels that bake it.
 - `led`, `button`, `slider`, `vu` — sized and placed by params, styled centrally.
+  `button` (like `jack` and `knob`) takes an optional attached `label`, routed
+  through the shared label helper so the text always clears the lamp (§4).
 
 Every control primitive emits the binding attributes so the host can wire and
 animate it (§6). The primitive draws the indicator in its zero pose; the host
@@ -96,6 +98,12 @@ not track it. The primitives emit them; nothing else changes.
 
 - **Coordinates** — viewBox in millimetres; width = descriptor `hp` × 5.08 mm (or
   set directly); active height 113.5912 mm within a 128.5 mm 3U row.
+- **Crop / frame inset.** The loader shows only the functional face: it resets the
+  viewBox origin to `(FACE_LEFT 3.9, FACE_TOP 7.0994)` mm, cropping the mounting
+  rim. A panel's frame border and content must sit **inside** that region —
+  either inset the border (as the 259t does) or wrap the whole body in one
+  `translate(3.9, 7.0994)` so a `(0,0)`-based layout lands in the visible face
+  (as the low-pass-gate v2 does). Otherwise the top and left border are cropped.
 - **Controls** — an SVG group with `data-wcoast-param` = param id, plus
   `data-wcoast-cx`/`cy` (pivot) and exactly one child `data-wcoast-role="indicator"`
   (the pointer/lever, drawn straight-up at zero). Optional
@@ -124,11 +132,12 @@ The human-authored part: a list of items. Two conveniences keep it usable:
 
 - **Channel repeat.** For quad/multi-channel modules, author one channel's items
   once and stamp them at N row offsets, so a row is never copied by hand.
-- **Flow layout (optional).** Instead of hand-placing x for every control, a row
-  may declare "flow these left-to-right with this white space," and the layout
-  computes x from each item's measured extent. This is the uniform-spacing
-  mechanism — equal optical air between controls regardless of size — done by
-  computation, not by eye.
+- **Flow layout.** Instead of hand-placing x for every control, a row declares
+  each control's **visual extent** (its half-widths left and right of its anchor,
+  including attached labels and scale rings) and one inter-control gap is solved so
+  neighbours have **equal optical air, edge-to-edge — not equal centre pitch** —
+  regardless of control size. Realised inline in a module's `gen-panel.js` (the
+  quad low-pass-gate v2 uses it); not yet extracted to `panel/layout.js`.
 
 ## 9. Control gallery (test bench)
 
@@ -173,13 +182,12 @@ Order:
 
 1. Commit a clean baseline; render every panel (light + dark) as reference.
 2. Extract the function generator's primitives verbatim into `panel/*`; the 281t
-   must regenerate byte-identical. (The canonical donor.)
+   regenerates byte-identical. (The canonical donor.)
 3. Move the mixer onto the library, one primitive at a time; reconcile drift
    (the jack color model, the knob) with localized diffs and render review.
-4. Build the low-pass gate (292) generator on the library — first reproduce the
-   current panel by render, then apply spacing changes as separate steps.
-5. Later, the complex oscillator (259t) joins the same way.
-
-The two hand-authored panels (292, 259t) have no matching old code to diff, so
-they are validated by render comparison and human judgment — which is why they
-come last, after the primitives are settled.
+4. The two hand-authored panels (259t, 292) have no old code to diff, so each is
+   **rebuilt as a new `*-v2` module beside the original** — `complex-oscillator-
+   259t-v2` and `lpg-292-v2` — reusing the original descriptor, factory, and
+   worklet (only the panel is new). They are validated by render comparison and
+   human judgment; the original stays registered for side-by-side comparison, and
+   the v2 is committed once approved.
