@@ -1,12 +1,14 @@
 // rack-app.js — the rack front end (bootstrap).
 //
 // Wires the module registry, the audio host, the Rack, and the output Mixer
-// together. The top toolbar holds the start/stop toggle plus the mixer: its
-// channel jacks (A–D audio, plus two pan-CV inputs), a master gain slider, and
-// a button to open the mixer's control panel. The mixer IS the output — a
-// module only makes sound once its output is patched into a mixer channel; the
-// master gain feeds your two outputs. Every per-parameter module control lives
-// on the module faceplates.
+// together. The mixer is a pinned rack module (bottom row) — its channel jacks
+// and master fader live on its own faceplate, NOT on the toolbar. The mixer IS
+// the output — a module only makes sound once its output is patched into a mixer
+// channel; the master gain feeds your two outputs. Global controls (app menu,
+// start/stop, show-network) are reached from the panel pie and the app menu; the
+// top toolbar is retired (hidden from the layout so the modules fill the window),
+// its remaining wiring left in place for now. Every per-parameter module control
+// lives on the module faceplates.
 
 import { ModuleRegistry } from '../host/registry.js';
 import { SynthHost } from '../host/host.js';
@@ -166,16 +168,31 @@ async function boot() {
   });
   // Net-explore toggle (Escape also exits; the rack keeps the button's state in sync).
   document.getElementById('netmode').addEventListener('click', () => rack.toggleNetMode());
+  if (!rack.isNetMode()) rack.toggleNetMode();   // show network on by default
   // "Add scope" arm: next drag off a port drops a probe there; disarms after one.
   document.getElementById('scopebtn').addEventListener('click', () => rack.toggleScopeArm());
   syncToolbarMaster();
 
-  onoff.addEventListener('click', async () => {
+  const toggleTransport = async () => {
     if (!started) { await audioCtx.resume(); started = true; onoff.classList.add('on'); }
     else { started = false; onoff.classList.remove('on'); }
     rack.applyParam(mixRec, 'masterMute', started ? 'on' : 'off');
     updateTrace();
-  });
+  };
+  // Set the transport explicitly (for the pie peek). Flip `started` synchronously so
+  // isPlaying() reflects intent at once, even while the async resume is still pending.
+  const setTransport = (on) => {
+    if (on === started) return;
+    started = on;
+    onoff.classList.toggle('on', on);
+    if (on) audioCtx.resume();
+    rack.applyParam(mixRec, 'masterMute', on ? 'on' : 'off');
+    updateTrace();
+  };
+  onoff.addEventListener('click', toggleTransport);
+  rack.onTransport = toggleTransport;          // panel-pie start/stop wedge
+  rack.setTransport = setTransport;            // panel-pie start/stop PEEK
+  rack.isPlaying = () => started;
   rack.applyParam(mixRec, 'masterMute', 'on');   // master enabled by default (audio still gated by the suspended context until On)
 
   // --- VU meters -------------------------------------------------------------
@@ -322,8 +339,9 @@ async function boot() {
     return { ok: true };
   }
 
-  // The toolbar hamburger opens the File menu, reusing the rack's pop-up menu.
-  document.getElementById('hamburger').addEventListener('click', (e) => {
+  // The toolbar hamburger — and the panel pie's app-menu wedge — open the File menu,
+  // reusing the rack's pop-up menu.
+  const openAppMenu = (x, y) => {
     const items = [
       { header: true, label: 'File' },
       { label: 'New', action: () => newPatch() },
@@ -336,6 +354,7 @@ async function boot() {
         rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
         try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
       } },
+      { label: 'Show network', checkFn: () => rack.isNetMode(), action: () => rack.toggleNetMode() },
     ];
     // Browser only: offer to reopen the last file (its handle survives in IndexedDB).
     if (storage.hasLast && storage.hasLast()) {
@@ -346,9 +365,13 @@ async function boot() {
       items.push({ label: mirror.isEnabled() ? 'Turn mirror off' : 'Turn mirror on', action: async () => { await mirror.setEnabled(!mirror.isEnabled()); updateTrace(); } });
       items.push({ label: 'Reveal mirror folder', action: () => mirror.reveal() });
     }
+    rack.openMenu(x, y, items);
+  };
+  document.getElementById('hamburger').addEventListener('click', (e) => {
     const r = e.currentTarget.getBoundingClientRect();
-    rack.openMenu(r.left, r.bottom + 4, items);
+    openAppMenu(r.left, r.bottom + 4);
   });
+  rack.onAppMenu = openAppMenu;              // panel-pie app-menu wedge
 
   // Standard file shortcuts (we dropped the native File menu): Cmd/Ctrl-S save,
   // Shift adds Save As; Cmd/Ctrl-O open; Cmd/Ctrl-N new.

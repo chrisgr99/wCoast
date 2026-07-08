@@ -21,11 +21,19 @@
 
 import { loadPanel, showValue, attachControlInteraction, FACE_H_MM, FACE_TOP_MM, FACE_LEFT_MM } from './panel-loader.js';
 import { Patchbay } from './patchbay.js';
+import { openPieMenu } from './pie-menu.js';
 
 const PANEL_H_MM = FACE_H_MM;   // modules display only the cropped functional face
 const ROW_GAP_MM = 0;           // vertical gap between rows (0 = flush, faceplates touch)
 const GAP_MM = 4;               // horizontal margin at the right of the case, in mm
 const SVG_NS = 'http://www.w3.org/2000/svg';
+// Pie-wedge icons (match the toolbar buttons where there is one).
+const SCOPE_ICON = '<svg viewBox="0 0 24 24"><path d="M2 12 Q6.5 3 11.5 12 T21 12 L22 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const APPMENU_ICON = '<svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="2.4" rx="1"/><rect x="4" y="11" width="16" height="2.4" rx="1"/><rect x="4" y="16" width="16" height="2.4" rx="1"/></svg>';
+const PLAY_ICON = '<svg viewBox="0 0 24 24"><polygon points="7,5 19,12 7,19"/></svg>';
+const STOP_ICON = '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+const NET_ICON = '<svg viewBox="0 0 24 24"><g stroke="currentColor" stroke-linecap="round"><line x1="12" y1="12" x2="20" y2="4.5" stroke-width="2.1"/><line x1="12" y1="12" x2="18.5" y2="21" stroke-width="2.1"/><circle cx="20" cy="4.5" r="3.2" fill="currentColor" stroke="none"/><circle cx="18.5" cy="21" r="3.2" fill="currentColor" stroke="none"/><line x1="3.5" y1="6" x2="12" y2="12" stroke-width="2.9"/><circle cx="3.5" cy="6" r="3.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="3.7" fill="currentColor" stroke="none"/></g></svg>';
+const TRASH_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></g></svg>';
 
 // Cable colour = signal family, matching the port bodies: audio yellow, CV/control
 // orange, trigger blue, 1V/oct pitch green. A cord takes its DESTINATION port's
@@ -55,6 +63,11 @@ export class Rack {
     this.onSelect = opts.onSelect || (() => {});   // module the pointer entered (deixis)
     this.onNetMode = opts.onNetMode || (() => {});  // net-explore mode toggled (for the toolbar button)
     this.onScopeArm = opts.onScopeArm || (() => {});  // "add scope" armed/disarmed (for the toolbar button)
+    // Panel-pie hooks into app-level actions the rack doesn't own (set by rack-app).
+    this.onAppMenu = opts.onAppMenu || (() => {});    // open the app (File) menu at (x,y)
+    this.onTransport = opts.onTransport || (() => {}); // toggle start/stop sound
+    this.isPlaying = opts.isPlaying || (() => false); // current transport state (for the wedge highlight)
+    this.setTransport = opts.setTransport || ((on) => { if (this.isPlaying() !== on) this.onTransport(); }); // set sound explicitly (for the peek)
     this._scopes = new Set();       // live floating signal scopes (transient, not saved)
     this.dark = !!opts.dark;                        // dark-mode faceplates
     this.rowCount = opts.rowCount || 2;
@@ -80,8 +93,10 @@ export class Rack {
     this._gripTimer = null;    // pending (delayed) grab cursor
     this._contentWmm = 0;
     this._contentHmm = 0;
-    this.mixer = null;         // toolbar output mixer (set via setMixer)
-    this._toolbarCords = [];   // per-frame: cord paths to redraw in the toolbar overlay
+    this.mixer = null;         // LEGACY/UNUSED: the old toolbar output mixer. The mixer
+                               // is a pinned rack module now (setMixer is never called),
+                               // so `this.mixer` stays null and its branches are dead.
+    this._toolbarCords = [];   // legacy: cords to the old toolbar mixer (unused)
 
     // The connection layer: the netlist + audio wiring (host/patchbay.js), and
     // an SVG overlay the cords are drawn onto (pointer-transparent, so it never
@@ -108,8 +123,8 @@ export class Rack {
     // background clicks are handled per-module in _startDrag: double-click
     // zooms the module, single-click restores the fitted view while zoomed.
     document.addEventListener('keydown', (e) => this._onKey(e));
-    // Toolbar (mixer) cords track the rack's scroll: their toolbar end is fixed
-    // in screen space while the modules scroll beneath.
+    // (Legacy: the old toolbar-mixer cords tracked scroll here; `this.mixer` is
+    // always null now, so this is a no-op.)
     this.container.addEventListener('scroll', () => { if (this.mixer) this._drawCables(); });
     // Any pointer release ends a cable drag; clear the grip cursor (and cancel a
     // pending grip so a quick click never flashes it).
@@ -125,8 +140,10 @@ export class Rack {
     });
   }
 
-  // Register the toolbar output mixer as a patch endpoint. mixer:
-  // { key, descriptorId, instance, jacks:Map(portId->svgEl), linesSvg, toolbarEl }.
+  // LEGACY / UNUSED. Registered the old toolbar output mixer as a patch endpoint
+  // back when the mixer's jacks lived on the toolbar. The mixer is a pinned rack
+  // module now and this is never called; kept only until the dead `this.mixer`
+  // branches are stripped out.
   setMixer(mixer) {
     this.mixer = mixer;
     for (const [portId, svg] of mixer.jacks) {
@@ -137,6 +154,7 @@ export class Rack {
       // reserved for the connection list. A small move threshold separates them.
       el.dataset.jackKey = this.mixer.key;
       el.dataset.jackPort = portId;
+      el.addEventListener('contextmenu', (e) => this._onJackContextMenu(e, this.mixer.key, portId));
       el.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
         e.stopPropagation();
@@ -1014,6 +1032,32 @@ export class Rack {
   setScopeArm(on) { this._scopeArm = !!on; document.body.classList.toggle('arming-scope', this._scopeArm); this.onScopeArm(this._scopeArm); }
   toggleScopeArm() { this.setScopeArm(!this._scopeArm); }
 
+  // Right-click a terminal → the terminal pie. For now one wedge (scope, NE):
+  // selecting it flows straight into placing a scope on this port, so right-click
+  // → drag onto the wedge → drag out the scope is one motion.
+  _onJackContextMenu(e, key, portId) {
+    e.preventDefault(); e.stopPropagation();
+    // Scope wedge (NE). If this terminal already has a scope the wedge is lit and
+    // committing it removes the scope. Otherwise it PEEKS: entering the wedge creates
+    // a live scope up-right of the pie (see its wave); returning to the centre removes
+    // it again; crossing out carries the scope off to be dropped.
+    const existing = [...this._scopes].find((sc) => sc.key === key && sc.portId === portId);
+    const ox = e.clientX, oy = e.clientY;
+    let peekSc = null;
+    openPieMenu({
+      x: e.clientX, y: e.clientY,
+      segments: [{
+        dir: 'NE', icon: SCOPE_ICON, label: existing ? 'remove scope' : 'scope', highlighted: !!existing,
+        onPeek: existing ? undefined : () => { peekSc = this._createScope(key, portId, ox + 30, oy - 100); },
+        onUnpeek: existing ? undefined : () => { if (peekSc) { this._closeScope(peekSc); peekSc = null; } },
+        onCommit: (ev, mode) => {
+          if (existing) { this._closeScope(existing); return; }
+          if (peekSc) { const sc = peekSc; peekSc = null; this._carryScope(sc, ev, mode, ox); }
+        },
+      }],
+    });
+  }
+
   // The audio node + output index to tap for a port: an output taps itself; an
   // input taps whatever source feeds it (the incoming cable), else nothing.
   _probeTap(key, portId) {
@@ -1038,8 +1082,11 @@ export class Rack {
   // Mouse-down on a port while armed: loop the port and drag out a scope-sized frame
   // (with its callout) so you can see where the scope will land; it appears there on
   // release.
-  _placeScope(e, key, portId) {
-    const sx = e.clientX, sy = e.clientY;
+  // Drag a scope frame out and drop it. mode 'down' places it on the next pointer
+  // RELEASE (dragged out with a button held); mode 'up' places it on the next
+  // CLICK (hovered out of the pie with no button, tool now follows the cursor).
+  _placeScope(e, key, portId, mode = 'down') {
+    let cx = e.clientX, cy = e.clientY;
     const ov = this._scopeOverlay();
     const col = this.dark ? '#ffffff' : '#000000';
     const ring = document.createElementNS(SVG_NS, 'circle'); ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', col); ring.setAttribute('stroke-width', '1.8'); ov.appendChild(ring);
@@ -1054,24 +1101,26 @@ export class Rack {
       const px = jr.left + jr.width / 2, py = jr.top + jr.height / 2, rr = Math.max(jr.width, jr.height) / 2 + 3;
       ring.setAttribute('cx', r2(px)); ring.setAttribute('cy', r2(py)); ring.setAttribute('r', r2(rr));
       const fr = frame.getBoundingClientRect();
-      const cx = px < fr.left + fr.width / 2 ? fr.left : fr.right, cy = py < fr.top + fr.height / 2 ? fr.top : fr.bottom;
-      const u = unit(cx - px, cy - py);
+      const ex = px < fr.left + fr.width / 2 ? fr.left : fr.right, ey = py < fr.top + fr.height / 2 ? fr.top : fr.bottom;
+      const u = unit(ex - px, ey - py);
       line.setAttribute('x1', r2(px + u.x * rr)); line.setAttribute('y1', r2(py + u.y * rr));
-      line.setAttribute('x2', r2(cx)); line.setAttribute('y2', r2(cy));
+      line.setAttribute('x2', r2(ex)); line.setAttribute('y2', r2(ey));
     };
-    let moved = false;
-    place(sx + 30, sy - 90);   // initial frame near the port, before any drag
-    const onMove = (ev) => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) >= 4) moved = true; place(ev.clientX, ev.clientY); };
-    const onUp = (ev) => {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
+    place(cx, cy);
+    const onMove = (ev) => { cx = ev.clientX; cy = ev.clientY; place(cx, cy); };
+    const finish = () => {
+      document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('pointerup', onUp, true);
+      document.removeEventListener('pointerdown', onClick, true);
       ring.remove(); line.remove(); frame.remove();
-      const x = moved ? ev.clientX : sx + 30, y = moved ? ev.clientY : sy - 90;
-      this._createScope(key, portId, x, y);
+      this._createScope(key, portId, cx, cy);
       this.setScopeArm(false);   // one scope per arm
     };
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
+    const onUp = () => finish();
+    const onClick = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); };
+    document.addEventListener('pointermove', onMove, true);
+    if (mode === 'up') document.addEventListener('pointerdown', onClick, true);
+    else document.addEventListener('pointerup', onUp, true);
   }
 
   _createScope(key, portId, x, y) {
@@ -1118,6 +1167,34 @@ export class Rack {
     this._scopes.add(sc);
     this._updateCallout(sc);
     this._startScopeLoop();
+    return sc;
+  }
+
+  // Carry an already-live scope (created on a pie peek) so it follows the pointer and
+  // drops. It hangs by the middle of its LEFT side when the drag went out to the right
+  // (scope trails to the right), or by the middle of its RIGHT side when the drag went
+  // left — decided by the cross-out direction relative to the pie origin. mode 'down'
+  // drops on the next RELEASE (dragged out holding a button); mode 'up' drops on the
+  // next CLICK. Escape cancels — the scope is removed.
+  _carryScope(sc, e, mode, originX) {
+    const w = sc.el.offsetWidth || 246, h = sc.el.offsetHeight || 80;
+    const ax = e.clientX >= originX ? 0 : -w;   // right-going: grab left-centre; left-going: grab right-centre
+    const place = (px, py) => { sc.el.style.left = Math.round(px + ax) + 'px'; sc.el.style.top = Math.round(py - h / 2) + 'px'; this._updateCallout(sc); };
+    place(e.clientX, e.clientY);
+    const onMove = (ev) => place(ev.clientX, ev.clientY);
+    const finish = () => {
+      document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('pointerup', onUp, true);
+      document.removeEventListener('pointerdown', onClick, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+    const onUp = () => finish();
+    const onClick = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); };
+    const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); this._closeScope(sc); finish(); } };
+    document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('keydown', onKey, true);
+    if (mode === 'up') document.addEventListener('pointerdown', onClick, true);
+    else document.addEventListener('pointerup', onUp, true);
   }
 
   _scopeTapConnect(sc) {
@@ -1616,6 +1693,13 @@ export class Rack {
       port.element.dataset.jackKey = rec.key;
       port.element.dataset.jackPort = portId;
       port.element.addEventListener('pointerdown', (e) => this._onJackPointerDown(e, rec.key, portId));
+      port.element.addEventListener('contextmenu', (e) => this._onJackContextMenu(e, rec.key, portId));
+    }
+    // The vertical title up the left edge: right-click it to delete the module.
+    const title = svg.querySelector('.module-title');
+    if (title) {
+      title.style.cursor = 'context-menu';
+      title.addEventListener('contextmenu', (e) => this._onTitleContextMenu(e, rec));
     }
   }
 
@@ -1802,15 +1886,36 @@ export class Rack {
     return x;
   }
 
+  // Right-click a module faceplate → the panel pie: global actions only. Start/stop
+  // (bottom) PEEKS the transport as an audition: entering the wedge forces sound ON so
+  // you can hear it, returning to the centre restores the state from when the menu
+  // opened, and crossing out toggles it (off→on stays on; on→off turns off). The app
+  // menu (upper-left) opens on cross-out. Delete lives on the module's vertical title.
   _onModuleContextMenu(e, rec) {
     e.preventDefault();
     e.stopPropagation();
-    const netItem = this._netMode
-      ? { label: 'Stop exploring nets', action: () => this._exitNetMode() }
-      : { label: 'Explore signal nets', action: () => this._enterNetMode(this._netOriginAt(rec, e.clientX, e.clientY)) };
-    const items = [netItem];
-    if (!rec.pinned) items.push({ label: `Delete ${rec.name}`, action: () => this.deleteModule(rec) });   // the mixer is a fixed singleton
-    this._openMenu(e.clientX, e.clientY, items);
+    const pre = this.isPlaying();   // transport state when the menu opened
+    openPieMenu({
+      x: e.clientX, y: e.clientY,
+      segments: [
+        { dir: 'NW', icon: APPMENU_ICON, label: 'menu', onCommit: (ev) => this.onAppMenu(ev.clientX, ev.clientY) },
+        { dir: 'S', icon: pre ? STOP_ICON : PLAY_ICON, label: pre ? 'stop sound' : 'start sound', highlighted: pre,
+          onPeek: () => this.setTransport(true), onUnpeek: () => this.setTransport(pre), onCommit: () => this.setTransport(!pre) },
+      ],
+    });
+  }
+
+  // Right-click a module's vertical title (its left edge) → delete. It only fires on
+  // cross-out (a deliberate drag past the rim), so a stray hover can't remove it. The
+  // pinned mixer can't be deleted, so no pie.
+  _onTitleContextMenu(e, rec) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (rec.pinned) return;
+    openPieMenu({
+      x: e.clientX, y: e.clientY,
+      segments: [{ dir: 'NE', icon: TRASH_ICON, label: `delete ${rec.name}`, onCommit: () => this.deleteModule(rec) }],
+    });
   }
 
   // items: { label, action } clickable rows, plus optional { header:true } group
