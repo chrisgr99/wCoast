@@ -575,13 +575,13 @@ function decoratePanel(parsed, descriptor, opts) {
   }
 }
 
-// Fetch the panel SVG over the app:// origin, parse it, and bind it. Paths are
-// relative to the origin root (a leading slash resolves against it). `opts.dark`
+// Fetch the panel SVG, parse it, and bind it. The URL is used as-is — RELATIVE to
+// the document — so it resolves whether the page is served at the origin root
+// (Electron's app:// scheme) or under a sub-path (e.g. GitHub Pages). `opts.dark`
 // selects the dark decoration (the caller has already chosen the dark file URL).
 export async function loadPanel(url, descriptor, opts = {}) {
-  const href = url.startsWith('/') || url.includes('://') ? url : `/${url}`;
-  const res = await fetch(href);
-  if (!res.ok) throw new Error(`panel fetch ${href} failed: ${res.status}`);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`panel fetch ${url} failed: ${res.status}`);
   const text = await res.text();
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
   const err = doc.querySelector('parsererror');

@@ -37,17 +37,16 @@ export class SynthHost {
 
   register(entry) { return this.registry.register(entry); }
 
-  // Load every worklet a module declares, once each. Paths are relative to the
-  // app:// origin root; a leading slash resolves them against the origin
-  // regardless of the current document path (same convention as the spike).
+  // Load every worklet a module declares, once each. Paths are RELATIVE to the
+  // document, so they resolve correctly whether the page is served at the origin
+  // root (Electron's app:// scheme) or under a sub-path (e.g. GitHub Pages).
   async loadWorklets(descriptorId) {
     const descriptor = this.registry.descriptor(descriptorId);
     const paths = Array.isArray(descriptor.worklets) ? descriptor.worklets : [];
     for (const p of paths) {
-      const url = p.startsWith('/') ? p : `/${p}`;
-      if (this._loadedWorklets.has(url)) continue;
-      await this.ctx.audioWorklet.addModule(url);
-      this._loadedWorklets.add(url);
+      if (this._loadedWorklets.has(p)) continue;
+      await this.ctx.audioWorklet.addModule(p);
+      this._loadedWorklets.add(p);
     }
   }
 
