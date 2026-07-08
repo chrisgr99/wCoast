@@ -30,7 +30,12 @@ export function create(ctx, services) {
   // Enable sense flipped: 'on' = enabled (pass), 'off' = disabled (silent).
   masterMute.gain.value = paramDefault('masterMute') === 'on' ? 1 : 0;
   master.connect(masterMute);
-  masterMute.connect(ctx.destination);
+  // A solo-duck after the mute silences the normal output while an ear monitor is
+  // auditioning a single terminal, without disturbing the user's master-enable state.
+  const soloDuck = ctx.createGain();
+  masterMute.connect(soloDuck);
+  soloDuck.connect(ctx.destination);
+  function setSolo(on) { soloDuck.gain.setTargetAtTime(on ? 0 : 1, ctx.currentTime, 0.008); }
 
   // Stereo VU tap: split the post-mute output into L/R analysers for the meters.
   // (A pure read — it doesn't alter the signal reaching the destination.)
@@ -139,5 +144,5 @@ export function create(ctx, services) {
     channels: new Map(channels.map((c) => [c.L, c.meter])),
   };
 
-  return { getOutput, getInput, getParam, setParam, supports, dispose, master, meters, levels, analysers };
+  return { getOutput, getInput, getParam, setParam, supports, dispose, setSolo, master, meters, levels, analysers };
 }

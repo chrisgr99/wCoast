@@ -28,12 +28,16 @@ const ROW_GAP_MM = 0;           // vertical gap between rows (0 = flush, facepla
 const GAP_MM = 4;               // horizontal margin at the right of the case, in mm
 const SVG_NS = 'http://www.w3.org/2000/svg';
 // Pie-wedge icons (match the toolbar buttons where there is one).
-const SCOPE_ICON = '<svg viewBox="0 0 24 24"><path d="M2 12 Q6.5 3 11.5 12 T21 12 L22 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SCOPE_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.2" stroke-width="1.7"/><path d="M5 12 Q7 8 9 12 T13 12 T17 12 L19 12" stroke-width="1.9"/></g></svg>';
 const APPMENU_ICON = '<svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="2.4" rx="1"/><rect x="4" y="11" width="16" height="2.4" rx="1"/><rect x="4" y="16" width="16" height="2.4" rx="1"/></svg>';
 const PLAY_ICON = '<svg viewBox="0 0 24 24"><polygon points="7,5 19,12 7,19"/></svg>';
 const STOP_ICON = '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
 const NET_ICON = '<svg viewBox="0 0 24 24"><g stroke="currentColor" stroke-linecap="round"><line x1="12" y1="12" x2="20" y2="4.5" stroke-width="2.1"/><line x1="12" y1="12" x2="18.5" y2="21" stroke-width="2.1"/><circle cx="20" cy="4.5" r="3.2" fill="currentColor" stroke="none"/><circle cx="18.5" cy="21" r="3.2" fill="currentColor" stroke="none"/><line x1="3.5" y1="6" x2="12" y2="12" stroke-width="2.9"/><circle cx="3.5" cy="6" r="3.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="3.7" fill="currentColor" stroke="none"/></g></svg>';
 const TRASH_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></g></svg>';
+const EAR_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">'
+  + '<g stroke-width="2"><path d="M10 21c-1.2-1.6-2-3.2-2-5.9A6 6 0 0 1 20 15c0 2.5-1.8 3.6-3.5 3.6-1.4 0-2 .9-2 2 0 1.4-1 2.5-2.4 2.5-1.1 0-2.1-.9-2.1-2.1"/>'
+  + '<path d="M11.4 14A2.6 2.6 0 0 1 16.2 14.4c0 1.6-1.5 2.1-1.5 3.5"/></g>'
+  + '<g stroke-width="1.6"><path d="M7.4 10.4A6 6 0 0 1 11.5 6.7"/><path d="M4.1 9.3A9.5 9.5 0 0 1 10.5 3.3"/></g></g></svg>';
 
 // Cable colour = signal family, matching the port bodies: audio yellow, CV/control
 // orange, trigger blue, 1V/oct pitch green. A cord takes its DESTINATION port's
@@ -69,6 +73,7 @@ export class Rack {
     this.isPlaying = opts.isPlaying || (() => false); // current transport state (for the wedge highlight)
     this.setTransport = opts.setTransport || ((on) => { if (this.isPlaying() !== on) this.onTransport(); }); // set sound explicitly (for the peek)
     this._scopes = new Set();       // live floating signal scopes (transient, not saved)
+    this._monitors = new Set();     // live ear monitors — solo-listen taps (transient, not saved)
     this.dark = !!opts.dark;                        // dark-mode faceplates
     this.rowCount = opts.rowCount || 2;
     this.rows = [];
@@ -1042,19 +1047,35 @@ export class Rack {
     // a live scope up-right of the pie (see its wave); returning to the centre removes
     // it again; crossing out carries the scope off to be dropped.
     const existing = [...this._scopes].find((sc) => sc.key === key && sc.portId === portId);
+    const existingMon = [...this._monitors].find((m) => m.key === key && m.portId === portId);
     const ox = e.clientX, oy = e.clientY;
     let peekSc = null;
     openPieMenu({
       x: e.clientX, y: e.clientY,
-      segments: [{
-        dir: 'NE', icon: SCOPE_ICON, label: existing ? 'remove scope' : 'scope', highlighted: !!existing,
-        onPeek: existing ? undefined : () => { peekSc = this._createScope(key, portId, ox + 30, oy - 100); },
-        onUnpeek: existing ? undefined : () => { if (peekSc) { this._closeScope(peekSc); peekSc = null; } },
-        onCommit: (ev, mode) => {
-          if (existing) { this._closeScope(existing); return; }
-          if (peekSc) { const sc = peekSc; peekSc = null; this._carryScope(sc, ev, mode, ox); }
+      segments: [
+        {
+          dir: 'NE', icon: SCOPE_ICON, label: existing ? 'remove scope' : 'scope', highlighted: !!existing,
+          onPeek: existing ? undefined : () => { peekSc = this._createScope(key, portId, ox + 30, oy - 100); },
+          onUnpeek: existing ? undefined : () => { if (peekSc) { this._closeScope(peekSc); peekSc = null; } },
+          onCommit: (ev, mode) => {
+            if (existing) { this._closeScope(existing); return; }
+            if (peekSc) { const sc = peekSc; peekSc = null; this._carryScope(sc, ev, mode, ox); }
+          },
         },
-      }],
+        // Listen (below the scope). Peeking solos this terminal (mutes the rest);
+        // crossing out drops a placed ear monitor that adds to the solo mix. When one
+        // already exists here the wedge removes it, like the scope.
+        {
+          dir: 'SE', icon: EAR_ICON, label: existingMon ? 'remove listen' : 'listen', highlighted: !!existingMon,
+          onPeek: existingMon ? undefined : () => this._startMonPeek(key, portId),
+          onUnpeek: existingMon ? undefined : () => this._endMonPeek(),
+          onCommit: (ev, mode) => {
+            if (existingMon) { this._closeMonitor(existingMon); return; }
+            this._endMonPeek();
+            this._carryMonitor(this._createMonitor(key, portId, ev.clientX, ev.clientY), ev, mode);
+          },
+        },
+      ],
     });
   }
 
@@ -1329,7 +1350,7 @@ export class Rack {
     sc.line.setAttribute('x1', r2(jx)); sc.line.setAttribute('y1', r2(jy));
     sc.line.setAttribute('x2', r2(cx)); sc.line.setAttribute('y2', r2(cy));
     sc.line.setAttribute('stroke', col); sc.line.setAttribute('stroke-width', lw);
-    sc.dot.style.left = r2(jx) + 'px'; sc.dot.style.top = r2(jy) + 'px';
+    if (sc.dot) { sc.dot.style.left = r2(jx) + 'px'; sc.dot.style.top = r2(jy) + 'px'; }
   }
 
   // Press the scope body: a drag repositions it (the callout follows); a click with
@@ -1397,6 +1418,150 @@ export class Rack {
     sc.el.remove(); sc.ring.remove(); sc.line.remove(); sc.dot.remove();
     this._scopes.delete(sc);
     if (!this._scopes.size && this._scopeRaf) { cancelAnimationFrame(this._scopeRaf); this._scopeRaf = null; }
+  }
+
+  // ---- Ear monitors: solo-listen to one terminal, muting the normal output ----
+
+  _mixerInstance() {
+    for (const rec of this.records.values()) if (rec.descriptorId === 'mixer' && rec.instance) return rec.instance;
+    return null;
+  }
+
+  // The monitor bus: every active ear tap sums here, through a brick-wall limiter that
+  // protects ears/speakers from a hot tap, straight to the destination (independent of
+  // the mixer, so a terminal can be auditioned even with the master muted).
+  _monitorBus() {
+    if (!this._monBus) {
+      const ctx = this.host.ctx;
+      this._monBus = ctx.createGain();
+      const lim = ctx.createDynamicsCompressor();
+      lim.threshold.value = -6; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.003; lim.release.value = 0.12;
+      this._monBus.connect(lim); lim.connect(ctx.destination);
+    }
+    if (this.host.ctx.resume) this.host.ctx.resume();
+    return this._monBus;
+  }
+
+  // Duck the mixer's normal output while any monitor (a placed one or a pie peek) is
+  // live, so you hear only the soloed terminal(s).
+  _refreshSolo() {
+    const mix = this._mixerInstance();
+    if (mix && mix.setSolo) mix.setSolo(this._monitors.size > 0 || !!this._monPeek);
+  }
+
+  // Route a terminal's tap into the monitor bus at a level that respects the master
+  // output gain; the bus limiter guards against anything much hotter (ear/speaker
+  // safety). Muted monitors carry no tap.
+  _monTapConnect(m) {
+    const mix = this._mixerInstance();
+    const base = mix && mix.getParam && mix.getParam('master') ? mix.getParam('master').value : 0.7;
+    m.gain.gain.value = base;
+    const tap = this._probeTap(m.key, m.portId);
+    if (tap && tap.node) { try { tap.node.connect(m.gain, tap.index || 0); m.tap = tap; } catch (_e) { m.tap = null; } }
+    return m.tap;
+  }
+  _monTapDisconnect(m) {
+    if (m.tap && m.tap.node) { try { m.tap.node.disconnect(m.gain, m.tap.index || 0); } catch (_e) { /* gone */ } }
+    m.tap = null;
+  }
+
+  // Transient audition for the pie peek: hear the terminal with no placed circle yet.
+  _startMonPeek(key, portId) {
+    this._endMonPeek();
+    const g = this.host.ctx.createGain(); g.connect(this._monitorBus());
+    const m = { key, portId, gain: g, tap: null };
+    this._monTapConnect(m);
+    this._monPeek = m;
+    this._refreshSolo();
+  }
+  _endMonPeek() {
+    const m = this._monPeek; this._monPeek = null;
+    if (m) { this._monTapDisconnect(m); try { m.gain.disconnect(); } catch (_e) { /* gone */ } }
+    this._refreshSolo();
+  }
+
+  // A placed ear monitor: a small circle with an ear icon and an X, a callout ring/
+  // line back to its terminal, and its tap summed into the monitor bus.
+  _createMonitor(key, portId, x, y) {
+    const el = document.createElement('div');
+    el.className = 'mon'; el.title = 'Click to mute · drag to move';
+    el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px';
+    el.innerHTML = EAR_ICON;
+    const close = document.createElement('button');
+    close.className = 'mon-close'; close.textContent = '×'; close.title = 'Remove';
+    el.appendChild(close);
+    document.body.appendChild(el);
+    const g = this.host.ctx.createGain(); g.connect(this._monitorBus());
+    const m = {
+      key, portId, el, gain: g, tap: null, muted: false,
+      ring: document.createElementNS(SVG_NS, 'circle'), line: document.createElementNS(SVG_NS, 'line'),
+    };
+    const ov = this._scopeOverlay();
+    m.line.setAttribute('fill', 'none'); ov.appendChild(m.line);
+    m.ring.setAttribute('fill', 'none'); m.ring.style.pointerEvents = 'none'; ov.appendChild(m.ring);
+    this._monTapConnect(m);
+    close.addEventListener('click', (ev) => { ev.stopPropagation(); this._closeMonitor(m); });
+    el.addEventListener('pointerdown', (ev) => this._dragMonitor(ev, m));
+    this._monitors.add(m);
+    this._updateCallout(m);
+    this._refreshSolo();
+    return m;
+  }
+
+  _closeMonitor(m) {
+    this._monTapDisconnect(m);
+    try { m.gain.disconnect(); } catch (_e) { /* gone */ }
+    m.el.remove(); m.ring.remove(); m.line.remove();
+    this._monitors.delete(m);
+    this._refreshSolo();
+  }
+
+  // Click the circle (no drag) → mute/unmute (pull its tap from the mix); a drag
+  // repositions it, the callout following.
+  _dragMonitor(ev, m) {
+    if (ev.button !== 0 || ev.target.classList.contains('mon-close')) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const r = m.el.getBoundingClientRect();
+    const ox = ev.clientX - r.left, oy = ev.clientY - r.top, sx = ev.clientX, sy = ev.clientY;
+    let moved = false;
+    const onMove = (e2) => {
+      if (!moved && Math.hypot(e2.clientX - sx, e2.clientY - sy) < 4) return;
+      moved = true;
+      m.el.style.left = Math.round(e2.clientX - ox) + 'px'; m.el.style.top = Math.round(e2.clientY - oy) + 'px'; this._updateCallout(m);
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
+      if (!moved) this._toggleMonMute(m);
+    };
+    document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
+  }
+
+  _toggleMonMute(m) {
+    m.muted = !m.muted;
+    m.el.classList.toggle('mon-muted', m.muted);
+    if (m.muted) this._monTapDisconnect(m); else this._monTapConnect(m);
+  }
+
+  // Carry a freshly-placed monitor circle out to be dropped (see _carryScope): it
+  // follows the pointer by its centre. Escape cancels — the monitor is removed.
+  _carryMonitor(m, e, mode) {
+    const w = m.el.offsetWidth || 34, h = m.el.offsetHeight || 34;
+    const place = (px, py) => { m.el.style.left = Math.round(px - w / 2) + 'px'; m.el.style.top = Math.round(py - h / 2) + 'px'; this._updateCallout(m); };
+    place(e.clientX, e.clientY);
+    const onMove = (ev) => place(ev.clientX, ev.clientY);
+    const finish = () => {
+      document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('pointerup', onUp, true);
+      document.removeEventListener('pointerdown', onClick, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+    const onUp = () => finish();
+    const onClick = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); };
+    const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); this._closeMonitor(m); finish(); } };
+    document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('keydown', onKey, true);
+    if (mode === 'up') document.addEventListener('pointerdown', onClick, true);
+    else document.addEventListener('pointerup', onUp, true);
   }
 
   // ---- connection list (read-only) ----
@@ -1894,6 +2059,7 @@ export class Rack {
   _onModuleContextMenu(e, rec) {
     e.preventDefault();
     e.stopPropagation();
+    if (e.target.closest && e.target.closest('[data-wcoast-param]')) return;   // no pie over a knob or any control
     const pre = this.isPlaying();   // transport state when the menu opened
     openPieMenu({
       x: e.clientX, y: e.clientY,

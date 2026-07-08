@@ -41,14 +41,18 @@ gesture and closes only by committing (out) or cancelling (centre).
 - **Peek.** Moving or dragging into a segment highlights it and fires a *reversible
   preview*: sound starts, an oscilloscope appears showing its wave. Moving to a
   different segment un-peeks the first and peeks the new one.
-- **Un-peek.** Moving back into the centre dead zone reverses the preview (sound
-  stops, the scope disappears). You are back to neutral, menu still open.
-- **Commit.** Dragging/moving *outward past the outer circle* leaves the preview in
+- **Locked to the segment.** Entering a segment locks the gesture to it. It commits
+  **only** by exiting through that segment's own outer arc (a straight radial push
+  out). Returning to the **centre** reverses the preview (sound stops, the scope
+  disappears) but leaves the menu open and unlocked, so you can slide back out to a
+  segment again. Sliding out through a **side** into a neighbour cancels the preview
+  *and* closes the menu. You do not switch segments by sliding sideways.
+- **Commit.** Pushing *out through the segment's outer arc* leaves the preview in
   place and hands off: sound stays on; the scope detaches and follows the pointer to
   be dropped — on release if a button was held, on the next click if not. The menu
   vanishes.
-- **Cancel.** Back in the centre, releasing or clicking (either button), or Escape,
-  closes the menu with every preview undone.
+- **Dismiss without acting.** At the opening position, a click (either button) or
+  Escape closes the menu.
 
 So one gesture peeks to audition, then either flicks outward to keep it or falls back
 to the centre to drop it — a quick peek-and-decide. One-shot segments (app menu,
@@ -83,8 +87,14 @@ draw our own cursor rather than move the real one:
 - The other six positions are empty for now.
 
 **Terminal pie**
-- **NE** (upper-right): **scope** — drag an oscilloscope out of the terminal. The
-  only segment in v1.
+- **NE** (upper-right): **scope** — drag an oscilloscope out of the terminal.
+- **SE** (lower-right, below the scope): **listen** — an ear. Peeking solos this
+  terminal into a monitor bus (a brick-wall limiter protects ears/speakers; level
+  respects the master gain) and ducks the normal output, so you hear only this
+  terminal. Crossing out drops a placed ear monitor — a small circle with the ear
+  icon and a callout line to the terminal — whose tap *adds* to the solo mix, so
+  several terminals can be monitored together. Click a circle to mute/unmute it, drag
+  to move it, the X (or a cross-out over a terminal that already has one) to remove.
 
 **Module pie** (title strip)
 - **NE** (upper-right): **delete**. Left-drag on the strip = move the module.

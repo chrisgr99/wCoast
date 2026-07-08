@@ -65,6 +65,13 @@
       background: rgba(0,0,0,0.4); color: #cfcfcf; border: none; font: 13px/13px sans-serif; text-align: center; cursor: pointer; }
     .scope-close:hover { background: rgba(255,80,80,0.65); color: #fff; }
     .scope-callouts { position: fixed; inset: 0; pointer-events: none; z-index: 1240; overflow: visible; }
+    .mon { position: fixed; z-index: 1250; width: 34px; height: 34px; border-radius: 50%; background: #0d0f0c; border: 1px solid #8a8d92;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5); cursor: move; display: flex; align-items: center; justify-content: center; color: #cfe8d4; }
+    .mon svg { width: 20px; height: 20px; display: block; }
+    .mon-close { position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; border-radius: 50%; padding: 0;
+      background: rgba(0,0,0,0.6); color: #cfcfcf; border: 1px solid #8a8d92; font: 12px/13px sans-serif; text-align: center; cursor: pointer; }
+    .mon-close:hover { background: rgba(255,80,80,0.75); color: #fff; }
+    .mon-muted { opacity: 0.4; }
 
     /* master group at the far right: house-style knob + horizontal VU */
     #master-group { display: flex; align-items: center; gap: 8px; flex: none; }

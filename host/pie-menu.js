@@ -110,7 +110,7 @@ export function openPieMenu({ x, y, segments = [], innerR = 11, outerR = 30, ico
   // (its preview stays / a drag hands off), or returning to the centre and releasing
   // or clicking CANCELS. Commit mode 'down' (a button was held) hands off a release-
   // to-drop tool; mode 'up' (no button) hands off a click-to-drop tool.
-  let peeked = null, done = false, pressed = false;
+  let peeked = null, done = false, pressed = false;   // `peeked` locks to the first segment entered
   const setHover = (dir) => {
     if (peeked && wedgeEls.get(peeked)) wedgeEls.get(peeked).classList.remove('hover');
     peeked = dir;
@@ -127,10 +127,8 @@ export function openPieMenu({ x, y, segments = [], innerR = 11, outerR = 30, ico
     const rx = px + offX, ry = py + offY;
     cursor.style.left = rx + 'px'; cursor.style.top = ry + 'px';
     const dx = rx - cx, dy = ry - cy, dist = Math.hypot(dx, dy);
-    if (dist < innerR) return { zone: 'center', dir: null };
     let ang = Math.atan2(dy, dx) * 180 / Math.PI; if (ang < 0) ang += 360;
-    const dir = SNAP_DIR[60 * Math.floor(ang / 60) + 30];
-    return { zone: dist > outerR ? 'outside' : 'seg', dir: byDir.has(dir) ? dir : null };
+    return { dist, dir: SNAP_DIR[60 * Math.floor(ang / 60) + 30] };   // dir = raw angular segment (may be empty)
   };
   const commit = (dir, e) => {
     const seg = byDir.get(dir);
@@ -143,24 +141,29 @@ export function openPieMenu({ x, y, segments = [], innerR = 11, outerR = 30, ico
   zoneOf(x, y);   // seat the rendered cursor at the centre
   const onMove = (e) => {
     if (done) return;
-    const z = zoneOf(e.clientX, e.clientY);
-    if (z.zone === 'center') { peekTo(null, e); return; }
-    if (z.zone === 'seg') { peekTo(z.dir, e); return; }
-    if (!z.dir) { peekTo(null, e); closePieMenu(); return; }   // out toward an empty direction → close
-    if (peeked !== z.dir) peekTo(z.dir, e);                    // a fast drag can skip the ring: peek then commit
-    commit(z.dir, e);
+    const { dist, dir } = zoneOf(e.clientX, e.clientY);
+    // Centre: cancel whatever is being previewed and unlock, but KEEP the menu open —
+    // you can slide back out to a segment (the same or another) again.
+    if (dist < innerR) { if (peeked) peekTo(null, e); return; }
+    // Entering from the centre locks the gesture to this wedge (a fast flick straight
+    // past the rim peeks and commits at once).
+    if (!peeked) { peekTo(dir, e); if (dist > outerR) commit(dir, e); return; }
+    // Locked: only exiting through this segment's own outer arc commits; sliding
+    // sideways into another wedge cancels the preview and closes the menu.
+    if (dir === peeked) { if (dist > outerR) commit(peeked, e); return; }
+    peekTo(null, e); closePieMenu();
   };
   const onDown = (e) => {
     e.preventDefault(); e.stopPropagation();
     if (e.button === 2) { peekTo(null, e); closePieMenu(); return; }   // a fresh right-click cancels
     pressed = true;                                                     // a press on a segment does NOT act; the gesture continues
   };
-  // Release/click closes ONLY back in the centre (cancel). A release on a segment
-  // leaves the menu up so the peek stays. `pressed` guards the release of the opening
-  // right-click, which never pressed the overlay.
+  // A click/release in the dead zone before entering any segment dismisses the menu.
+  // `pressed` guards the release of the opening right-click, which never pressed the
+  // overlay. (Once a segment is locked, cancelling is by moving, handled in onMove.)
   const onUp = (e) => {
-    if (done || !pressed) return;
-    if (zoneOf(e.clientX, e.clientY).zone === 'center') { peekTo(null, e); closePieMenu(); }
+    if (done || !pressed || peeked) return;
+    if (zoneOf(e.clientX, e.clientY).dist < innerR) { peekTo(null, e); closePieMenu(); }
   };
   const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); peekTo(null); closePieMenu(); } };
   document.addEventListener('pointermove', onMove, true);
