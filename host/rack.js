@@ -429,8 +429,8 @@ export class Rack {
     // subnet itself is recomputed live so it tracks patch edits (a new feeding cord
     // joins at once; a removed one leaves). Rebuild the enlarged jacks only on a change.
     if (this._isolateOrigin) {
-      const net = this._upstreamOf(this._isolateOrigin.key, this._isolateOrigin.portId);
-      if (!this._sameSet(net, this._isolateNet)) { this._isolateNet = net; this._buildIsolateSwells(); }
+      const up = this._upstreamOf(this._isolateOrigin.key, this._isolateOrigin.portId);
+      if (!this._sameSet(up.edges, this._isolateNet)) { this._isolateNet = up.edges; this._isolateSections = up.sections; this._buildIsolateSwells(); this._buildControlHalos(); }
     }
     this._netEdges = (!this._isolateNet && this._netOrigin) ? this._computeNet(this._netOrigin) : null;   // recompute so it tracks patch edits
     const s = this.pxPerMm;
@@ -1109,12 +1109,14 @@ export class Rack {
   // ends on Escape or a left click on empty faceplate.
   _isolateSubnet(key, portId) {
     this._exitIsolate();
-    const net = this._upstreamOf(key, portId);
-    if (!net.size) return;   // nothing feeds this terminal — nothing to isolate
+    const up = this._upstreamOf(key, portId);
+    if (!up.edges.size) return;   // nothing feeds this terminal — nothing to isolate
     this._isolateOrigin = { key, portId };
-    this._isolateNet = net;
+    this._isolateNet = up.edges;
+    this._isolateSections = up.sections;
     this._isolateOffsets = new Map();     // edge id -> its own accumulated dash offset
     this._buildIsolateSwells();
+    this._buildControlHalos();
     this._isolateEsc = (ev) => { if (ev.key === 'Escape') this._exitIsolate(); };
     document.addEventListener('keydown', this._isolateEsc);
     this._drawCables();
@@ -1145,6 +1147,76 @@ export class Rack {
     this._isolateSwells = [];
   }
 
+  // While isolating, ring every control whose SECTION affects the terminal with a cyan
+  // halo, and dim the rest — so the user can focus on just the relevant knobs/switches.
+  // Per-section: on a quad, only the feeding channel's controls light up, not the module.
+  _buildControlHalos() {
+    this._clearControlHalos();
+    if (!this._isolateSections) return;
+    this._controlHalos = [];
+    for (const rec of this.records.values()) {
+      if (!rec.panel || !rec.panel.controls) continue;
+      for (const b of rec.panel.controls.values()) {
+        const inNet = this._isolateSections.has(this._controlSectionKey(rec, b));
+        // A control that only shapes ONE input (a CV/FM attenuator, phase lock) is inert
+        // when that input is unpatched — dim it too, so only controls that can actually
+        // affect the terminal light up.
+        const gate = inNet ? this._controlGatePort(rec, b) : null;
+        if (inNet && !(gate && !this._portOccupied(rec.key, gate))) {
+          const halo = this._makeControlHalo(b);
+          if (halo) this._controlHalos.push({ halo });
+        } else {
+          this._controlHalos.push({ dimEl: b.group, prev: b.group.style.opacity });
+          b.group.style.opacity = '0.46';   // dimmed, but not too faint (fade reduced ~25%)
+        }
+      }
+    }
+  }
+  // The input port that GATES a control (it's inert unless that port is patched), or
+  // null. From an explicit param.needsPort, or from a CV input whose `via` attenuator IS
+  // this control. Base knobs (freq, level, …) gate nothing and always count.
+  _controlGatePort(rec, b) {
+    const desc = this.host.registry.descriptor(rec.descriptorId);
+    if (!desc) return null;
+    const param = desc.params && desc.params.find((p) => p.id === b.id);
+    if (param && param.needsPort) return param.needsPort;
+    const port = desc.ports && desc.ports.find((p) => p.via === b.id);
+    return port ? port.id : null;
+  }
+  _portOccupied(key, portId) {
+    return this.patchbay.list().some((e) => (e.dst.key === key && e.dst.portId === portId) || (e.src.key === key && e.src.portId === portId));
+  }
+  _clearControlHalos() {
+    if (!this._controlHalos) return;
+    for (const h of this._controlHalos) {
+      if (h.halo) h.halo.remove();
+      if (h.dimEl) h.dimEl.style.opacity = h.prev || '';
+    }
+    this._controlHalos = null;
+  }
+  // A cyan ring hugging one control's bounds (in the panel's mm space, so it scales with
+  // zoom). rx = half the short side, so a knob/button reads as a circle and a fader as a
+  // stadium. Inserted as the control's first child to share its coordinate system.
+  _makeControlHalo(b) {
+    let bb; try { bb = b.group.getBBox(); } catch (_e) { return null; }
+    if (!bb || !bb.width || !bb.height) return null;
+    const pad = 0.9;
+    const x = bb.x - pad, y = bb.y - pad, w = bb.width + 2 * pad, h = bb.height + 2 * pad;
+    const rect = document.createElementNS(SVG_NS, 'rect');
+    rect.setAttribute('class', 'control-halo');
+    rect.setAttribute('x', r2(x)); rect.setAttribute('y', r2(y));
+    rect.setAttribute('width', r2(w)); rect.setAttribute('height', r2(h));
+    const rr = r2(Math.min(w, h) / 2);
+    rect.setAttribute('rx', rr); rect.setAttribute('ry', rr);
+    rect.setAttribute('fill', 'none');
+    rect.setAttribute('stroke', '#2ad4e6');
+    rect.setAttribute('stroke-width', '0.7');
+    rect.setAttribute('opacity', '0.9');
+    rect.setAttribute('pointer-events', 'none');
+    b.group.insertBefore(rect, b.group.firstChild);
+    return rect;
+  }
+
   _sameSet(a, b) {
     if (!a || !b || a.size !== b.size) return false;
     for (const x of a) if (!b.has(x)) return false;
@@ -1155,12 +1227,13 @@ export class Rack {
   // chain). The clicked port is precise — for an input, only the cord plugged into
   // THAT port seeds it (not its siblings on the same module); an output is fed by its
   // whole module. From there, upstream is followed per module/channel section (a
-  // module is a black box: all its inputs feed all its outputs).
+  // module is a black box: all its inputs feed all its outputs). Returns { edges, sections }
+  // — the feeding cords AND the section keys whose CONTROLS shape the signal here.
   _upstreamOf(key, portId) {
     const edges = this.patchbay.list();
     const result = new Set();
     const toExpand = [];        // sections whose input cords we still need to gather
-    const visited = new Set();  // sections already expanded
+    const visited = new Set();  // sections already expanded (== the sections that affect the terminal)
     const ep = this._ep(key, portId);
     if (ep && ep.meta.dir === 'out') {
       toExpand.push(this._sectionKey(key, portId));   // an output depends on its module's inputs
@@ -1183,7 +1256,20 @@ export class Rack {
         if (!visited.has(srcS)) toExpand.push(srcS);
       }
     }
-    return result;
+    return { edges: result, sections: visited };
+  }
+
+  // A control's section key, mirroring _sectionKey (which does it for ports): a whole
+  // module unless the module is sectioned, in which case a per-channel param (id ending
+  // A–D, section 'channel') is its channel, and everything else its named section. Lets
+  // control highlighting line up exactly with the cable/section graph.
+  _controlSectionKey(rec, b) {
+    const desc = this.host.registry.descriptor(rec.descriptorId);
+    if (!desc || !desc.sectioned) return rec.key;
+    const param = desc.params && desc.params.find((p) => p.id === b.id);
+    const sec = (b.meta && b.meta.section) || (param && param.section);
+    const ch = /([A-D])$/.exec(b.id);
+    return (sec === 'channel' && ch) ? `${rec.key}:${ch[1]}` : `${rec.key}:${sec || 'x'}`;
   }
 
   // Enlarge one jack (the drop-cue swell + family-colour ring) AND open a live tap on
@@ -1258,9 +1344,11 @@ export class Rack {
   _exitIsolate() {
     if (!this._isolateNet && !this._isolateSwells.length) return;
     this._clearIsolateSwells();
+    this._clearControlHalos();
     this._isolateJackByTag = new Map();
     this._isolateOffsets = new Map();
     this._isolateNet = null;
+    this._isolateSections = null;
     this._isolateOrigin = null;
     if (this._isolateEsc) { document.removeEventListener('keydown', this._isolateEsc); this._isolateEsc = null; }
     this._drawCables();

@@ -99,7 +99,7 @@ export default {
       glideMs: 0, modulatable: false },   // attenuverter for modCv input
     { id: "modFmAmount", section: "modOsc", name: "FM Amount",
       min: 0, max: 1, default: 0, unit: "", curve: "linear",
-      glideMs: 0, modulatable: false },   // attenuator for modFm input
+      glideMs: 0, modulatable: false, needsPort: "modFmIn" },   // attenuator for modFm input (inert with nothing patched)
     { id: "modRange", section: "modOsc", name: "Range",
       curve: "stepped", default: "high", modulatable: false,
       steps: [
@@ -126,7 +126,7 @@ export default {
       glideMs: 0, modulatable: false },   // attenuverter for prinCv input
     { id: "prinFmAmount", section: "prinOsc", name: "FM Amount",
       min: 0, max: 1, default: 0, unit: "", curve: "linear",
-      glideMs: 0, modulatable: false },   // attenuator for prinFm input
+      glideMs: 0, modulatable: false, needsPort: "prinFmIn" },   // attenuator for prinFm input (inert with nothing patched)
 
     // Timbre / Harmonics (shapes the Principal's Final output). Panel legends:
     // Order runs low->high, Symmetry runs even->odd. Timbre's CV input has its
@@ -163,11 +163,11 @@ export default {
       curve: "stepped", default: "off", modulatable: false,
       steps: [ { value: "off", name: "Off" }, { value: "on", name: "On" } ] },
     { id: "phaseLock", section: "middle", name: "Phase Lock",
-      curve: "stepped", default: "off", modulatable: false,
-      steps: [ { value: "off", name: "Off" }, { value: "on", name: "On" } ] },
+      curve: "stepped", default: "off", modulatable: false, needsPort: "phaseLockIn",
+      steps: [ { value: "off", name: "Off" }, { value: "on", name: "On" } ] },   // does nothing without a phase-lock input
     { id: "phaseLockAmount", section: "middle", name: "Phase Lock Gain",
       min: 0, max: 1, default: 0, unit: "", curve: "linear",
-      glideMs: 10, modulatable: false },  // panel "gain" on the phase-lock input
+      glideMs: 10, modulatable: false, needsPort: "phaseLockIn" },  // panel "gain" on the phase-lock input (inert with nothing patched)
   ],
 
   // ---- PORTS (jacks) ----
