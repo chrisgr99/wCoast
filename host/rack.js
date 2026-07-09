@@ -73,6 +73,8 @@ const STYLE_COLOR = { audio: '#f3c40b', control: '#ff7300', trigger: '#5aa0e6', 
 const domainStyle = (domain) => (domain === 'audio' ? 'audio' : domain === 'trigger' ? 'trigger' : 'control');
 const CABLE_PX = 3.8;   // cord thickness in px at zoom 1 (scales up as you zoom in)
 const JACK_DROP_MARGIN_MM = 2;   // a cable arms/drops within this much of a terminal's edge (a forgiving zone)
+// Ear-monitor volume knob: scroll with the same momentum feel as a panel knob.
+const MON_VOL_STEP = 0.04, MON_VOL_DRAG = 6, MON_VOL_MAXV = 8, MON_VOL_DEFAULT = 0.75;
 // Flow animation (on every cable, always): black dashes crawl each cord source->dest
 // to show direction. Dash LENGTH (in cable-widths) encodes the DESTINATION family —
 // audio shortest, CV/pitch medium, trigger longest — a shape cue on top of colour.
@@ -1844,7 +1846,7 @@ export class Rack {
   _monTapConnect(m) {
     const mix = this._mixerInstance();
     const base = mix && mix.getParam && mix.getParam('master') ? mix.getParam('master').value : 0.7;
-    m.gain.gain.value = base;
+    m.gain.gain.value = base * (m.vol != null ? m.vol : MON_VOL_DEFAULT);
     const tap = this._probeTap(m.key, m.portId);
     if (tap && tap.node) { try { tap.node.connect(m.gain, tap.index || 0); m.tap = tap; } catch (_e) { m.tap = null; } }
     return m.tap;
@@ -1861,13 +1863,18 @@ export class Rack {
     el.className = 'mon'; el.title = 'Click to mute · drag to move';
     el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px';
     el.innerHTML = EAR_ICON;
+    el.insertAdjacentHTML('afterbegin', this._monArcSvg());   // volume-ramp wedge + limit ticks, behind the ear icon
     const close = document.createElement('button');
     close.className = 'mon-close'; close.textContent = '×'; close.title = 'Remove';
     el.appendChild(close);
     document.body.appendChild(el);
     const g = this.host.ctx.createGain(); g.connect(this._monitorBus());
+    // The monitor doubles as a volume knob: an inward tick sweeps min (lower-left) up
+    // over the top to max (lower-right); the scroll wheel turns it with knob momentum.
+    const tick = document.createElement('div'); tick.className = 'mon-tick'; el.appendChild(tick);
     const m = {
-      key, portId, el, gain: g, tap: null, muted: false, showCallout,
+      key, portId, el, gain: g, tap: null, muted: false, showCallout, vol: MON_VOL_DEFAULT, tick,
+      volVel: 0, volRaf: null, volLast: 0,
       ring: document.createElementNS(SVG_NS, 'circle'), line: document.createElementNS(SVG_NS, 'line'),
       dot: document.createElement('div'),
     };
@@ -1876,13 +1883,65 @@ export class Rack {
     m.ring.setAttribute('fill', 'none'); m.ring.style.pointerEvents = 'none'; ov.appendChild(m.ring);
     m.dot.className = 'scope-dot'; document.body.appendChild(m.dot);   // grab handle at the loop
     this._monTapConnect(m);
+    this._drawMonTick(m);
     close.addEventListener('click', (ev) => { ev.stopPropagation(); this._closeMonitor(m); });
     el.addEventListener('pointerdown', (ev) => this._dragMonitor(ev, m));
+    el.addEventListener('wheel', (ev) => this._onMonWheel(m, ev), { passive: false });
     m.dot.addEventListener('pointerdown', (ev) => this._regrabMonitor(ev, m));
     this._monitors.add(m);
     this._updateCallout(m);
     this._refreshSolo();
     return m;
+  }
+
+  // Set the monitor's volume (0..1): gain = master base × vol, and turn the tick.
+  _setMonVol(m, vol) {
+    m.vol = clamp01(vol);
+    if (!m.muted) {
+      const mix = this._mixerInstance();
+      const base = mix && mix.getParam && mix.getParam('master') ? mix.getParam('master').value : 0.7;
+      try { m.gain.gain.value = base * m.vol; } catch (_e) { /* node gone */ }
+    }
+    this._drawMonTick(m);
+  }
+  _drawMonTick(m) {
+    if (m.tick) m.tick.style.transform = `rotate(${r2(-135 + m.vol * 270)}deg)`;   // min lower-left → max lower-right
+  }
+  // The static "this is a volume control" decoration inside a monitor: a wedge hugging
+  // the ring's inner edge that tapers from zero thickness at the lower-left limit up over
+  // the top to ~2mm at the lower-right limit, plus a tick at each limit of the sweep.
+  _monArcSvg() {
+    const cx = 17, cy = 17, Rout = 15.3, maxThick = 6, A0 = -135, A1 = 135, N = 36;
+    const pt = (deg, r) => { const t = deg * Math.PI / 180; return [cx + r * Math.sin(t), cy - r * Math.cos(t)]; };
+    const outer = [], inner = [];
+    for (let i = 0; i <= N; i++) { const deg = A0 + (A1 - A0) * i / N; outer.push(pt(deg, Rout)); inner.push(pt(deg, Rout - maxThick * (i / N))); }
+    let d = 'M ' + outer.map(([x, y], i) => (i ? 'L ' : '') + r2(x) + ' ' + r2(y)).join(' ');
+    for (let i = inner.length - 1; i >= 0; i--) d += ' L ' + r2(inner[i][0]) + ' ' + r2(inner[i][1]);
+    d += ' Z';
+    const tick = (deg) => { const [x1, y1] = pt(deg, Rout + 1.3); const [x2, y2] = pt(deg, Rout - 3.4); return `M ${r2(x1)} ${r2(y1)} L ${r2(x2)} ${r2(y2)}`; };
+    return `<svg class="mon-arc" viewBox="0 0 34 34"><path d="${d}" fill="#bfe6cd" opacity="0.62"/>`
+      + `<path d="${tick(A0)} ${tick(A1)}" stroke="#dfeee3" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+  }
+  // Scroll over a monitor turns its volume knob, with the same momentum/coast as a panel
+  // knob (velocity integrated by a rAF loop, bled off by drag).
+  _onMonWheel(m, e) {
+    if (e.ctrlKey) return;                      // ctrl+wheel is a rack pinch-zoom, not a knob turn
+    e.preventDefault(); e.stopPropagation();
+    const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+    m.volVel += (-d / 100) * MON_VOL_STEP * MON_VOL_DRAG;   // up (negative delta) raises
+    if (m.volVel > MON_VOL_MAXV) m.volVel = MON_VOL_MAXV; else if (m.volVel < -MON_VOL_MAXV) m.volVel = -MON_VOL_MAXV;
+    if (!m.volRaf) { m.volLast = performance.now(); m.volRaf = requestAnimationFrame((t) => this._tickMonVol(m, t)); }
+  }
+  _tickMonVol(m, t) {
+    const now = t || performance.now();
+    const dt = Math.min(0.05, (now - m.volLast) / 1000);
+    m.volLast = now;
+    const next = clamp01(m.vol + m.volVel * dt);
+    this._setMonVol(m, next);
+    m.volVel *= Math.exp(-MON_VOL_DRAG * dt);
+    const pinned = (next <= 0 && m.volVel < 0) || (next >= 1 && m.volVel > 0);
+    if (Math.abs(m.volVel) > 1e-3 && !pinned) m.volRaf = requestAnimationFrame((tt) => this._tickMonVol(m, tt));
+    else { m.volRaf = null; m.volVel = 0; }
   }
 
   // Drag the ear monitor's loop off its port and onto another to re-listen there; drop
@@ -1913,6 +1972,7 @@ export class Rack {
   }
 
   _closeMonitor(m) {
+    if (m.volRaf) { cancelAnimationFrame(m.volRaf); m.volRaf = null; }
     this._monTapDisconnect(m);
     try { m.gain.disconnect(); } catch (_e) { /* gone */ }
     m.el.remove(); m.ring.remove(); m.line.remove(); m.dot.remove();
