@@ -46,8 +46,9 @@ const EAR_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" 
 const STYLE_COLOR = { audio: '#f3c40b', control: '#ff7300', trigger: '#5aa0e6', pitch: '#39a85a' };
 const domainStyle = (domain) => (domain === 'audio' ? 'audio' : domain === 'trigger' ? 'trigger' : 'control');
 const CABLE_PX = 3.8;   // cord thickness in px at zoom 1 (scales up as you zoom in)
-// Flow animation (net-explore mode): black dashes crawl each cord source->dest to
-// show direction. Dash LENGTH (in cable-widths) encodes the DESTINATION family —
+const JACK_DROP_MARGIN_MM = 2;   // a cable arms/drops within this much of a terminal's edge (a forgiving zone)
+// Flow animation (on every cable, always): black dashes crawl each cord source->dest
+// to show direction. Dash LENGTH (in cable-widths) encodes the DESTINATION family —
 // audio shortest, CV/pitch medium, trigger longest — a shape cue on top of colour.
 const FLOW_DASH = { audio: 1.6, control: 3.4, pitch: 3.4, trigger: 5.6 };
 const FLOW_GAP = 2.6;        // gap between dashes, in cable-widths
@@ -82,6 +83,11 @@ export class Rack {
     this.pxPerMm = 1;
     this.zoom = 1;
     this._hoverRec = null;   // module under the pointer
+    this._isolateNet = null; // Set of edge ids when isolating one terminal's subnet (else null)
+    this._isolateOrigin = null; // { key, portId } of the isolated terminal, for live recompute
+    this._isolateSwells = []; // enlarged jack records (el + live tap) to restore when isolate mode ends
+    this._isolateJackByTag = new Map();
+    this._isolateOffsets = new Map();
     this._seq = 0;
     this._rowEls = [];
     this._menuEl = null;
@@ -111,6 +117,7 @@ export class Rack {
     this.cables = document.createElementNS(SVG_NS, 'svg');
     this.cables.setAttribute('class', 'rack-cables');
     this._buildRows();
+    this._startFlow();   // animated flow-dashes run continuously on every cable
 
     window.addEventListener('resize', () => this.relayout());
     // Suppress the native right-click menu everywhere. Our right-click pies and menus
@@ -387,7 +394,14 @@ export class Rack {
 
   _drawCables() {
     if (!this.cables) return;
-    this._netEdges = this._netOrigin ? this._computeNet(this._netOrigin) : null;   // recompute so it tracks patch edits
+    // While isolating a subnet, the hover-driven net highlight is suppressed, and the
+    // subnet itself is recomputed live so it tracks patch edits (a new feeding cord
+    // joins at once; a removed one leaves). Rebuild the enlarged jacks only on a change.
+    if (this._isolateOrigin) {
+      const net = this._upstreamOf(this._isolateOrigin.key, this._isolateOrigin.portId);
+      if (!this._sameSet(net, this._isolateNet)) { this._isolateNet = net; this._buildIsolateSwells(); }
+    }
+    this._netEdges = (!this._isolateNet && this._netOrigin) ? this._computeNet(this._netOrigin) : null;   // recompute so it tracks patch edits
     const s = this.pxPerMm;
     this.cables.setAttribute('viewBox', `0 0 ${r2(this._contentWmm)} ${r2(this._contentHmm)}`);
     this.cables.style.width = (this._contentWmm * s) + 'px';
@@ -421,13 +435,16 @@ export class Rack {
       // from the cord itself. Its only grab point is the middle reshape handle.
       const bodyD = `M${r2(g.pA.x)},${r2(g.pA.y)} C${r2(g.c1.x)},${r2(g.c1.y)} ${r2(g.c2.x)},${r2(g.c2.y)} ${r2(g.pB.x)},${r2(g.pB.y)}`;
       mk(bodyD, color, wmm, op, null);
-      // Flow direction: while a net is lit in explore mode, its cords carry black
-      // dashes crawling source->dest (the path runs pA=src -> pB=dst). Dash length
-      // (per destination family) and half-width are set here; the crawl offset is
+      // Flow direction: black dashes crawl source->dest (path runs pA=src -> pB=dst),
+      // full-opacity black so they read over any cable. EVERY cord gets them normally;
+      // while isolating a subnet only the SUBNET's cords do — the others are shown just
+      // dimmed, no dashes. Dash length is per destination family; the crawl offset is
       // driven by a clock in _startFlow so it survives the frequent redraws.
-      if (this._netMode && this._netEdges && this._netEdges.has(e.id)) {
+      if (!this._isolateNet || this._isolateNet.has(e.id)) {
         const fd = mk(bodyD, '#000', wmm / 2, 1, null);
         fd.setAttribute('class', 'flow-dash');
+        fd.dataset.edge = e.id;
+        fd.dataset.src = e.src.key + '|' + e.src.portId;   // source jack tag → its live level drives this cable's crawl in isolate mode
         fd.setAttribute('stroke-linecap', 'butt');
         fd.setAttribute('stroke-dasharray', `${r2((FLOW_DASH[e.style] || FLOW_DASH.control) * wmm)} ${r2(FLOW_GAP * wmm)}`);
         fd.setAttribute('stroke-dashoffset', r2(this._flowOffset()));
@@ -477,6 +494,7 @@ export class Rack {
   // under the pointer go fully opaque so you can trace them. Purely visual — the
   // body stays click-through either way.
   _cableOpacity(e) {
+    if (this._isolateNet) return this._isolateNet.has(e.id) ? 1 : 0.25;    // isolate: subnet bright, the rest dimmed (no dashes)
     if (this._netEdges) return this._netEdges.has(e.id) ? 1 : 0.5;          // net highlight: members full, rest as normal
     const h = this._hoverRec;
     return (h && (e.src.key === h.key || e.dst.key === h.key)) ? 1 : 0.5;
@@ -572,6 +590,24 @@ export class Rack {
     return { key: jack.dataset.jackKey, portId: jack.dataset.jackPort };
   }
 
+  // The jack within reach of a screen point — a FORGIVING cable drop/arm zone: the
+  // terminal's radius plus JACK_DROP_MARGIN_MM. Nearest wins if a couple overlap.
+  // Positions are pure arithmetic (no layout), so scanning every jack per move is cheap.
+  _jackNear(clientX, clientY) {
+    const m = this._clientToMm(clientX, clientY);
+    let best = null, bestD = Infinity;
+    for (const rec of this.records.values()) {
+      for (const [portId] of rec.panel.ports) {
+        const pos = this._jackPosMm(rec.key, portId);
+        if (!pos) continue;
+        const d = Math.hypot(m.x - pos.x, m.y - pos.y);
+        const reach = Math.max(pos.r || 0, pos.ring || 0) + JACK_DROP_MARGIN_MM;
+        if (d <= reach && d < bestD) { bestD = d; best = { key: rec.key, portId }; }
+      }
+    }
+    return best;
+  }
+
   // Straight cord from a jack centre (cA, radius rA) to a free point (cB, rB=0):
   // the live cord shown while dragging. It stops at rimA so the round cap butts
   // the hole without covering it.
@@ -632,7 +668,9 @@ export class Rack {
         }
       }
     };
-    const onUp = () => { cleanup(); };   // a clean click does nothing — the terminal pie is on right-click
+    // A clean click (no drag) PICKS UP a cord that then follows the cursor with no
+    // button held — click again to drop it (see _startStickyCable).
+    const onUp = (ev) => { cleanup(); this._startStickyCable(key, portId, ev.clientX, ev.clientY); };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
   }
@@ -662,7 +700,7 @@ export class Rack {
     const onMove = (ev) => {
       const m = this._clientToMm(ev.clientX, ev.clientY);
       tmp.setAttribute('d', this._cordPath(a, a.r, m, 0, wmm));
-      this._armTarget(this._jackFromPoint(ev.clientX, ev.clientY), wantDir, null, { key, portId });
+      this._armTarget(this._jackNear(ev.clientX, ev.clientY), wantDir, null, { key, portId });
     };
     const onUp = (ev) => {
       document.removeEventListener('pointermove', onMove);
@@ -671,7 +709,7 @@ export class Rack {
       this._tempCable = null;
       this._disarmTarget();
       this._clearHighlights();
-      const drop = this._jackFromPoint(ev.clientX, ev.clientY);
+      const drop = this._jackNear(ev.clientX, ev.clientY);
       if (drop && (drop.key === key && drop.portId === portId)) {
         /* released back on the origin jack: it was really a click — do nothing */
       } else if (drop) {
@@ -680,6 +718,61 @@ export class Rack {
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
+  }
+
+  // Sticky (click-to-pick-up, click-to-drop) cabling: a plain click on a jack starts a
+  // cord that FOLLOWS the cursor with NO button held — so you can scroll, zoom, and
+  // roam freely to find the target instead of dragging the whole way. A second LEFT
+  // click drops it: on a jack it connects, elsewhere it cancels. Escape or a right
+  // click also cancel. Coexists with press-drag cabling.
+  _startStickyCable(key, portId, cx, cy) {
+    const ep = this._ep(key, portId);
+    const a = this._jackPosMm(key, portId);
+    if (!ep || !a) return;
+    const meta = ep.meta;
+    const wmm = CABLE_PX / (this._fit || 1);
+    const tmp = document.createElementNS(SVG_NS, 'path');
+    tmp.setAttribute('class', 'rack-cable rack-cable-temp');
+    tmp.setAttribute('stroke', STYLE_COLOR[domainStyle(meta.domain)]);
+    tmp.setAttribute('stroke-width', r2(wmm));
+    this._tempCable = tmp;
+    this.cables.appendChild(tmp);
+    this._highlightCandidates(meta.dir === 'out' ? 'in' : 'out');
+    document.body.classList.add('grabbing-cable');
+    const wantDir = meta.dir === 'out' ? 'in' : 'out';
+    let lastX = cx, lastY = cy;
+    const track = (clientX, clientY) => {
+      lastX = clientX; lastY = clientY;
+      tmp.setAttribute('d', this._cordPath(a, a.r, this._clientToMm(clientX, clientY), 0, wmm));
+      this._armTarget(this._jackNear(clientX, clientY), wantDir, null, { key, portId });
+    };
+    track(cx, cy);
+    const onMove = (ev) => track(ev.clientX, ev.clientY);
+    const onScroll = () => track(lastX, lastY);   // keep the end under the cursor after a scroll with no move
+    const finish = () => {
+      document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('pointerdown', onDrop, true);
+      document.removeEventListener('contextmenu', onCtx, true);
+      document.removeEventListener('keydown', onKey, true);
+      this.container.removeEventListener('scroll', onScroll, true);
+      tmp.remove(); this._tempCable = null;
+      this._disarmTarget(); this._clearHighlights();
+      document.body.classList.remove('grabbing-cable');
+    };
+    const onDrop = (ev) => {
+      if (ev.button !== 0) return;   // right-click is handled by onCtx; middle is ignored
+      ev.preventDefault(); ev.stopPropagation();
+      const drop = this._jackNear(ev.clientX, ev.clientY);
+      finish();
+      if (drop && !(drop.key === key && drop.portId === portId)) this._tryConnect({ key, portId }, drop);
+    };
+    const onCtx = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); };   // right click cancels (no pie)
+    const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); finish(); } };
+    document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('pointerdown', onDrop, true);
+    document.addEventListener('contextmenu', onCtx, true);
+    document.addEventListener('keydown', onKey, true);
+    this.container.addEventListener('scroll', onScroll, true);
   }
 
   // Re-route an existing cable: grabbed at one of its ports (grabbedEnd), drag that
@@ -697,21 +790,31 @@ export class Rack {
     const fixedMeta = fixedEp.meta;
     const wantDir = fixedMeta.dir === 'out' ? 'in' : 'out';
     const wmm = CABLE_PX / (this._fit || 1);
+    const savedBow = edge.bow;
 
-    this._dragEdgeId = edge.id;    // hide the grabbed cord while dragging it
+    // Break the connection IMMEDIATELY, so pulling a cord off a terminal mutes its
+    // effect the moment you drag it — you hear the patch WITHOUT it while you decide
+    // where (or whether) to re-drop it. Dropping it back on its port restores it (depth
+    // comes from the input's own knob; bow is carried over).
+    this.patchbay.disconnect(edge);
     this._drawCables();
+    const reconnect = (jp) => {
+      const e = this._tryConnect({ key: fixed.key, portId: fixed.portId }, jp);
+      if (e && savedBow != null && jp.key === grabbed.key && jp.portId === grabbed.portId) { e.bow = savedBow; this._drawCables(); }
+    };
+
     const tmp = document.createElementNS(SVG_NS, 'path');
     tmp.setAttribute('class', 'rack-cable rack-cable-temp');
     tmp.setAttribute('stroke', STYLE_COLOR[domainStyle(fixedMeta.domain)]);
     tmp.setAttribute('stroke-width', r2(wmm));
     this._tempCable = tmp;
     this.cables.appendChild(tmp);
-    this._highlightCandidates(wantDir, edge);
+    this._highlightCandidates(wantDir);
 
     const onMove = (e2) => {
       const m = this._clientToMm(e2.clientX, e2.clientY);
       tmp.setAttribute('d', this._cordPath(fixedPos, fixedPos.r, m, 0, wmm));
-      this._armTarget(this._jackFromPoint(e2.clientX, e2.clientY), wantDir, edge, grabbed);
+      this._armTarget(this._jackNear(e2.clientX, e2.clientY), wantDir, null, null);   // origin null: the cord is already disconnected, so its OWN port is a valid re-drop and should arm
     };
     const onUp = (e2) => {
       document.removeEventListener('pointermove', onMove);
@@ -720,20 +823,16 @@ export class Rack {
       this._tempCable = null;
       this._disarmTarget();
       this._clearHighlights();
-      this._dragEdgeId = null;
-      const drop = this._jackFromPoint(e2.clientX, e2.clientY);
+      const drop = this._jackNear(e2.clientX, e2.clientY);
       const droppedBack = drop && drop.key === grabbed.key && drop.portId === grabbed.portId;
       const candidate = drop && this._isCandidate(drop, wantDir);
-      const occupied = candidate && wantDir === 'in' && this.patchbay.inputOccupied(drop.key, drop.portId, edge);
+      const occupied = candidate && wantDir === 'in' && this.patchbay.inputOccupied(drop.key, drop.portId, null);
       if (droppedBack || (candidate && occupied)) {
-        this._drawCables();                              // unchanged (or target input already taken) — restore
+        reconnect(grabbed);                              // dropped back, or target taken → put it back
       } else if (candidate) {
-        this.patchbay.disconnect(edge);                  // move: reconnect fixed end -> new port
-        this._tryConnect({ key: fixed.key, portId: fixed.portId }, drop);
+        this._tryConnect({ key: fixed.key, portId: fixed.portId }, drop);   // reconnect to the new port
       } else {
-        this.patchbay.disconnect(edge);                  // dropped on nothing -> delete
-        this._drawCables();
-        this.onChange();
+        this.onChange();                                 // dropped on nothing → leave it broken
       }
     };
     document.addEventListener('pointermove', onMove);
@@ -923,19 +1022,179 @@ export class Rack {
   _enterNetMode(origin) {
     this._netMode = true;
     this._netOrigin = origin || null;
-    this._netEsc = (ev) => { if (ev.key === 'Escape') this._exitNetMode(); };
-    document.addEventListener('keydown', this._netEsc);
     this.onNetMode(true);
-    this._startFlow();
     this._drawCables();
   }
 
   _exitNetMode() {
     this._netMode = false;
     this._netOrigin = null;
-    if (this._netEsc) { document.removeEventListener('keydown', this._netEsc); this._netEsc = null; }
     this.onNetMode(false);
-    this._stopFlow();
+    this._drawCables();
+  }
+
+  // ---- isolate a terminal's UPSTREAM (from its pie's "view subnet" wedge) ----
+  // Show the cables that transitively feed this terminal — everything that AFFECTS the
+  // signal here — bright with the signal-reactive dashes and enlarged/breathing jacks;
+  // the rest of the patch stays visible but DIMMED (and dash-less). The subnet tracks
+  // the patch live (add/remove a feeding cord and it joins/leaves at once). Persistent;
+  // ends on Escape or a left click on empty faceplate.
+  _isolateSubnet(key, portId) {
+    this._exitIsolate();
+    const net = this._upstreamOf(key, portId);
+    if (!net.size) return;   // nothing feeds this terminal — nothing to isolate
+    this._isolateOrigin = { key, portId };
+    this._isolateNet = net;
+    this._isolateOffsets = new Map();     // edge id -> its own accumulated dash offset
+    this._buildIsolateSwells();
+    this._isolateEsc = (ev) => { if (ev.key === 'Escape') this._exitIsolate(); };
+    document.addEventListener('keydown', this._isolateEsc);
+    this._drawCables();
+  }
+
+  // (Re)build the enlarged/tapped jacks for the current `_isolateNet` + origin.
+  _buildIsolateSwells() {
+    this._clearIsolateSwells();
+    this._isolateJackByTag = new Map();   // jack tag -> swell record (for the per-cable dash source level)
+    const seen = new Set();
+    const swell = (k, p) => { const tag = k + '|' + p; if (!seen.has(tag)) { seen.add(tag); this._swellJack(k, p); } };
+    if (this._isolateOrigin) swell(this._isolateOrigin.key, this._isolateOrigin.portId);   // always the clicked port
+    for (const e of this.patchbay.list()) {
+      if (!this._isolateNet.has(e.id)) continue;
+      swell(e.src.key, e.src.portId);
+      swell(e.dst.key, e.dst.portId);
+    }
+  }
+
+  // Restore every enlarged jack and disconnect its tap.
+  _clearIsolateSwells() {
+    for (const a of this._isolateSwells) {
+      if (a.tf == null) a.el.removeAttribute('transform'); else a.el.setAttribute('transform', a.tf);
+      const ring = a.el.querySelector('.jack-net-ring');
+      if (ring) ring.remove();
+      if (a.analyser && a.tapNode) { try { a.tapNode.disconnect(a.analyser, a.tapIndex); } catch (_e) { /* gone */ } }
+    }
+    this._isolateSwells = [];
+  }
+
+  _sameSet(a, b) {
+    if (!a || !b || a.size !== b.size) return false;
+    for (const x of a) if (!b.has(x)) return false;
+    return true;
+  }
+
+  // The set of edge ids that transitively FEED a specific port (its upstream supply
+  // chain). The clicked port is precise — for an input, only the cord plugged into
+  // THAT port seeds it (not its siblings on the same module); an output is fed by its
+  // whole module. From there, upstream is followed per module/channel section (a
+  // module is a black box: all its inputs feed all its outputs).
+  _upstreamOf(key, portId) {
+    const edges = this.patchbay.list();
+    const result = new Set();
+    const toExpand = [];        // sections whose input cords we still need to gather
+    const visited = new Set();  // sections already expanded
+    const ep = this._ep(key, portId);
+    if (ep && ep.meta.dir === 'out') {
+      toExpand.push(this._sectionKey(key, portId));   // an output depends on its module's inputs
+    } else {
+      for (const e of edges) {                          // an input: only the cord into this exact port
+        if (e.dst.key === key && e.dst.portId === portId) {
+          result.add(e.id);
+          toExpand.push(this._sectionKey(e.src.key, e.src.portId));
+        }
+      }
+    }
+    while (toExpand.length) {
+      const S = toExpand.pop();
+      if (visited.has(S)) continue;
+      visited.add(S);
+      for (const e of edges) {
+        if (this._sectionKey(e.dst.key, e.dst.portId) !== S) continue;   // cords INTO section S
+        result.add(e.id);
+        const srcS = this._sectionKey(e.src.key, e.src.portId);
+        if (!visited.has(srcS)) toExpand.push(srcS);
+      }
+    }
+    return result;
+  }
+
+  // Enlarge one jack (the drop-cue swell + family-colour ring) AND open a live tap on
+  // its signal, so the swell can breathe with the signal level. Remembered so
+  // _exitIsolate can restore the jack and disconnect the tap.
+  _swellJack(key, portId) {
+    const el = this._jackElement(key, portId);
+    const circle = el && el.querySelector('circle');
+    if (!el || !circle) return;
+    const ro = parseFloat(circle.getAttribute('r')) || 3;
+    const cx = parseFloat(circle.getAttribute('cx')) || 0;
+    const cy = parseFloat(circle.getAttribute('cy')) || 0;
+    const ring = el.ownerDocument.createElementNS(SVG_NS, 'circle');
+    ring.setAttribute('class', 'jack-net-ring');
+    ring.setAttribute('cx', r2(cx)); ring.setAttribute('cy', r2(cy)); ring.setAttribute('r', r2(ro));
+    ring.setAttribute('fill', 'none');
+    ring.setAttribute('stroke', circle.getAttribute('fill') || STYLE_COLOR.control);
+    ring.setAttribute('stroke-width', r2(ro * 0.24));
+    ring.style.pointerEvents = 'none';
+    el.appendChild(ring);
+    const rec = { el, cx, cy, tf: el.getAttribute('transform'), level: 0, analyser: null, buf: null, tapNode: null, tapIndex: 0 };
+    const tap = this._probeTap(key, portId);
+    if (tap && tap.node) {
+      try {
+        const an = this.host.ctx.createAnalyser(); an.fftSize = 256; an.smoothingTimeConstant = 0;
+        tap.node.connect(an, tap.index || 0);
+        rec.analyser = an; rec.buf = new Float32Array(an.fftSize); rec.tapNode = tap.node; rec.tapIndex = tap.index || 0;
+      } catch (_e) { rec.analyser = null; }
+    }
+    this._isolateSwells.push(rec);
+    this._isolateJackByTag.set(key + '|' + portId, rec);
+    this._applyJackSwell(rec);
+  }
+
+  // RMS of a jack's tapped signal, softly saturated to 0..1 (audio loudness, |CV|, and
+  // a trigger's brief spike all land on this scale).
+  _jackLevel(rec) {
+    if (!rec.analyser) return 0;
+    rec.analyser.getFloatTimeDomainData(rec.buf);
+    let s = 0; for (let i = 0; i < rec.buf.length; i++) s += rec.buf[i] * rec.buf[i];
+    const rms = Math.sqrt(s / rec.buf.length);
+    return rms / (rms + 0.25);
+  }
+
+  // Scale a swelled jack about its centre: a base swell plus a signal-driven bump.
+  _applyJackSwell(rec) {
+    const scale = 1.12 + rec.level * 0.55;
+    const swell = `translate(${r2(rec.cx)} ${r2(rec.cy)}) scale(${r2(scale)}) translate(${r2(-rec.cx)} ${r2(-rec.cy)})`;
+    rec.el.setAttribute('transform', rec.tf ? `${rec.tf} ${swell}` : swell);
+  }
+
+  // Per frame while isolating (called from the flow loop): breathe every terminal by
+  // its live level, and crawl each cable's dashes at a speed set by its SOURCE signal —
+  // so CV flow and trigger pulses track the real signal, not the fixed clock.
+  _tickIsolate(dt) {
+    for (const rec of this._isolateSwells) {
+      const target = this._jackLevel(rec);
+      rec.level = rec.level * 0.7 + target * 0.3;   // smooth the breathe
+      this._applyJackSwell(rec);
+    }
+    for (const p of this.cables.querySelectorAll('.flow-dash')) {
+      const src = this._isolateJackByTag.get(p.dataset.src);
+      const lvl = src ? src.level : 0;
+      const off = (this._isolateOffsets.get(p.dataset.edge) || 0) - FLOW_SPEED * (0.15 + lvl * 1.8) * dt;
+      this._isolateOffsets.set(p.dataset.edge, off);
+      p.setAttribute('stroke-dashoffset', r2(off));
+    }
+  }
+
+  isIsolating() { return !!this._isolateNet; }
+
+  _exitIsolate() {
+    if (!this._isolateNet && !this._isolateSwells.length) return;
+    this._clearIsolateSwells();
+    this._isolateJackByTag = new Map();
+    this._isolateOffsets = new Map();
+    this._isolateNet = null;
+    this._isolateOrigin = null;
+    if (this._isolateEsc) { document.removeEventListener('keydown', this._isolateEsc); this._isolateEsc = null; }
     this._drawCables();
   }
 
@@ -946,20 +1205,25 @@ export class Rack {
     return -((performance.now() - this._flowT0) / 1000) * FLOW_SPEED;
   }
 
+  // The flow-dashes animate on every cable, always, so this loop runs continuously
+  // once started (from the constructor) — not gated on net-explore mode.
   _startFlow() {
     if (this._flowRaf) return;
     this._flowT0 = performance.now();
-    const tick = () => {
-      if (!this._netMode) { this._flowRaf = null; return; }
-      const off = r2(this._flowOffset());
-      for (const p of this.cables.querySelectorAll('.flow-dash')) p.setAttribute('stroke-dashoffset', off);
+    this._flowLast = this._flowT0;
+    const tick = (now) => {
+      const t = now || performance.now();
+      const dt = Math.min(0.05, (t - this._flowLast) / 1000);
+      this._flowLast = t;
+      if (this._isolateNet) {
+        this._tickIsolate(dt);   // isolate: per-terminal breathe + per-cable signal-driven crawl
+      } else {
+        const off = r2(this._flowOffset());
+        for (const p of this.cables.querySelectorAll('.flow-dash')) p.setAttribute('stroke-dashoffset', off);
+      }
       this._flowRaf = requestAnimationFrame(tick);
     };
     this._flowRaf = requestAnimationFrame(tick);
-  }
-
-  _stopFlow() {
-    if (this._flowRaf) { cancelAnimationFrame(this._flowRaf); this._flowRaf = null; }
   }
 
   // ---- floating signal scopes (transient probes) ----
@@ -1010,7 +1274,7 @@ export class Rack {
           onDragOut: (ev, mode) => this._carryScope(this._createScope(key, portId, ev.clientX, ev.clientY), ev, mode, ox),
         },
         {
-          dir: 'SE', icon: EAR_ICON, label: 'listen',
+          dir: 'S', icon: EAR_ICON, label: 'listen',
           onClick: () => {
             if (tempMon) { this._closeMonitor(tempMon); tempMon = null; return; }
             const p = this._viewerSpot(ox, oy, 34, 34);
@@ -1018,6 +1282,8 @@ export class Rack {
           },
           onDragOut: (ev, mode) => this._carryMonitor(this._createMonitor(key, portId, ev.clientX, ev.clientY), ev, mode),
         },
+        // View upstream (upper-left): isolate what feeds this terminal.
+        { dir: 'NW', icon: NET_ICON, label: 'what feeds this', keepOpen: false, onClick: () => this._isolateSubnet(key, portId) },
       ],
     });
   }
@@ -1690,11 +1956,11 @@ export class Rack {
     // Module-level handlers live on the wrapper element, so they survive a skin swap.
     el.addEventListener('pointerdown', (e) => this._startDrag(e, rec));
     el.addEventListener('contextmenu', (e) => this._onModuleContextMenu(e, rec));
-    el.addEventListener('pointerenter', (ev) => { this._hoverRec = rec; this.onSelect(rec); if (this._netMode) this._netOrigin = this._netOriginAt(rec, ev.clientX, ev.clientY); this._drawCables(); });
-    // In net-explore mode, moving within a module retargets the highlight to the
-    // module (or the quad channel) under the pointer.
-    el.addEventListener('pointermove', (ev) => { if (!this._netMode) return; const o = this._netOriginAt(rec, ev.clientX, ev.clientY); if (o !== this._netOrigin) { this._netOrigin = o; this._drawCables(); } });
-    el.addEventListener('pointerleave', () => { if (this._hoverRec === rec) { this._hoverRec = null; if (this._netMode) this._netOrigin = null; this._drawCables(); } });
+    el.addEventListener('pointerenter', (ev) => { this._hoverRec = rec; this.onSelect(rec); if (this._netMode && !this._isolateNet) this._netOrigin = this._netOriginAt(rec, ev.clientX, ev.clientY); this._drawCables(); });
+    // Moving within a module retargets the hover net highlight to the module (or the
+    // quad channel) under the pointer — suspended while isolating a subnet.
+    el.addEventListener('pointermove', (ev) => { if (!this._netMode || this._isolateNet) return; const o = this._netOriginAt(rec, ev.clientX, ev.clientY); if (o !== this._netOrigin) { this._netOrigin = o; this._drawCables(); } });
+    el.addEventListener('pointerleave', () => { if (this._hoverRec === rec) { this._hoverRec = null; if (this._netMode && !this._isolateNet) this._netOrigin = null; this._drawCables(); } });
 
     this.records.set(rec.key, rec);
     this.rows[rowIndex].push(rec);
@@ -1790,8 +2056,9 @@ export class Rack {
       document.removeEventListener('pointerup', onUp);
       rec.el.classList.remove('dragging');
       ghost.style.display = 'none';
-      if (moved) this._moveModule(rec, dropRow, dropX);
-      // A plain click does nothing — the pies open on right-click.
+      if (moved) { this._moveModule(rec, dropRow, dropX); return; }
+      if (this._isolateNet) { this._exitIsolate(); return; }   // a left click on empty faceplate leaves isolate mode
+      // Otherwise a plain click does nothing — the pies open on right-click.
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);

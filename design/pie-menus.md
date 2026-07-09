@@ -18,7 +18,10 @@ Left click never opens a pie; the native context menu is suppressed app-wide:
 - **Empty rack row** → the **add-module** list menu (unchanged).
 
 Left click stays direct: left-drag from a terminal pulls a patch cable; left-drag on
-the faceplate moves the module; a plain left click does nothing.
+the faceplate moves the module. A plain left **click** on a terminal starts a *sticky*
+cord that follows the cursor with no button held (scroll/zoom/roam freely) — click a
+target jack to connect, or Escape / right-click to cancel. This is an alternative to
+press-drag cabling for long runs.
 
 ## 2. The pie
 
@@ -79,18 +82,18 @@ draw our own cursor rather than move the real one:
 ## 5. Item placement (fixed directions)
 
 **Panel pie**
-- **NW** (upper-left): app main menu (the hamburger). Opens the existing vertical
-  menu as a submenu; it now also holds **show network**.
+- **NW** (upper-left): app main menu (the hamburger). Opens the existing vertical menu.
 - **S** (bottom): **start/stop sound**. Its wedge is highlighted while the transport
   runs and unhighlighted when stopped — the current toolbar toggle behaviour.
-- The other six positions are empty for now.
+- The other positions are empty for now.
 
 **Terminal pie**
 - **NE** (upper-right): **scope** — an oscilloscope.
-- **SE** (lower-right, below the scope): **listen** — an ear monitor. It solos this
-  terminal into a monitor bus (a brick-wall limiter protects ears/speakers; level
-  respects the master gain) and ducks the normal output; several monitors *add* to the
-  solo mix. Click a circle to mute/unmute it, drag to move it, the × to remove.
+- **S** (bottom): **listen** — an ear monitor. It solos this terminal into a monitor
+  bus (a brick-wall limiter protects ears/speakers; level respects the master gain)
+  and ducks the normal output; several monitors *add* to the solo mix. Click a circle
+  to mute/unmute it, drag to move it, the × to remove.
+- **NW** (upper-left): **what feeds this** — isolate the terminal's UPSTREAM (see §9).
 
 Both viewers follow the click-vs-drag rule (§3): a **click** shows a temporary one
 beside the menu that vanishes on close; **press-and-drag out** drops a permanent one.
@@ -136,3 +139,32 @@ another port to re-probe it, or onto empty space to **disconnect** it from the p
   well under screen magnification (expected to; the pie is small and the cursors stay
   within ~half its diameter).
 - The icon set for the wedges.
+
+## 9. Network display and the "what feeds this" isolate mode
+
+**Baseline (always on).** Every cable carries the moving black flow-dashes at all
+times (source→destination, full-opacity black so they read over any cable). Hovering
+a module brightens the cables of its upstream/downstream network to full opacity and
+fades the rest to 50%. This replaced the old app-menu "Show network" toggle — the
+brightening is now permanent, not toggled.
+
+**What feeds this (terminal pie, NW).** Selecting it isolates the **upstream** supply
+chain of the clicked terminal — every cable that transitively feeds it, i.e. what
+affects the signal there. Everything the terminal *drives* downstream is not part of it.
+
+- The clicked port is **precise**: for an input, only the cord plugged into that exact
+  port seeds it (not its siblings on the same module); an output is fed by its whole
+  module. From there upstream is followed per module/channel section — a module is a
+  black box (all inputs feed all outputs). See `_upstreamOf`.
+- The upstream cables are drawn **bright, with the moving dashes**; every OTHER cable
+  stays visible but **dimmed (50%) and dash-less** — de-emphasised, not hidden.
+- **Live:** the upstream is recomputed on every patch edit, so a new feeding cord joins
+  (and a removed one leaves) at once — including the immediate break when you pull a
+  cord off to audition. Anchored to the clicked port in `_isolateOrigin`.
+- Hover does nothing while isolating; the whole upstream stays lit regardless.
+- Every participating jack (plus the clicked one) is **enlarged** — the swell + family-
+  colour ring, which *breathes* with each terminal's live signal level, and each
+  subnet cable's dash speed tracks its source signal (audio amplitude / CV motion /
+  trigger pulses). First-cut mode indicator; may be revisited.
+- The view is **persistent**: it ends on **Escape** or a **left click on empty
+  faceplate space**.

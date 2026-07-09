@@ -354,7 +354,6 @@ async function boot() {
         rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
         try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
       } },
-      { label: 'Show network', checkFn: () => rack.isNetMode(), action: () => rack.toggleNetMode() },
     ];
     // Browser only: offer to reopen the last file (its handle survives in IndexedDB).
     if (storage.hasLast && storage.hasLast()) {
