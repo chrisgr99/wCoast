@@ -173,27 +173,33 @@ async function boot() {
   document.getElementById('scopebtn').addEventListener('click', () => rack.toggleScopeArm());
   syncToolbarMaster();
 
-  const toggleTransport = async () => {
-    if (!started) { await audioCtx.resume(); started = true; onoff.classList.add('on'); }
-    else { started = false; onoff.classList.remove('on'); }
-    rack.applyParam(mixRec, 'masterMute', started ? 'on' : 'off');
-    updateTrace();
-  };
-  // Set the transport explicitly (for the pie peek). Flip `started` synchronously so
-  // isPlaying() reflects intent at once, even while the async resume is still pending.
-  const setTransport = (on) => {
-    if (on === started) return;
+  // Overall sound is ONE state (`started`), shared by the toolbar On/Off button, the
+  // panel-pie sound wedge, and the mixer's master-enable lamp — all move together
+  // through setSound. The output is gated by the master MUTE (silences without changing
+  // level); the audio context resumes on the first enable. The LED/lamp being lit means
+  // sound is on.
+  const setSound = (on) => {
     started = on;
     onoff.classList.toggle('on', on);
     if (on) audioCtx.resume();
     rack.applyParam(mixRec, 'masterMute', on ? 'on' : 'off');
     updateTrace();
   };
-  onoff.addEventListener('click', toggleTransport);
-  rack.onTransport = toggleTransport;          // panel-pie start/stop wedge
-  rack.setTransport = setTransport;            // panel-pie start/stop PEEK
+  // Momentary gate for the pie's sound wedge: set the master mute to exactly `on` while
+  // previewing, WITHOUT touching `started`. The wedge previews the TOGGLE (the opposite
+  // of the latched state) on hover and restores the latched state on leave, so hovering
+  // auditions what a click would do — play if it's off, silence if it's on.
+  const soundPeek = (on) => {
+    if (on) audioCtx.resume();
+    rack.applyParam(mixRec, 'masterMute', on ? 'on' : 'off');
+  };
+  onoff.addEventListener('click', () => setSound(!started));
+  rack.setSound = setSound;                     // latch overall sound on/off
+  rack.soundPeek = soundPeek;                   // momentary audition (sound-wedge hover)
+  rack.setTransport = setSound;                 // compat alias
+  rack.onTransport = () => setSound(!started);  // compat alias
   rack.isPlaying = () => started;
-  rack.applyParam(mixRec, 'masterMute', 'on');   // master enabled by default (audio still gated by the suspended context until On)
+  rack.applyParam(mixRec, 'masterMute', started ? 'on' : 'off');   // lamp matches the (off) start state
 
   // After a bulk control reset (clear-patch command, and its undo/redo) the rack has
   // moved the mixer's own params, but the toolbar master knob is a separate mirror and
@@ -235,10 +241,14 @@ async function boot() {
 
   // The mixer as a save/load endpoint: its settings are the pinned record's
   // values (it stays the fixed "mixer" key, just now a rack module).
+  // masterMute is transport state (unified with the On/Off + the pie sound wedge), NOT
+  // a persistent mixer setting — sound always boots OFF (no autoplay), so it's excluded
+  // from save/restore. Otherwise a session saved with sound on would restore the master
+  // lamp lit while the transport stays off, so the mixer would look enabled but silent.
   const mixerIO = {
     key: 'mixer',
-    getParams: () => Object.fromEntries(mixRec.values),
-    setParams: (vals) => { for (const [id, v] of Object.entries(vals)) rack.applyParam(mixRec, id, v); },
+    getParams: () => { const o = Object.fromEntries(mixRec.values); delete o.masterMute; return o; },
+    setParams: (vals) => { for (const [id, v] of Object.entries(vals)) { if (id === 'masterMute') continue; rack.applyParam(mixRec, id, v); } },
   };
 
   // AI patch mirror: project the live patch, the module catalogue, and app state

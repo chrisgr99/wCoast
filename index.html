@@ -159,6 +159,7 @@
     .pie-line { fill: none; stroke: var(--ink-dim); stroke-width: 0.5; stroke-linecap: round; }
     .pie-wedge path { fill: transparent; stroke: none; }
     .pie-wedge.hover path, .pie-wedge.toggled path { fill: #866232; }
+    .pie-wedge.plain.hover path { fill: transparent; }   /* sound wedge: stays the black pie background even when hovered */
     .pie-icon { position: fixed; transform: translate(-50%,-50%); pointer-events: none; color: var(--ink); line-height: 0; }
     .pie-icon svg { width: 13px; height: 13px; display: block; fill: currentColor; }
     .pie-cursor { position: fixed; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.5); background: #bfbfbf; pointer-events: none; }

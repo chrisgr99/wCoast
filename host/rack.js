@@ -30,14 +30,34 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 // Pie-wedge icons (match the toolbar buttons where there is one).
 const SCOPE_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.2" stroke-width="1.7"/><path d="M5 12 Q7 8 9 12 T13 12 T17 12 L19 12" stroke-width="1.9"/></g></svg>';
 const APPMENU_ICON = '<svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="2.4" rx="1"/><rect x="4" y="11" width="16" height="2.4" rx="1"/><rect x="4" y="16" width="16" height="2.4" rx="1"/></svg>';
-const PLAY_ICON = '<svg viewBox="0 0 24 24"><polygon points="7,5 19,12 7,19"/></svg>';
-const STOP_ICON = '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
 const NET_ICON = '<svg viewBox="0 0 24 24"><g stroke="currentColor" stroke-linecap="round"><line x1="12" y1="12" x2="20" y2="4.5" stroke-width="2.1"/><line x1="12" y1="12" x2="18.5" y2="21" stroke-width="2.1"/><circle cx="20" cy="4.5" r="3.2" fill="currentColor" stroke="none"/><circle cx="18.5" cy="21" r="3.2" fill="currentColor" stroke="none"/><line x1="3.5" y1="6" x2="12" y2="12" stroke-width="2.9"/><circle cx="3.5" cy="6" r="3.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="3.7" fill="currentColor" stroke="none"/></g></svg>';
 const TRASH_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></g></svg>';
 const EAR_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">'
   + '<g stroke-width="2"><path d="M10 21c-1.2-1.6-2-3.2-2-5.9A6 6 0 0 1 20 15c0 2.5-1.8 3.6-3.5 3.6-1.4 0-2 .9-2 2 0 1.4-1 2.5-2.4 2.5-1.1 0-2.1-.9-2.1-2.1"/>'
   + '<path d="M11.4 14A2.6 2.6 0 0 1 16.2 14.4c0 1.6-1.5 2.1-1.5 3.5"/></g>'
   + '<g stroke-width="1.6"><path d="M7.4 10.4A6 6 0 0 1 11.5 6.7"/><path d="M4.1 9.3A9.5 9.5 0 0 1 10.5 3.3"/></g></g></svg>';
+// The sound/transport button: a big ROUND button in the lower-left, LIT (filled) when
+// sound is on — matching the mixer's master-enable lamp — and a hollow ring when off,
+// with partial arcs radiating up-right to say "this controls the sound".
+function SOUND_BTN_ICON(on) {
+  // The button matches the mixer's master-enable lamp: a gray disc when off, the red
+  // ledLit dome with a glossy highlight when on. Rendered ~1mm larger than the other
+  // wedge icons (18px vs 13px), circle centred low-left so the up-right ink arcs (the
+  // "controls sound" cue) tuck into the free corner.
+  const cx = 10, cy = 14, r = 7;
+  const grad = on ? '<defs><radialGradient id="pieLed" cx="0.5" cy="0.4" r="0.62">'
+    + '<stop offset="0" stop-color="#ff7a5a"/><stop offset="0.5" stop-color="#ee2a10"/>'
+    + '<stop offset="0.82" stop-color="#d21010"/><stop offset="1" stop-color="#8f0c0c"/>'
+    + '</radialGradient></defs>' : '';
+  const body = on
+    ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#pieLed)" stroke="#141414" stroke-width="0.5"/>`
+    : `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#505055" stroke="#141414" stroke-width="0.9"/>`;
+  const gloss = on ? `<ellipse cx="${cx - 1.7}" cy="${cy - 2.7}" rx="2.5" ry="1.6" fill="#ffb4b4" opacity="0.85"/>` : '';
+  const arcs = '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.7">'
+    + '<path d="M15 6 A5 5 0 0 1 20 11"/>'
+    + '<path d="M15 2.5 A8.5 8.5 0 0 1 23.5 11"/></g>';
+  return `<svg style="width:18px;height:18px" viewBox="0 0 24 24">${grad}${arcs}${body}${gloss}</svg>`;
+}
 
 // Cable colour = signal family, matching the port bodies: audio yellow, CV/control
 // orange, trigger blue, 1V/oct pitch green. A cord takes its DESTINATION port's
@@ -71,8 +91,10 @@ export class Rack {
     // Panel-pie hooks into app-level actions the rack doesn't own (set by rack-app).
     this.onAppMenu = opts.onAppMenu || (() => {});    // open the app (File) menu at (x,y)
     this.onTransport = opts.onTransport || (() => {}); // toggle start/stop sound
-    this.isPlaying = opts.isPlaying || (() => false); // current transport state (for the wedge highlight)
-    this.setTransport = opts.setTransport || ((on) => { if (this.isPlaying() !== on) this.onTransport(); }); // set sound explicitly (for the peek)
+    this.isPlaying = opts.isPlaying || (() => false); // current sound-on state (LED + wedge highlight)
+    this.setTransport = opts.setTransport || ((on) => { if (this.isPlaying() !== on) this.onTransport(); }); // set sound explicitly
+    this.setSound = opts.setSound || ((on) => this.setTransport(on)); // latch overall sound on/off (unified with the mixer master enable)
+    this.soundPeek = opts.soundPeek || (() => {}); // momentary audition: soundPeek(true) plays, soundPeek(false) restores
     this._scopes = new Set();       // live floating signal scopes (transient, not saved)
     this._monitors = new Set();     // live ear monitors — solo-listen taps (transient, not saved)
     this.dark = !!opts.dark;                        // dark-mode faceplates
@@ -1271,25 +1293,27 @@ export class Rack {
       },
       segments: [
         {
+          // Hover: a temporary scope beside the menu. Click: carry a permanent one out.
           dir: 'NE', icon: SCOPE_ICON, label: 'scope',
-          onClick: () => {
-            if (tempScope) { this._closeScope(tempScope); tempScope = null; return; }
-            const p = this._viewerSpot(ox, oy, 246, 92);
-            tempScope = this._createScope(key, portId, p.x, p.y, false);   // temporary: no connection loop
-          },
+          onPeekStart: () => { if (!tempScope) { const p = this._viewerSpot(ox, oy, 246, 92); tempScope = this._createScope(key, portId, p.x, p.y, false); } },
+          onPeekEnd: () => { if (tempScope) { this._closeScope(tempScope); tempScope = null; } },
+          commit: (ctx) => this._carryScope(this._createScope(key, portId, ctx.x, ctx.y), { clientX: ctx.x, clientY: ctx.y }, 'up', ox),
           onDragOut: (ev, mode) => this._carryScope(this._createScope(key, portId, ev.clientX, ev.clientY), ev, mode, ox),
         },
         {
+          // Hover: a temporary ear monitor (plays). Click: carry a permanent one out.
           dir: 'S', icon: EAR_ICON, label: 'listen',
-          onClick: () => {
-            if (tempMon) { this._closeMonitor(tempMon); tempMon = null; return; }
-            const p = this._viewerSpot(ox, oy, 34, 34);
-            tempMon = this._createMonitor(key, portId, p.x, p.y, false);   // temporary: no connection loop
-          },
+          onPeekStart: () => { if (!tempMon) { const p = this._viewerSpot(ox, oy, 34, 34); tempMon = this._createMonitor(key, portId, p.x, p.y, false); } },
+          onPeekEnd: () => { if (tempMon) { this._closeMonitor(tempMon); tempMon = null; } },
+          commit: (ctx) => this._carryMonitor(this._createMonitor(key, portId, ctx.x, ctx.y), { clientX: ctx.x, clientY: ctx.y }, 'up'),
           onDragOut: (ev, mode) => this._carryMonitor(this._createMonitor(key, portId, ev.clientX, ev.clientY), ev, mode),
         },
-        // View upstream (upper-left): isolate what feeds this terminal.
-        { dir: 'NW', icon: NET_ICON, label: 'what feeds this', keepOpen: false, onClick: () => this._isolateSubnet(key, portId) },
+        // What feeds this (upper-left): hover shows the upstream subnet momentarily; a
+        // click latches it (peeking is cleared on commit so it isn't torn down).
+        { dir: 'NW', icon: NET_ICON, label: 'what feeds this',
+          onPeekStart: () => this._isolateSubnet(key, portId),
+          onPeekEnd: () => this._exitIsolate(),
+          commit: () => {} },
       ],
     });
   }
@@ -1912,9 +1936,12 @@ export class Rack {
     for (const b of panel.controls.values()) {
       const v = rec.values.get(b.id);
       if (v !== undefined) showValue(b, v);
+      const isMasterEnable = rec.pinned && b.id === 'masterMute';   // the mixer's master lamp
       attachControlInteraction(b, {
         get: () => rec.values.get(b.id),
-        set: (val) => this._setParam(rec, b.id, val),
+        // The master enable and the transport are one state: route the lamp through
+        // setSound so toggling it here also flips the pie/toolbar (and vice versa).
+        set: (val) => { if (isMasterEnable) this.setSound(val === 'on'); else this._setParam(rec, b.id, val); },
       });
       b.group.addEventListener('pointerdown', (e) => e.stopPropagation());
     }
@@ -2273,15 +2300,30 @@ export class Rack {
     e.preventDefault();
     e.stopPropagation();
     if (e.target.closest && e.target.closest('[data-wcoast-param]')) return;   // no pie over a knob or any control
-    const pre = this.isPlaying();   // transport state when the menu opened
+    // The sound wedge mirrors the mixer's master-enable: read it straight from the mixer
+    // record each time the pie opens, so the LED always matches the mixer's button.
+    const mixEnable = this.records.get('mixer');
+    const pre = mixEnable ? mixEnable.values.get('masterMute') === 'on' : this.isPlaying();
+    // Sound (S): hover auditions the patch momentarily; a click latches sound on/off
+    // (unified with the mixer master enable). The button LED lights whenever sound is
+    // actually playing — the latched on-state AND during a hover-peek (sound plays then
+    // too), so its illumination always tracks the audio. `plain`: the wedge itself never
+    // tints (black pie background); only the LED shows state.
+    const soundSeg = {
+      dir: 'S', icon: SOUND_BTN_ICON(pre), label: pre ? 'sound on' : 'sound off', plain: true,
+      // Hover previews the TOGGLE (the opposite of the latched state): the LED and the
+      // audio both show what clicking would do — light+play when off, dim+silence when on.
+      onPeekStart: () => { this.soundPeek(!pre); if (soundSeg.iconEl) soundSeg.iconEl.innerHTML = SOUND_BTN_ICON(!pre); },
+      onPeekEnd: () => { this.soundPeek(pre); if (soundSeg.iconEl) soundSeg.iconEl.innerHTML = SOUND_BTN_ICON(pre); },
+      commit: () => this.setSound(!this.isPlaying()),
+    };
     openPieMenu({
       x: e.clientX, y: e.clientY,
       segments: [
-        // App menu (NW): a click closes the pie and opens the File menu at the pointer.
-        { dir: 'NW', icon: APPMENU_ICON, label: 'menu', keepOpen: false, onClick: (ev) => this.onAppMenu(ev.clientX, ev.clientY) },
-        // Start/stop (S): a click toggles sound like the toolbar button; menu stays up.
-        { dir: 'S', icon: pre ? STOP_ICON : PLAY_ICON, label: pre ? 'stop sound' : 'start sound', highlighted: pre,
-          onClick: () => this.setTransport(!this.isPlaying()) },
+        // App menu (NW): entering the wedge closes the pie and opens the File menu at
+        // the virtual pointer.
+        { dir: 'NW', icon: APPMENU_ICON, label: 'menu', enterActivates: true, commit: (ctx) => this.onAppMenu(ctx.x, ctx.y) },
+        soundSeg,
       ],
     });
   }
@@ -2295,7 +2337,8 @@ export class Rack {
     if (rec.pinned) return;
     openPieMenu({
       x: e.clientX, y: e.clientY,
-      segments: [{ dir: 'NE', icon: TRASH_ICON, label: `delete ${rec.name}`, keepOpen: false, onClick: () => this._deleteModuleWithUndo(rec) }],
+      // Delete has no peek — it only fires on a deliberate click, never on hover.
+      segments: [{ dir: 'NE', icon: TRASH_ICON, label: `delete ${rec.name}`, commit: () => this._deleteModuleWithUndo(rec) }],
     });
   }
 
