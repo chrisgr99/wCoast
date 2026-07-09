@@ -138,6 +138,9 @@
     .rack-menu-item.disabled { color: var(--ink-dim); opacity: 0.55; cursor: default; }
     .rack-menu-item.disabled:hover { background: none; color: var(--ink-dim); }
     .rack-submenu { z-index: 1410; }
+    .rack-menu { border-width: 1.5px; border-color: #141414; }            /* light mode: dark line to stand out */
+    .rack-menu.theme-dark { border-color: #d2d2d6; }                       /* dark mode: light line */
+    .app-menu-peek { z-index: 3100; }   /* the app-menu preview sits OVER the pie (which is z 3000) and is live, so moving onto it commits */
     .confirm-overlay { position: fixed; inset: 0; z-index: 3200; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
     .confirm-box { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
       min-width: 240px; max-width: 360px; box-shadow: 0 12px 36px rgba(0,0,0,0.55); font: 13px/1.45 -apple-system, system-ui, sans-serif; }

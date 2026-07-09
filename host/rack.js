@@ -21,7 +21,7 @@
 
 import { loadPanel, showValue, attachControlInteraction, FACE_H_MM, FACE_TOP_MM, FACE_LEFT_MM } from './panel-loader.js';
 import { Patchbay } from './patchbay.js';
-import { openPieMenu } from './pie-menu.js';
+import { openPieMenu, closePieMenu } from './pie-menu.js';
 
 const PANEL_H_MM = FACE_H_MM;   // modules display only the cropped functional face
 const ROW_GAP_MM = 0;           // vertical gap between rows (0 = flush, faceplates touch)
@@ -30,6 +30,12 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 // Pie-wedge icons (match the toolbar buttons where there is one).
 const SCOPE_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.2" stroke-width="1.7"/><path d="M5 12 Q7 8 9 12 T13 12 T17 12 L19 12" stroke-width="1.9"/></g></svg>';
 const APPMENU_ICON = '<svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="2.4" rx="1"/><rect x="4" y="11" width="16" height="2.4" rx="1"/><rect x="4" y="16" width="16" height="2.4" rx="1"/></svg>';
+// A drooping orange cable between two terminals (left a touch higher) — the "pull a
+// cable" wedge.
+const CABLE_DROOP_ICON = '<svg style="width:16px;height:16px" viewBox="0 0 24 24">'
+  + '<path d="M4 7.5 C 8.5 20, 15.5 20, 20 12.5" fill="none" stroke="#ff7300" stroke-width="2.7" stroke-linecap="round"/>'
+  + '<circle cx="4" cy="7.5" r="3.5" fill="currentColor"/>'
+  + '<circle cx="20" cy="12.5" r="3.5" fill="currentColor"/></svg>';
 const NET_ICON = '<svg viewBox="0 0 24 24"><g stroke="currentColor" stroke-linecap="round"><line x1="12" y1="12" x2="20" y2="4.5" stroke-width="2.1"/><line x1="12" y1="12" x2="18.5" y2="21" stroke-width="2.1"/><circle cx="20" cy="4.5" r="3.2" fill="currentColor" stroke="none"/><circle cx="18.5" cy="21" r="3.2" fill="currentColor" stroke="none"/><line x1="3.5" y1="6" x2="12" y2="12" stroke-width="2.9"/><circle cx="3.5" cy="6" r="3.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="3.7" fill="currentColor" stroke="none"/></g></svg>';
 const TRASH_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></g></svg>';
 const EAR_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">'
@@ -693,9 +699,10 @@ export class Rack {
         }
       }
     };
-    // A clean click (no drag) PICKS UP a cord that then follows the cursor with no
-    // button held — click again to drop it (see _startStickyCable).
-    const onUp = (ev) => { cleanup(); this._startStickyCable(key, portId, ev.clientX, ev.clientY); };
+    // A clean click (no drag) OPENS the terminal pie — same as a right-click. It fires
+    // on release, so a press that becomes a drag is unambiguously a cable and never a
+    // menu. (Pulling a cord by click is now the pie's lower-right "pull a cable" wedge.)
+    const onUp = (ev) => { cleanup(); this._onJackContextMenu(ev, key, portId); };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
   }
@@ -798,6 +805,39 @@ export class Rack {
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', onKey, true);
     this.container.addEventListener('scroll', onScroll, true);
+  }
+
+  // A non-committal PREVIEW cord from a terminal to the cursor, shown while hovering the
+  // pie's "pull a cable" wedge — a hint that a real drag will start. Drawn in a top-layer
+  // viewport overlay (ABOVE the pie) so it stays visible right up to the cursor tip
+  // instead of vanishing behind the opaque pie disc.
+  _startCablePreview(key, portId) {
+    this._endCablePreview();
+    const ep = this._ep(key, portId);
+    const rec = this.records.get(key);
+    const port = rec && rec.panel && rec.panel.ports.get(portId);
+    if (!ep || !port || !port.element) return;
+    const jr = port.element.getBoundingClientRect();
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'cable-preview');
+    svg.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:3100;pointer-events:none;overflow:visible;';
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', STYLE_COLOR[domainStyle(ep.meta.domain)]);
+    path.setAttribute('stroke-width', String(Math.max(3, CABLE_PX)));
+    path.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(path);
+    document.body.appendChild(svg);
+    this._previewCable = { svg, path, jx: jr.left + jr.width / 2, jy: jr.top + jr.height / 2 };
+  }
+  _updateCablePreview(clientX, clientY) {
+    const p = this._previewCable; if (!p) return;
+    const sag = 8 + Math.abs(clientX - p.jx) * 0.18;                 // a gentle droop
+    const mx = (p.jx + clientX) / 2, my = Math.max(p.jy, clientY) + sag;
+    p.path.setAttribute('d', `M ${r2(p.jx)} ${r2(p.jy)} Q ${r2(mx)} ${r2(my)} ${r2(clientX)} ${r2(clientY)}`);
+  }
+  _endCablePreview() {
+    if (this._previewCable) { this._previewCable.svg.remove(); this._previewCable = null; }
   }
 
   // Re-route an existing cable: grabbed at one of its ports (grabbedEnd), drag that
@@ -1293,20 +1333,19 @@ export class Rack {
       },
       segments: [
         {
-          // Hover: a temporary scope beside the menu. Click: carry a permanent one out.
+          // Hover: a temporary scope beside the menu. Commit (click or cross-out): carry
+          // a permanent one out, following the pointer, dropped on the next click.
           dir: 'NE', icon: SCOPE_ICON, label: 'scope',
           onPeekStart: () => { if (!tempScope) { const p = this._viewerSpot(ox, oy, 246, 92); tempScope = this._createScope(key, portId, p.x, p.y, false); } },
           onPeekEnd: () => { if (tempScope) { this._closeScope(tempScope); tempScope = null; } },
           commit: (ctx) => this._carryScope(this._createScope(key, portId, ctx.x, ctx.y), { clientX: ctx.x, clientY: ctx.y }, 'up', ox),
-          onDragOut: (ev, mode) => this._carryScope(this._createScope(key, portId, ev.clientX, ev.clientY), ev, mode, ox),
         },
         {
-          // Hover: a temporary ear monitor (plays). Click: carry a permanent one out.
+          // Hover: a temporary ear monitor (plays). Commit: carry a permanent one out.
           dir: 'S', icon: EAR_ICON, label: 'listen',
           onPeekStart: () => { if (!tempMon) { const p = this._viewerSpot(ox, oy, 34, 34); tempMon = this._createMonitor(key, portId, p.x, p.y, false); } },
           onPeekEnd: () => { if (tempMon) { this._closeMonitor(tempMon); tempMon = null; } },
           commit: (ctx) => this._carryMonitor(this._createMonitor(key, portId, ctx.x, ctx.y), { clientX: ctx.x, clientY: ctx.y }, 'up'),
-          onDragOut: (ev, mode) => this._carryMonitor(this._createMonitor(key, portId, ev.clientX, ev.clientY), ev, mode),
         },
         // What feeds this (upper-left): hover shows the upstream subnet momentarily; a
         // click latches it (peeking is cleared on commit so it isn't torn down).
@@ -1314,6 +1353,15 @@ export class Rack {
           onPeekStart: () => this._isolateSubnet(key, portId),
           onPeekEnd: () => this._exitIsolate(),
           commit: () => {} },
+        // Pull a cable (lower-right): entering shows a PREVIEW cord from the terminal to
+        // the cursor. Pull it OUT past the pie's edge (any direction but back to centre)
+        // and it becomes a real sticky cord that follows the cursor (click a jack to
+        // connect, Escape/right-click to cancel). Back to the centre cancels.
+        { dir: 'SE', icon: CABLE_DROOP_ICON, label: 'pull a cable', capture: true,
+          onPeekStart: (ctx) => { this._startCablePreview(key, portId); this._updateCablePreview(ctx.x, ctx.y); },
+          onPeekMove: (ctx) => this._updateCablePreview(ctx.x, ctx.y),
+          onPeekEnd: () => this._endCablePreview(),
+          commit: (ctx) => { this._endCablePreview(); this._startStickyCable(key, portId, ctx.x, ctx.y); } },
       ],
     });
   }
@@ -2238,7 +2286,10 @@ export class Rack {
       ghost.style.display = 'none';
       if (moved) { this._moveModule(rec, dropRow, dropX); return; }
       if (this._isolateNet) { this._exitIsolate(); return; }   // a left click on empty faceplate leaves isolate mode
-      // Otherwise a plain click does nothing — the pies open on right-click.
+      // A clean left click opens the pie (same as a right-click): the title strip's
+      // delete pie, otherwise the panel pie.
+      if (ev.target && ev.target.closest && ev.target.closest('.module-title')) this._onTitleContextMenu(ev, rec);
+      else this._onModuleContextMenu(ev, rec);
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
@@ -2320,9 +2371,12 @@ export class Rack {
     openPieMenu({
       x: e.clientX, y: e.clientY,
       segments: [
-        // App menu (NW): entering the wedge closes the pie and opens the File menu at
-        // the virtual pointer.
-        { dir: 'NW', icon: APPMENU_ICON, label: 'menu', enterActivates: true, commit: (ctx) => this.onAppMenu(ctx.x, ctx.y) },
+        // App menu (N, top): hovering pops the menu beside the pointer, over the pie;
+        // moving onto it (or a click) commits and the pie closes, back-to-centre cancels.
+        { dir: 'N', icon: APPMENU_ICON, label: 'menu',
+          onPeekStart: (ctx) => this._appMenuPeek(ctx),
+          onPeekEnd: () => this._appMenuPeekEnd(),
+          commit: () => this._finalizeAppMenu() },
         soundSeg,
       ],
     });
@@ -2347,7 +2401,7 @@ export class Rack {
   _openMenu(x, y, items) {
     this._closeMenu();
     const menu = document.createElement('div');
-    menu.className = 'rack-menu';
+    menu.className = 'rack-menu' + (this.isDark() ? ' theme-dark' : '');   // border: dark line in light mode, light line in dark
     let focusEl = null;
 
     const pad = 8;
@@ -2468,13 +2522,56 @@ export class Rack {
     if (this._menuEl) { this._menuEl.remove(); this._menuEl = null; }
   }
 
+  // ---- app menu as a pie peek (panel-pie top wedge) ----
+  // Hovering the top wedge previews the app menu just to the side of the pointer, drawn
+  // OVER the pie (leaving the pie centre visible). Moving the pointer onto the menu (its
+  // pointerenter) commits — the pie closes and the menu stays live where it is; moving
+  // back to the pie centre cancels (onPeekEnd). A click on the wedge also commits.
+  _appMenuPeek(ctx) {
+    this._appMenuHeld = false;
+    this.onAppMenu(0, 0);                 // build+open (rack-app fills the items); we reposition
+    const el = this._menuEl; if (!el) return;
+    el.classList.add('app-menu-peek');    // raised above the pie, but still a preview
+    this._positionAppMenuBeside(el, ctx);
+    el.addEventListener('pointerenter', () => this._finalizeAppMenu(), { once: true });   // move onto it → keep it
+    this._appMenuPeekEl = el;
+  }
+  // Cancel: only tears the menu down if it wasn't committed (pointer went back to centre).
+  _appMenuPeekEnd() {
+    if (this._appMenuHeld) { this._appMenuPeekEl = null; return; }
+    if (this._appMenuPeekEl) { this._closeMenu(); this._appMenuPeekEl = null; }
+  }
+  // Commit: keep the menu, drop its preview styling (so it's a normal live menu), and
+  // close the pie. Setting _appMenuHeld first makes the pie's onPeekEnd leave it alone.
+  _finalizeAppMenu() {
+    if (!this._appMenuPeekEl) return;
+    this._appMenuHeld = true;
+    this._appMenuPeekEl.classList.remove('app-menu-peek');
+    this._appMenuPeekEl = null;
+    closePieMenu();
+  }
+  // Place the menu ~2mm to the RIGHT of the pointer (flipping LEFT if it won't fit),
+  // clamped fully on-screen, drawn over the pie.
+  _positionAppMenuBeside(el, ctx) {
+    const pad = 8, gap = 8, vw = window.innerWidth, vh = window.innerHeight;   // gap ~2mm
+    const mw = el.offsetWidth, mh = el.offsetHeight;
+    let left = ctx.x + gap;
+    if (left + mw > vw - pad) left = ctx.x - gap - mw;   // no room right → go left
+    left = Math.max(pad, Math.min(vw - pad - mw, left));
+    let top = Math.round(ctx.y - 6);                     // pointer near the first row
+    top = Math.max(pad, Math.min(vh - pad - mh, top));
+    el.style.left = Math.round(left) + 'px';
+    el.style.top = top + 'px';
+    el.style.clipPath = '';
+  }
+
   _closeSubs() { for (const s of this._openSubs) s.remove(); this._openSubs = []; }
 
   // Build (but don't place) a submenu of leaf items — check marks, disabled state, and
   // a click that runs the item and closes the whole menu.
   _buildSubmenu(items) {
     const sub = document.createElement('div');
-    sub.className = 'rack-menu rack-submenu';
+    sub.className = 'rack-menu rack-submenu' + (this.isDark() ? ' theme-dark' : '');
     for (const it of items) {
       if (it.header) { const h = document.createElement('div'); h.className = 'rack-menu-header'; h.textContent = it.label; sub.appendChild(h); continue; }
       const item = document.createElement('div');
