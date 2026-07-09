@@ -1347,17 +1347,17 @@ export class Rack {
           onPeekEnd: () => { if (tempMon) { this._closeMonitor(tempMon); tempMon = null; } },
           commit: (ctx) => this._carryMonitor(this._createMonitor(key, portId, ctx.x, ctx.y), { clientX: ctx.x, clientY: ctx.y }, 'up'),
         },
-        // What feeds this (upper-left): hover shows the upstream subnet momentarily; a
-        // click latches it (peeking is cleared on commit so it isn't torn down).
-        { dir: 'NW', icon: NET_ICON, label: 'what feeds this',
+        // What feeds this (top): hover shows the upstream subnet momentarily; a click
+        // latches it (peeking is cleared on commit so it isn't torn down).
+        { dir: 'N', icon: NET_ICON, label: 'what feeds this',
           onPeekStart: () => this._isolateSubnet(key, portId),
           onPeekEnd: () => this._exitIsolate(),
           commit: () => {} },
-        // Pull a cable (lower-right): entering shows a PREVIEW cord from the terminal to
+        // Pull a cable (lower-left): entering shows a PREVIEW cord from the terminal to
         // the cursor. Pull it OUT past the pie's edge (any direction but back to centre)
         // and it becomes a real sticky cord that follows the cursor (click a jack to
         // connect, Escape/right-click to cancel). Back to the centre cancels.
-        { dir: 'SE', icon: CABLE_DROOP_ICON, label: 'pull a cable', capture: true,
+        { dir: 'SW', icon: CABLE_DROOP_ICON, label: 'pull a cable', capture: true,
           onPeekStart: (ctx) => { this._startCablePreview(key, portId); this._updateCablePreview(ctx.x, ctx.y); },
           onPeekMove: (ctx) => this._updateCablePreview(ctx.x, ctx.y),
           onPeekEnd: () => this._endCablePreview(),
@@ -1497,7 +1497,14 @@ export class Rack {
       document.removeEventListener('keydown', onKey, true);
     };
     const onUp = () => finish();
-    const onClick = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); };
+    // Clicking back on the terminal it came from cancels the creation (deletes it) —
+    // the same "changed my mind" escape a cable drag has when dropped back on its port.
+    const onClick = (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      const drop = this._jackNear(ev.clientX, ev.clientY);
+      if (drop && drop.key === sc.key && drop.portId === sc.portId) { this._closeScope(sc); finish(); return; }
+      finish();
+    };
     const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); this._closeScope(sc); finish(); } };
     document.addEventListener('pointermove', onMove, true);
     document.addEventListener('keydown', onKey, true);
@@ -1696,10 +1703,10 @@ export class Rack {
     const onUp = (e2) => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
       const drop = this._jackFromPoint(e2.clientX, e2.clientY);
-      this._scopeTapDisconnect(sc); sc.hi = sc.lo = null; sc.hist.fill(null);
-      if (drop) { sc.key = drop.key; sc.portId = drop.portId; this._scopeTapConnect(sc); }
-      else { sc.key = null; sc.portId = null; }   // dropped on empty → stay disconnected
       sc.dot.style.pointerEvents = '';
+      if (!drop) { this._closeScope(sc); return; }   // loop dropped on the panel → delete it (like a cable pulled off a terminal)
+      this._scopeTapDisconnect(sc); sc.hi = sc.lo = null; sc.hist.fill(null);
+      sc.key = drop.key; sc.portId = drop.portId; this._scopeTapConnect(sc);
       sc.regrabbing = false;
       this._updateCallout(sc);
     };
@@ -1806,10 +1813,10 @@ export class Rack {
     const onUp = (e2) => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
       const drop = this._jackFromPoint(e2.clientX, e2.clientY);
-      this._monTapDisconnect(m);
-      if (drop) { m.key = drop.key; m.portId = drop.portId; if (!m.muted) this._monTapConnect(m); }
-      else { m.key = null; m.portId = null; }   // dropped on empty → stay disconnected
       m.dot.style.pointerEvents = '';
+      if (!drop) { this._closeMonitor(m); return; }   // loop dropped on the panel → delete it (like a cable pulled off a terminal)
+      this._monTapDisconnect(m);
+      m.key = drop.key; m.portId = drop.portId; if (!m.muted) this._monTapConnect(m);
       m.regrabbing = false;
       this._updateCallout(m);
       this._refreshSolo();
@@ -1865,7 +1872,14 @@ export class Rack {
       document.removeEventListener('keydown', onKey, true);
     };
     const onUp = () => finish();
-    const onClick = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); };
+    // Clicking back on its terminal cancels the creation (deletes it) — as a cable drag
+    // does when dropped back on its port.
+    const onClick = (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      const drop = this._jackNear(ev.clientX, ev.clientY);
+      if (drop && drop.key === m.key && drop.portId === m.portId) { this._closeMonitor(m); finish(); return; }
+      finish();
+    };
     const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); this._closeMonitor(m); finish(); } };
     document.addEventListener('pointermove', onMove, true);
     document.addEventListener('keydown', onKey, true);
