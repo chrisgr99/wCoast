@@ -1,10 +1,12 @@
 // pie-menu.js — radial "pie" menu. See design/pie-menus.md.
 //
-// A small icon-only radial menu with eight fixed compass positions, opened on
-// right-click over a context (a terminal, a faceplate, the title strip). Each
-// segment is a wedge that IS the button; selection is by moving out of the centre
-// dead zone into a wedge, then pressing — or one fluid press-drag. A press in the
-// dead zone (or Escape, or right-click) cancels with no action.
+// A small icon-only radial menu with six fixed compass positions, opened by a
+// RIGHT-click over a context (a terminal, a faceplate, a title). Each segment is a
+// wedge that IS the button. Moving over the wedges only HIGHLIGHTS them. A CLICK on a
+// wedge runs its action and leaves the menu open (a toggle — sound on/off, a scope
+// shown/hidden); PRESSING a wedge and DRAGGING out through the circle instead pulls a
+// new object out to place (scope / ear monitor). The menu closes on a click in the
+// dead zone, Escape, a right-click, or the pointer leaving past the outer circle.
 //
 // The real OS cursor is HIDDEN but kept live (not pointer-locked) so a screen
 // magnifier keeps following it; we draw our own cursor, offset by however far the
@@ -23,12 +25,12 @@ let closeCurrent = null;
 export function closePieMenu() { if (closeCurrent) closeCurrent(); }
 
 // segments: [{ dir, icon (SVG/HTML string), label, highlighted,
-//              onPeek(e), onUnpeek(e), onCommit(e, mode) }].
-// Positions are fixed by `dir` (muscle memory). A peekable segment supplies onPeek /
-// onUnpeek (the reversible preview) and onCommit (crossing the outer circle, mode
-// 'down'|'up' for release- vs click-to-drop). A one-shot segment supplies just
-// onCommit (or legacy onSelect), which fires on the same cross-out.
-export function openPieMenu({ x, y, segments = [], innerR = 11, outerR = 30, iconR = 19, tickLen = 5, pad = 12 } = {}) {
+//              onClick(e), onDragOut(e, mode), keepOpen }].
+// Positions are fixed by `dir` (muscle memory). onClick fires on a click of the wedge
+// (menu stays open unless keepOpen === false, which closes then acts — the app menu,
+// delete). onDragOut fires when the wedge is pressed and dragged out through the outer
+// circle (mode 'down'), for hand-off create-and-drag tools (scope, ear monitor).
+export function openPieMenu({ x, y, segments = [], onClose, innerR = 11, outerR = 30, iconR = 19, tickLen = 5, pad = 12 } = {}) {
   closePieMenu();
   const W = window.innerWidth, H = window.innerHeight;
   const cx = Math.max(outerR + pad, Math.min(W - outerR - pad, x));
@@ -103,69 +105,55 @@ export function openPieMenu({ x, y, segments = [], innerR = 11, outerR = 30, ico
   cursor.className = 'pie-cursor';
   overlay.appendChild(cursor);
 
-  // Peek model. Moving into a segment PEEKS it — a reversible preview (sound starts,
-  // a scope appears). Moving to the dead zone or to another segment UN-peeks it,
-  // undoing the preview. The menu does NOT close on entering or clicking a segment.
-  // It closes only two ways: crossing the outer circle COMMITS the peeked segment
-  // (its preview stays / a drag hands off), or returning to the centre and releasing
-  // or clicking CANCELS. Commit mode 'down' (a button was held) hands off a release-
-  // to-drop tool; mode 'up' (no button) hands off a click-to-drop tool.
-  let peeked = null, done = false, pressed = false;   // `peeked` locks to the first segment entered
+  // The highlight simply follows the pointer over the wedges — nothing is triggered by
+  // moving. A wedge acts two ways: CLICKING it runs seg.onClick and leaves the menu
+  // OPEN (unless seg.keepOpen === false, e.g. the app menu, which closes then acts);
+  // PRESSING it and DRAGGING out through the outer circle runs seg.onDragOut (a
+  // create-and-drag, for the scope / ear monitor). The menu closes on: a click in the
+  // dead zone, Escape, or the pointer simply leaving past the outer circle.
+  let hovered = null, done = false, pressed = false;
   const setHover = (dir) => {
-    if (peeked && wedgeEls.get(peeked)) wedgeEls.get(peeked).classList.remove('hover');
-    peeked = dir;
-    if (peeked && wedgeEls.get(peeked)) wedgeEls.get(peeked).classList.add('hover');
-  };
-  const peekTo = (dir, e) => {
-    if (dir === peeked) return;
-    if (peeked) { const s = byDir.get(peeked); if (s && s.onUnpeek) s.onUnpeek(e); }
-    const s = dir && byDir.get(dir);
-    setHover(dir);
-    if (s && s.onPeek) s.onPeek(e);
+    if (hovered && wedgeEls.get(hovered)) wedgeEls.get(hovered).classList.remove('hover');
+    hovered = dir;
+    if (hovered && wedgeEls.get(hovered)) wedgeEls.get(hovered).classList.add('hover');
   };
   const zoneOf = (px, py) => {
     const rx = px + offX, ry = py + offY;
     cursor.style.left = rx + 'px'; cursor.style.top = ry + 'px';
     const dx = rx - cx, dy = ry - cy, dist = Math.hypot(dx, dy);
     let ang = Math.atan2(dy, dx) * 180 / Math.PI; if (ang < 0) ang += 360;
-    return { dist, dir: SNAP_DIR[60 * Math.floor(ang / 60) + 30] };   // dir = raw angular segment (may be empty)
-  };
-  const commit = (dir, e) => {
-    const seg = byDir.get(dir);
-    done = true;
-    const mode = e.buttons ? 'down' : 'up';
-    closePieMenu();
-    const run = seg && (seg.onCommit || seg.onSelect);
-    if (run) run(e, mode);
+    return { dist, dir: SNAP_DIR[60 * Math.floor(ang / 60) + 30] };
   };
   zoneOf(x, y);   // seat the rendered cursor at the centre
   const onMove = (e) => {
     if (done) return;
     const { dist, dir } = zoneOf(e.clientX, e.clientY);
-    // Centre: cancel whatever is being previewed and unlock, but KEEP the menu open —
-    // you can slide back out to a segment (the same or another) again.
-    if (dist < innerR) { if (peeked) peekTo(null, e); return; }
-    // Entering from the centre locks the gesture to this wedge (a fast flick straight
-    // past the rim peeks and commits at once).
-    if (!peeked) { peekTo(dir, e); if (dist > outerR) commit(dir, e); return; }
-    // Locked: only exiting through this segment's own outer arc commits; sliding
-    // sideways into another wedge cancels the preview and closes the menu.
-    if (dir === peeked) { if (dist > outerR) commit(peeked, e); return; }
-    peekTo(null, e); closePieMenu();
+    if (dist <= outerR) { setHover(dist < innerR ? null : (byDir.has(dir) ? dir : null)); return; }
+    // Past the outer circle. A held button leaving a scope/listen wedge hands off a
+    // create-and-drag; otherwise leaving the circle just closes the menu.
+    const seg = byDir.get(dir);
+    if (e.buttons && seg && seg.onDragOut) { done = true; closePieMenu(); seg.onDragOut(e, 'down'); }
+    else closePieMenu();
   };
   const onDown = (e) => {
     e.preventDefault(); e.stopPropagation();
-    if (e.button === 2) { peekTo(null, e); closePieMenu(); return; }   // a fresh right-click cancels
-    pressed = true;                                                     // a press on a segment does NOT act; the gesture continues
+    if (e.button === 2) { closePieMenu(); return; }   // a fresh right-click cancels
+    pressed = true;
   };
-  // A click/release in the dead zone before entering any segment dismisses the menu.
-  // `pressed` guards the release of the opening right-click, which never pressed the
-  // overlay. (Once a segment is locked, cancelling is by moving, handled in onMove.)
+  // A click ON a wedge runs its action and (by default) leaves the menu open. A click
+  // in the dead zone closes. `pressed` guards the opening click's release, which never
+  // pressed the overlay.
   const onUp = (e) => {
-    if (done || !pressed || peeked) return;
-    if (zoneOf(e.clientX, e.clientY).dist < innerR) { peekTo(null, e); closePieMenu(); }
+    if (done) return;
+    const { dist, dir } = zoneOf(e.clientX, e.clientY);
+    if (dist < innerR) { if (pressed) { done = true; closePieMenu(); } return; }
+    if (dist <= outerR && byDir.has(dir)) {
+      const seg = byDir.get(dir);
+      if (seg.keepOpen === false) { done = true; closePieMenu(); }
+      if (seg.onClick) seg.onClick(e);
+    }
   };
-  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); peekTo(null); closePieMenu(); } };
+  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); closePieMenu(); } };
   document.addEventListener('pointermove', onMove, true);
   overlay.addEventListener('pointerdown', onDown, true);
   overlay.addEventListener('pointerup', onUp, true);
@@ -177,6 +165,7 @@ export function openPieMenu({ x, y, segments = [], innerR = 11, outerR = 30, ico
     document.removeEventListener('pointermove', onMove, true);
     document.removeEventListener('keydown', onKey, true);
     overlay.remove();
+    if (onClose) onClose();   // fired however the menu closes — used to clear temporary click-shown viewers
   };
 }
 

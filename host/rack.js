@@ -81,11 +81,7 @@ export class Rack {
     this.records = new Map();     // key -> record
     this.pxPerMm = 1;
     this.zoom = 1;
-    this._hoverRec = null;   // module under the pointer (for focus-zoom key)
-    this._focusRec = null;   // module currently focus-zoomed to full height
-    this._zoomAnim = null;   // rAF handle for the zoom transition
-    this._clickTimer = null; // single/double-click discrimination
-    this._clickRec = null;
+    this._hoverRec = null;   // module under the pointer
     this._seq = 0;
     this._rowEls = [];
     this._menuEl = null;
@@ -117,17 +113,27 @@ export class Rack {
     this._buildRows();
 
     window.addEventListener('resize', () => this.relayout());
+    // Suppress the native right-click menu everywhere. Our right-click pies and menus
+    // run on their own elements first (and preventDefault themselves); this is the
+    // catch-all for areas without one (controls, empty space).
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+    // A press outside an open pop-up menu (the app/File menu, a scope menu) just
+    // DISMISSES it — that click must not also open a pie or nudge a control. Capture
+    // phase + stopPropagation keeps it from reaching the faceplate/jack/knob handlers;
+    // `_swallowClick` blocks the trailing click that the backdrop pie listens for.
     document.addEventListener('pointerdown', (e) => {
-      if (this._menuEl && !this._menuEl.contains(e.target)) this._closeMenu();   // click-away closes a row/module menu
+      if (this._menuEl && !this._menuEl.contains(e.target)) {
+        this._closeMenu();
+        this._swallowClick = true;
+        e.preventDefault(); e.stopPropagation();
+      } else {
+        this._swallowClick = false;
+      }
     }, true);
     // Pinch / ctrl-wheel to zoom (capture phase, so it beats a knob's wheel).
     this.container.addEventListener('wheel', (e) => {
       if (e.ctrlKey) this._onPinch(e);
     }, { passive: false, capture: true });
-    // '/' over a module focus-zooms it to full height (toggle). Faceplate
-    // background clicks are handled per-module in _startDrag: double-click
-    // zooms the module, single-click restores the fitted view while zoomed.
-    document.addEventListener('keydown', (e) => this._onKey(e));
     // (Legacy: the old toolbar-mixer cords tracked scroll here; `this.mixer` is
     // always null now, so this is a no-op.)
     this.container.addEventListener('scroll', () => { if (this.mixer) this._drawCables(); });
@@ -159,7 +165,6 @@ export class Rack {
       // reserved for the connection list. A small move threshold separates them.
       el.dataset.jackKey = this.mixer.key;
       el.dataset.jackPort = portId;
-      el.addEventListener('contextmenu', (e) => this._onJackContextMenu(e, this.mixer.key, portId));
       el.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
         e.stopPropagation();
@@ -199,75 +204,6 @@ export class Rack {
     const rec = this.records.get(key);
     const port = rec && rec.panel.ports.get(portId);
     return port ? { key, portId, instance: rec.instance, descriptorId: rec.descriptorId, meta: port.meta, rec } : null;
-  }
-
-  _onKey(e) {
-    const t = e.target;
-    if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
-    if (e.key === '/') {
-      e.preventDefault();
-      if (this._focusRec) this._resetZoom();
-      else if (this._hoverRec) this._focusModule(this._hoverRec);
-    }
-  }
-
-  // Zoom so one module fills the full window height, and scroll it into view.
-  _focusModule(rec) {
-    const vpH = this.container.clientHeight || 600;
-    const vpW = this.container.clientWidth || 800;
-    const contentHmm = this.rowCount * PANEL_H_MM + (this.rowCount - 1) * ROW_GAP_MM;
-    const fit = vpH / contentHmm;
-    const targetZoom = (vpH / PANEL_H_MM) / fit;   // module height == window height
-    const s = fit * targetZoom;                     // pxPerMm at the target zoom
-    const rowTopMm = rec.row * (PANEL_H_MM + ROW_GAP_MM);
-    const targetTop = Math.max(0, rowTopMm * s);
-    const targetLeft = Math.max(0, rec.x * s + rec.panelWmm * s / 2 - vpW / 2);
-    this._focusRec = rec;
-    this._animateZoom(targetZoom, targetLeft, targetTop);
-  }
-
-  _resetZoom() {
-    this._focusRec = null;
-    this._animateZoom(1, 0, 0);
-  }
-
-  // Smoothly interpolate zoom (and scroll) to a target, relaying out each frame.
-  _animateZoom(targetZoom, targetLeft, targetTop) {
-    if (this._zoomAnim) cancelAnimationFrame(this._zoomAnim);
-    const startZoom = this.zoom;
-    const startLeft = this.container.scrollLeft;
-    const startTop = this.container.scrollTop;
-    const dur = 260;
-    const t0 = performance.now();
-    const ease = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
-    const step = (now) => {
-      const t = Math.min(1, (now - t0) / dur);
-      const k = ease(t);
-      this.zoom = startZoom + (targetZoom - startZoom) * k;
-      this.relayout();
-      this.container.scrollLeft = startLeft + (targetLeft - startLeft) * k;
-      this.container.scrollTop = startTop + (targetTop - startTop) * k;
-      this._zoomAnim = t < 1 ? requestAnimationFrame(step) : null;
-    };
-    this._zoomAnim = requestAnimationFrame(step);
-  }
-
-  // A background click on a faceplate: double-click zooms the module to full
-  // height; a single click while zoomed restores the fitted view. Timed here so
-  // the single action doesn't fire on the way to a double.
-  _handleClick(rec) {
-    if (this._clickTimer && this._clickRec === rec) {
-      clearTimeout(this._clickTimer);
-      this._clickTimer = null; this._clickRec = null;
-      this._focusModule(rec);                  // double-click → zoom to full height
-      return;
-    }
-    if (this._clickTimer) clearTimeout(this._clickTimer);
-    this._clickRec = rec;
-    this._clickTimer = setTimeout(() => {
-      this._clickTimer = null; this._clickRec = null;
-      if (this._focusRec) this._resetZoom();   // single click while zoomed → restore
-    }, 250);
   }
 
   moduleCount() { return this.records.size; }
@@ -696,7 +632,7 @@ export class Rack {
         }
       }
     };
-    const onUp = () => { cleanup(); };   // a clean click does nothing
+    const onUp = () => { cleanup(); };   // a clean click does nothing — the terminal pie is on right-click
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
   }
@@ -1035,43 +971,52 @@ export class Rack {
   setScopeArm(on) { this._scopeArm = !!on; document.body.classList.toggle('arming-scope', this._scopeArm); this.onScopeArm(this._scopeArm); }
   toggleScopeArm() { this.setScopeArm(!this._scopeArm); }
 
-  // Right-click a terminal → the terminal pie. For now one wedge (scope, NE):
-  // selecting it flows straight into placing a scope on this port, so right-click
-  // → drag onto the wedge → drag out the scope is one motion.
+  // Where a click-shown viewer (scope / ear monitor) lands: immediately RIGHT of the
+  // menu, vertically centred on the pointer, so the middle of its left edge sits as
+  // close to the pointer as it can without the menu obscuring it. Flips to the left if
+  // there's no room on the right; clamped to stay on-screen. (px,py) = pie centre.
+  _viewerSpot(px, py, w, h) {
+    const pad = 6, clear = 34;   // just past the pie's outer edge (~30)
+    let x = px + clear;                       // right of the menu
+    const y = py - h / 2;                     // vertically centred on the pointer
+    if (x + w > window.innerWidth - pad) x = px - clear - w;   // no room right → left of the menu
+    x = Math.max(pad, x);
+    return { x, y: Math.max(pad, Math.min(window.innerHeight - pad - h, y)) };
+  }
+
+  // A click on a terminal → the terminal pie (scope NE, listen SE). A CLICK on a wedge
+  // shows a TEMPORARY viewer (a live scope / ear monitor) beside the menu — a quick
+  // look that is removed when the menu closes (a second click also hides it). The only
+  // way to keep one is to PRESS the wedge and drag out through the circle, which drops
+  // a permanent instance where you release.
   _onJackContextMenu(e, key, portId) {
     e.preventDefault(); e.stopPropagation();
-    // Scope wedge (NE). If this terminal already has a scope the wedge is lit and
-    // committing it removes the scope. Otherwise it PEEKS: entering the wedge creates
-    // a live scope up-right of the pie (see its wave); returning to the centre removes
-    // it again; crossing out carries the scope off to be dropped.
-    const existing = [...this._scopes].find((sc) => sc.key === key && sc.portId === portId);
-    const existingMon = [...this._monitors].find((m) => m.key === key && m.portId === portId);
     const ox = e.clientX, oy = e.clientY;
-    let peekSc = null;
+    let tempScope = null, tempMon = null;
     openPieMenu({
-      x: e.clientX, y: e.clientY,
+      x: ox, y: oy,
+      onClose: () => {   // temporary views never outlive the menu
+        if (tempScope) { this._closeScope(tempScope); tempScope = null; }
+        if (tempMon) { this._closeMonitor(tempMon); tempMon = null; }
+      },
       segments: [
         {
-          dir: 'NE', icon: SCOPE_ICON, label: existing ? 'remove scope' : 'scope', highlighted: !!existing,
-          onPeek: existing ? undefined : () => { peekSc = this._createScope(key, portId, ox + 30, oy - 100); },
-          onUnpeek: existing ? undefined : () => { if (peekSc) { this._closeScope(peekSc); peekSc = null; } },
-          onCommit: (ev, mode) => {
-            if (existing) { this._closeScope(existing); return; }
-            if (peekSc) { const sc = peekSc; peekSc = null; this._carryScope(sc, ev, mode, ox); }
+          dir: 'NE', icon: SCOPE_ICON, label: 'scope',
+          onClick: () => {
+            if (tempScope) { this._closeScope(tempScope); tempScope = null; return; }
+            const p = this._viewerSpot(ox, oy, 246, 92);
+            tempScope = this._createScope(key, portId, p.x, p.y, false);   // temporary: no connection loop
           },
+          onDragOut: (ev, mode) => this._carryScope(this._createScope(key, portId, ev.clientX, ev.clientY), ev, mode, ox),
         },
-        // Listen (below the scope). Peeking solos this terminal (mutes the rest);
-        // crossing out drops a placed ear monitor that adds to the solo mix. When one
-        // already exists here the wedge removes it, like the scope.
         {
-          dir: 'SE', icon: EAR_ICON, label: existingMon ? 'remove listen' : 'listen', highlighted: !!existingMon,
-          onPeek: existingMon ? undefined : () => this._startMonPeek(key, portId),
-          onUnpeek: existingMon ? undefined : () => this._endMonPeek(),
-          onCommit: (ev, mode) => {
-            if (existingMon) { this._closeMonitor(existingMon); return; }
-            this._endMonPeek();
-            this._carryMonitor(this._createMonitor(key, portId, ev.clientX, ev.clientY), ev, mode);
+          dir: 'SE', icon: EAR_ICON, label: 'listen',
+          onClick: () => {
+            if (tempMon) { this._closeMonitor(tempMon); tempMon = null; return; }
+            const p = this._viewerSpot(ox, oy, 34, 34);
+            tempMon = this._createMonitor(key, portId, p.x, p.y, false);   // temporary: no connection loop
           },
+          onDragOut: (ev, mode) => this._carryMonitor(this._createMonitor(key, portId, ev.clientX, ev.clientY), ev, mode),
         },
       ],
     });
@@ -1142,7 +1087,7 @@ export class Rack {
     else document.addEventListener('pointerup', onUp, true);
   }
 
-  _createScope(key, portId, x, y) {
+  _createScope(key, portId, x, y, showCallout = true) {
     const el = document.createElement('div');
     el.className = 'scope';
     el.style.left = Math.round(x) + 'px';
@@ -1164,7 +1109,7 @@ export class Rack {
       buf: new Float32Array(an.fftSize), hist: new Array(200).fill(null), histIdx: 0,
       hi: null, lo: null, fastVotes: 0, tap: null,
       gainMul: 1, timeMul: 1, gainVel: 0, timeVel: 0, trigger: true, frozen: false, forceMode: 'auto',
-      armed: false, recFrames: 0, prevPeak: null,
+      armed: false, recFrames: 0, prevPeak: null, showCallout,
       ring: document.createElementNS(SVG_NS, 'circle'), line: document.createElementNS(SVG_NS, 'line'),
       dot: document.createElement('div'),
     };
@@ -1330,6 +1275,9 @@ export class Rack {
   }
 
   _updateCallout(sc) {
+    // Click-shown (temporary) viewers show no connection loop or line — the callout
+    // running behind the menu reads as clutter. Only dragged-out ones are "connected".
+    if (sc.showCallout === false) { sc.ring.setAttribute('r', '0'); sc.line.setAttribute('stroke', 'none'); if (sc.dot) sc.dot.style.display = 'none'; return; }
     const jel = this._jackElement(sc.key, sc.portId);
     const col = this.dark ? '#ffffff' : '#000000';
     const lw = 1.8;
@@ -1388,7 +1336,8 @@ export class Rack {
     ]);
   }
 
-  // Drag the ring off its port and onto another to re-probe that port.
+  // Drag the ring off its port and onto another to re-probe that port; drop it on
+  // empty space (not a port) to DISCONNECT the scope from its port.
   _regrabScope(ev, sc) {
     if (ev.button !== 0) return;
     ev.preventDefault(); ev.stopPropagation();
@@ -1403,7 +1352,9 @@ export class Rack {
     const onUp = (e2) => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
       const drop = this._jackFromPoint(e2.clientX, e2.clientY);
-      if (drop) { this._scopeTapDisconnect(sc); sc.key = drop.key; sc.portId = drop.portId; sc.hi = sc.lo = null; sc.hist.fill(null); this._scopeTapConnect(sc); }
+      this._scopeTapDisconnect(sc); sc.hi = sc.lo = null; sc.hist.fill(null);
+      if (drop) { sc.key = drop.key; sc.portId = drop.portId; this._scopeTapConnect(sc); }
+      else { sc.key = null; sc.portId = null; }   // dropped on empty → stay disconnected
       sc.dot.style.pointerEvents = '';
       sc.regrabbing = false;
       this._updateCallout(sc);
@@ -1440,11 +1391,12 @@ export class Rack {
     return this._monBus;
   }
 
-  // Duck the mixer's normal output while any monitor (a placed one or a pie peek) is
-  // live, so you hear only the soloed terminal(s).
+  // Duck the mixer's normal output while any monitor is actively listening (connected
+  // to a port and not muted), so you hear only the soloed terminal(s).
   _refreshSolo() {
     const mix = this._mixerInstance();
-    if (mix && mix.setSolo) mix.setSolo(this._monitors.size > 0 || !!this._monPeek);
+    const active = [...this._monitors].some((m) => m.tap && !m.muted);
+    if (mix && mix.setSolo) mix.setSolo(active);
   }
 
   // Route a terminal's tap into the monitor bus at a level that respects the master
@@ -1463,24 +1415,9 @@ export class Rack {
     m.tap = null;
   }
 
-  // Transient audition for the pie peek: hear the terminal with no placed circle yet.
-  _startMonPeek(key, portId) {
-    this._endMonPeek();
-    const g = this.host.ctx.createGain(); g.connect(this._monitorBus());
-    const m = { key, portId, gain: g, tap: null };
-    this._monTapConnect(m);
-    this._monPeek = m;
-    this._refreshSolo();
-  }
-  _endMonPeek() {
-    const m = this._monPeek; this._monPeek = null;
-    if (m) { this._monTapDisconnect(m); try { m.gain.disconnect(); } catch (_e) { /* gone */ } }
-    this._refreshSolo();
-  }
-
   // A placed ear monitor: a small circle with an ear icon and an X, a callout ring/
   // line back to its terminal, and its tap summed into the monitor bus.
-  _createMonitor(key, portId, x, y) {
+  _createMonitor(key, portId, x, y, showCallout = true) {
     const el = document.createElement('div');
     el.className = 'mon'; el.title = 'Click to mute · drag to move';
     el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px';
@@ -1491,25 +1428,55 @@ export class Rack {
     document.body.appendChild(el);
     const g = this.host.ctx.createGain(); g.connect(this._monitorBus());
     const m = {
-      key, portId, el, gain: g, tap: null, muted: false,
+      key, portId, el, gain: g, tap: null, muted: false, showCallout,
       ring: document.createElementNS(SVG_NS, 'circle'), line: document.createElementNS(SVG_NS, 'line'),
+      dot: document.createElement('div'),
     };
     const ov = this._scopeOverlay();
     m.line.setAttribute('fill', 'none'); ov.appendChild(m.line);
     m.ring.setAttribute('fill', 'none'); m.ring.style.pointerEvents = 'none'; ov.appendChild(m.ring);
+    m.dot.className = 'scope-dot'; document.body.appendChild(m.dot);   // grab handle at the loop
     this._monTapConnect(m);
     close.addEventListener('click', (ev) => { ev.stopPropagation(); this._closeMonitor(m); });
     el.addEventListener('pointerdown', (ev) => this._dragMonitor(ev, m));
+    m.dot.addEventListener('pointerdown', (ev) => this._regrabMonitor(ev, m));
     this._monitors.add(m);
     this._updateCallout(m);
     this._refreshSolo();
     return m;
   }
 
+  // Drag the ear monitor's loop off its port and onto another to re-listen there; drop
+  // it on empty space (not a port) to DISCONNECT the monitor from its port.
+  _regrabMonitor(ev, m) {
+    if (ev.button !== 0) return;
+    ev.preventDefault(); ev.stopPropagation();
+    m.regrabbing = true;
+    m.dot.style.pointerEvents = 'none';
+    const onMove = (e2) => {
+      const px = e2.clientX, py = e2.clientY;
+      m.ring.setAttribute('cx', r2(px)); m.ring.setAttribute('cy', r2(py));
+      m.line.setAttribute('x1', r2(px)); m.line.setAttribute('y1', r2(py));
+      m.dot.style.left = r2(px) + 'px'; m.dot.style.top = r2(py) + 'px';
+    };
+    const onUp = (e2) => {
+      document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
+      const drop = this._jackFromPoint(e2.clientX, e2.clientY);
+      this._monTapDisconnect(m);
+      if (drop) { m.key = drop.key; m.portId = drop.portId; if (!m.muted) this._monTapConnect(m); }
+      else { m.key = null; m.portId = null; }   // dropped on empty → stay disconnected
+      m.dot.style.pointerEvents = '';
+      m.regrabbing = false;
+      this._updateCallout(m);
+      this._refreshSolo();
+    };
+    document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
+  }
+
   _closeMonitor(m) {
     this._monTapDisconnect(m);
     try { m.gain.disconnect(); } catch (_e) { /* gone */ }
-    m.el.remove(); m.ring.remove(); m.line.remove();
+    m.el.remove(); m.ring.remove(); m.line.remove(); m.dot.remove();
     this._monitors.delete(m);
     this._refreshSolo();
   }
@@ -1624,8 +1591,6 @@ export class Rack {
   _onPinch(e) {
     e.preventDefault();
     e.stopPropagation();
-    if (this._zoomAnim) { cancelAnimationFrame(this._zoomAnim); this._zoomAnim = null; }
-    this._focusRec = null;   // manual zoom takes over from focus-zoom
     const rect = this.container.getBoundingClientRect();
     const px = e.clientX - rect.left, py = e.clientY - rect.top;
     const cx = this.container.scrollLeft + px, cy = this.container.scrollTop + py;
@@ -1691,7 +1656,7 @@ export class Rack {
       port.element.addEventListener('pointerdown', (e) => this._onJackPointerDown(e, rec.key, portId));
       port.element.addEventListener('contextmenu', (e) => this._onJackContextMenu(e, rec.key, portId));
     }
-    // The vertical title up the left edge: right-click it to delete the module.
+    // The vertical title up the left edge: right-click it for the delete pie.
     const title = svg.querySelector('.module-title');
     if (title) {
       title.style.cursor = 'context-menu';
@@ -1769,7 +1734,6 @@ export class Rack {
 
   deleteModule(rec) {
     if (this._hoverRec === rec) this._hoverRec = null;
-    if (this._focusRec === rec) { this._focusRec = null; this.zoom = 1; }
     if (this._netOrigin && this._netOrigin.split(':')[0] === rec.key) this._netOrigin = null;
     this.patchbay.disconnectModule(rec.key);   // pull its cords before the nodes go
     const row = this.rows[rec.row];
@@ -1821,13 +1785,13 @@ export class Rack {
       ghost.style.width = (rec.panelWmm * s) + 'px';
       ghost.style.height = (PANEL_H_MM * s) + 'px';
     };
-    const onUp = () => {
+    const onUp = (ev) => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
       rec.el.classList.remove('dragging');
       ghost.style.display = 'none';
       if (moved) this._moveModule(rec, dropRow, dropX);
-      else this._handleClick(rec);
+      // A plain click does nothing — the pies open on right-click.
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
@@ -1882,11 +1846,9 @@ export class Rack {
     return x;
   }
 
-  // Right-click a module faceplate → the panel pie: global actions only. Start/stop
-  // (bottom) PEEKS the transport as an audition: entering the wedge forces sound ON so
-  // you can hear it, returning to the centre restores the state from when the menu
-  // opened, and crossing out toggles it (off→on stays on; on→off turns off). The app
-  // menu (upper-left) opens on cross-out. Delete lives on the module's vertical title.
+  // The panel pie: global actions only. Start/stop (bottom) toggles the transport
+  // when activated; the app menu (upper-left) opens. Delete lives on the module's
+  // vertical title (see _onTitleContextMenu).
   _onModuleContextMenu(e, rec) {
     e.preventDefault();
     e.stopPropagation();
@@ -1895,9 +1857,11 @@ export class Rack {
     openPieMenu({
       x: e.clientX, y: e.clientY,
       segments: [
-        { dir: 'NW', icon: APPMENU_ICON, label: 'menu', onCommit: (ev) => this.onAppMenu(ev.clientX, ev.clientY) },
+        // App menu (NW): a click closes the pie and opens the File menu at the pointer.
+        { dir: 'NW', icon: APPMENU_ICON, label: 'menu', keepOpen: false, onClick: (ev) => this.onAppMenu(ev.clientX, ev.clientY) },
+        // Start/stop (S): a click toggles sound like the toolbar button; menu stays up.
         { dir: 'S', icon: pre ? STOP_ICON : PLAY_ICON, label: pre ? 'stop sound' : 'start sound', highlighted: pre,
-          onPeek: () => this.setTransport(true), onUnpeek: () => this.setTransport(pre), onCommit: () => this.setTransport(!pre) },
+          onClick: () => this.setTransport(!this.isPlaying()) },
       ],
     });
   }
@@ -1911,7 +1875,7 @@ export class Rack {
     if (rec.pinned) return;
     openPieMenu({
       x: e.clientX, y: e.clientY,
-      segments: [{ dir: 'NE', icon: TRASH_ICON, label: `delete ${rec.name}`, onCommit: () => this.deleteModule(rec) }],
+      segments: [{ dir: 'NE', icon: TRASH_ICON, label: `delete ${rec.name}`, keepOpen: false, onClick: () => this.deleteModule(rec) }],
     });
   }
 

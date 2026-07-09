@@ -7,18 +7,18 @@ screen space. The existing list menus (`_onModuleContextMenu`, `_onRowContextMen
 
 ## 1. Contexts
 
-Right-click opens a pie whose contents depend on what is under the pointer:
+A **right click** opens a pie whose contents depend on what is under the pointer.
+Left click never opens a pie; the native context menu is suppressed app-wide:
 
 - **Faceplate background** (a module's face, not on a control, a jack, or the title
   strip) → the **panel pie** — global app actions.
 - **Terminal** (an input or output port) → the **terminal pie**.
-- **Title strip** (the far-left module-name region) → a **module pie** (delete).
-- **Controls** (knobs) → not handled yet.
+- **Title strip** (the far-left module-name region) → the **module pie** (delete).
+- **Controls** (knobs, buttons) → no pie.
+- **Empty rack row** → the **add-module** list menu (unchanged).
 
-Left-click is unchanged and stays direct: left-drag from a terminal pulls a patch
-cable; left-drag on the title strip moves the module; left-drag anywhere else on the
-face does nothing — which removes today's accidental whole-panel move. The pie
-appears **only on right-click**.
+Left click stays direct: left-drag from a terminal pulls a patch cable; left-drag on
+the faceplate moves the module; a plain left click does nothing.
 
 ## 2. The pie
 
@@ -32,31 +32,30 @@ appears **only on right-click**.
   list**.
 - A segment may show a **highlighted (toggled) state**.
 
-## 3. Interaction — peek / un-peek / commit
+## 3. Interaction — click, or drag-out
 
-Opens centred on the pointer; the pointer begins in the dead zone. The menu does
-**not** close when you enter or click a segment — it stays up through the whole
-gesture and closes only by committing (out) or cancelling (centre).
+Opens centred on the pointer; the pointer begins in the dead zone. Moving over the
+wedges only **highlights** them — nothing triggers on entry or movement. A wedge acts
+two ways, and a click does **not** close the menu:
 
-- **Peek.** Moving or dragging into a segment highlights it and fires a *reversible
-  preview*: sound starts, an oscilloscope appears showing its wave. Moving to a
-  different segment un-peeks the first and peeks the new one.
-- **Locked to the segment.** Entering a segment locks the gesture to it. It commits
-  **only** by exiting through that segment's own outer arc (a straight radial push
-  out). Returning to the **centre** reverses the preview (sound stops, the scope
-  disappears) but leaves the menu open and unlocked, so you can slide back out to a
-  segment again. Sliding out through a **side** into a neighbour cancels the preview
-  *and* closes the menu. You do not switch segments by sliding sideways.
-- **Commit.** Pushing *out through the segment's outer arc* leaves the preview in
-  place and hands off: sound stays on; the scope detaches and follows the pointer to
-  be dropped — on release if a button was held, on the next click if not. The menu
-  vanishes.
-- **Dismiss without acting.** At the opening position, a click (either button) or
-  Escape closes the menu.
-
-So one gesture peeks to audition, then either flicks outward to keep it or falls back
-to the centre to drop it — a quick peek-and-decide. One-shot segments (app menu,
-delete) have no preview: they just highlight on hover and fire on the same cross-out.
+- **Click to act (menu stays open).** Clicking a wedge runs its action and leaves the
+  pie up, so it reads like a little control panel:
+  - **Sound** — toggles on/off, exactly like the toolbar button.
+  - **Scope / Listen** — shows a *temporary* viewer (a scope, or an ear monitor) right
+    beside the menu, for a quick look. A second click hides it, and it is removed when
+    the menu closes — a peek, not a permanent object. It appears immediately to the
+    right of the menu, vertically centred on the pointer (left-edge midpoint as close
+    to the pointer as it can be without the menu covering it; flips left if there's no
+    room on the right).
+  - **App menu / Delete** are the exception: they close the pie, then act (the app
+    menu opens next to the pointer; delete removes the module).
+- **Press-and-drag out to create (permanent).** On the scope or listen wedge, pressing
+  the button and dragging out through the outer circle pulls a *new* viewer out to be
+  dropped where you release. This is the **only** way to make a permanent instance.
+- **Closing.** The pie closes on Escape, a click in the centre dead zone, or the
+  pointer leaving past the outer circle (a plain move-out, no button). Any temporary
+  click-shown viewer is removed on close; dropped (dragged-out) viewers stay, removable
+  by their ×.
 
 ## 4. Pointer and window edges (rendered cursor)
 
@@ -87,14 +86,18 @@ draw our own cursor rather than move the real one:
 - The other six positions are empty for now.
 
 **Terminal pie**
-- **NE** (upper-right): **scope** — drag an oscilloscope out of the terminal.
-- **SE** (lower-right, below the scope): **listen** — an ear. Peeking solos this
+- **NE** (upper-right): **scope** — an oscilloscope.
+- **SE** (lower-right, below the scope): **listen** — an ear monitor. It solos this
   terminal into a monitor bus (a brick-wall limiter protects ears/speakers; level
-  respects the master gain) and ducks the normal output, so you hear only this
-  terminal. Crossing out drops a placed ear monitor — a small circle with the ear
-  icon and a callout line to the terminal — whose tap *adds* to the solo mix, so
-  several terminals can be monitored together. Click a circle to mute/unmute it, drag
-  to move it, the X (or a cross-out over a terminal that already has one) to remove.
+  respects the master gain) and ducks the normal output; several monitors *add* to the
+  solo mix. Click a circle to mute/unmute it, drag to move it, the × to remove.
+
+Both viewers follow the click-vs-drag rule (§3): a **click** shows a temporary one
+beside the menu that vanishes on close; **press-and-drag out** drops a permanent one.
+Only the permanent (dragged-out) viewer shows the **connection loop** (a ring around
+the port + a line to the viewer) — the temporary one is unconnected-looking so its
+line doesn't clutter the menu. Drag a permanent viewer's loop (its grab dot) onto
+another port to re-probe it, or onto empty space to **disconnect** it from the port.
 
 **Module pie** (title strip)
 - **NE** (upper-right): **delete**. Left-drag on the strip = move the module.
