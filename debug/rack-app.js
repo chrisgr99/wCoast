@@ -195,6 +195,14 @@ async function boot() {
   rack.isPlaying = () => started;
   rack.applyParam(mixRec, 'masterMute', 'on');   // master enabled by default (audio still gated by the suspended context until On)
 
+  // After a bulk control reset (clear-patch command, and its undo/redo) the rack has
+  // moved the mixer's own params, but the toolbar master knob is a separate mirror and
+  // the master mute must track the On/Off button — reconcile both here.
+  rack.onControlsReset = () => {
+    syncToolbarMaster();
+    rack.applyParam(mixRec, 'masterMute', started ? 'on' : 'off');
+  };
+
   // --- VU meters -------------------------------------------------------------
   // One rAF loop reads the mixer instance's per-channel + master RMS and lights
   // the pre-drawn LED rings (fill the ring when lit, clear it when not), plus the
@@ -341,30 +349,38 @@ async function boot() {
 
   // The toolbar hamburger — and the panel pie's app-menu wedge — open the File menu,
   // reusing the rack's pop-up menu.
+  // Hierarchical menu: the top level shows File / Edit / View; hovering (or clicking) a
+  // heading opens its submenu, Electron-style.
   const openAppMenu = (x, y) => {
-    const items = [
-      { header: true, label: 'File' },
+    const file = [
       { label: 'New', action: () => newPatch() },
       { label: 'Open…', action: () => openPatch() },
       { label: 'Save', action: () => savePatch() },
       { label: 'Save As…', action: () => saveAsPatch() },
-      { header: true, label: 'View' },
+    ];
+    if (storage.hasLast && storage.hasLast()) file.push({ label: `Reopen ${storage.lastName()}`, action: () => reopenPatch() });
+    const edit = [
+      { label: 'Undo', disabled: !rack.canUndo(), action: () => rack.undo() },
+      { label: 'Redo', disabled: !rack.canRedo(), action: () => rack.redo() },
+      { label: 'Clear connections & controls…', action: () => rack.confirmDeleteAllCables() },
+    ];
+    const view = [
       { label: 'Dark mode', checkFn: () => rack.isDark(), action: () => {
         const d = !rack.isDark();
         rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
         try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
       } },
     ];
-    // Browser only: offer to reopen the last file (its handle survives in IndexedDB).
-    if (storage.hasLast && storage.hasLast()) {
-      items.push({ label: `Reopen ${storage.lastName()}`, action: () => reopenPatch() });
-    }
     if (mirror.available()) {
-      items.push({ header: true, label: 'AI Mirror' });
-      items.push({ label: mirror.isEnabled() ? 'Turn mirror off' : 'Turn mirror on', action: async () => { await mirror.setEnabled(!mirror.isEnabled()); updateTrace(); } });
-      items.push({ label: 'Reveal mirror folder', action: () => mirror.reveal() });
+      view.push({ header: true, label: 'AI Mirror' });
+      view.push({ label: mirror.isEnabled() ? 'Turn mirror off' : 'Turn mirror on', action: async () => { await mirror.setEnabled(!mirror.isEnabled()); updateTrace(); } });
+      view.push({ label: 'Reveal mirror folder', action: () => mirror.reveal() });
     }
-    rack.openMenu(x, y, items);
+    rack.openMenu(x, y, [
+      { label: 'File', submenu: file },
+      { label: 'Edit', submenu: edit },
+      { label: 'View', submenu: view },
+    ]);
   };
   document.getElementById('hamburger').addEventListener('click', (e) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -380,6 +396,8 @@ async function boot() {
     if (k === 's') { e.preventDefault(); if (e.shiftKey) saveAsPatch(); else savePatch(); }
     else if (k === 'o' && !e.shiftKey) { e.preventDefault(); openPatch(); }
     else if (k === 'n' && !e.shiftKey) { e.preventDefault(); newPatch(); }
+    else if (k === 'z' && !e.shiftKey) { e.preventDefault(); rack.undo(); }   // undo cable/module topology changes
+    else if (k === 'z' && e.shiftKey) { e.preventDefault(); rack.redo(); }    // redo (Cmd/Ctrl-Shift-Z)
   });
 
   // Warn before a browser tab/window discards unsaved work. In Electron the

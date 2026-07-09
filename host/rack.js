@@ -85,6 +85,9 @@ export class Rack {
     this._hoverRec = null;   // module under the pointer
     this._isolateNet = null; // Set of edge ids when isolating one terminal's subnet (else null)
     this._isolateOrigin = null; // { key, portId } of the isolated terminal, for live recompute
+    this._undoStack = [];    // { undo, redo } ops for cable/module topology changes (not knob values)
+    this._redoStack = [];
+    this._openSubs = [];     // open submenu elements of the current pop-up menu
     this._isolateSwells = []; // enlarged jack records (el + live tap) to restore when isolate mode ends
     this._isolateJackByTag = new Map();
     this._isolateOffsets = new Map();
@@ -129,7 +132,7 @@ export class Rack {
     // phase + stopPropagation keeps it from reaching the faceplate/jack/knob handlers;
     // `_swallowClick` blocks the trailing click that the backdrop pie listens for.
     document.addEventListener('pointerdown', (e) => {
-      if (this._menuEl && !this._menuEl.contains(e.target)) {
+      if (this._menuEl && !this._menuEl.contains(e.target) && !this._openSubs.some((s) => s.contains(e.target))) {
         this._closeMenu();
         this._swallowClick = true;
         e.preventDefault(); e.stopPropagation();
@@ -713,7 +716,7 @@ export class Rack {
       if (drop && (drop.key === key && drop.portId === portId)) {
         /* released back on the origin jack: it was really a click — do nothing */
       } else if (drop) {
-        this._tryConnect({ key, portId }, drop);
+        this._recordCableAdd(this._tryConnect({ key, portId }, drop));
       }
     };
     document.addEventListener('pointermove', onMove);
@@ -764,7 +767,7 @@ export class Rack {
       ev.preventDefault(); ev.stopPropagation();
       const drop = this._jackNear(ev.clientX, ev.clientY);
       finish();
-      if (drop && !(drop.key === key && drop.portId === portId)) this._tryConnect({ key, portId }, drop);
+      if (drop && !(drop.key === key && drop.portId === portId)) this._recordCableAdd(this._tryConnect({ key, portId }, drop));
     };
     const onCtx = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); };   // right click cancels (no pie)
     const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); finish(); } };
@@ -791,6 +794,7 @@ export class Rack {
     const wantDir = fixedMeta.dir === 'out' ? 'in' : 'out';
     const wmm = CABLE_PX / (this._fit || 1);
     const savedBow = edge.bow;
+    const origSnap = this._edgeSnapshot(edge);   // for undo of a move/remove
 
     // Break the connection IMMEDIATELY, so pulling a cord off a terminal mutes its
     // effect the moment you drag it — you hear the patch WITHOUT it while you decide
@@ -828,11 +832,13 @@ export class Rack {
       const candidate = drop && this._isCandidate(drop, wantDir);
       const occupied = candidate && wantDir === 'in' && this.patchbay.inputOccupied(drop.key, drop.portId, null);
       if (droppedBack || (candidate && occupied)) {
-        reconnect(grabbed);                              // dropped back, or target taken → put it back
+        reconnect(grabbed);                              // dropped back, or target taken → put it back (no net change, no undo)
       } else if (candidate) {
-        this._tryConnect({ key: fixed.key, portId: fixed.portId }, drop);   // reconnect to the new port
+        const ne = this._tryConnect({ key: fixed.key, portId: fixed.portId }, drop);   // reconnect to the new port (a move)
+        if (ne) { const ns = this._edgeSnapshot(ne); this._pushUR({ undo: () => { this._removeCable(ns); this._restoreCable(origSnap); }, redo: () => { this._removeCable(origSnap); this._restoreCable(ns); } }); }
       } else {
         this.onChange();                                 // dropped on nothing → leave it broken
+        this._pushUR({ undo: () => this._restoreCable(origSnap), redo: () => this._removeCable(origSnap) });   // pull-off removal
       }
     };
     document.addEventListener('pointermove', onMove);
@@ -2012,6 +2018,153 @@ export class Rack {
     this.onChange();
   }
 
+  // ---- undo / redo: cable connect/disconnect + module add/delete (NOT knob values) ----
+  // Each user action pushes a { undo, redo } pair; undo()/redo() move entries between
+  // the two stacks and a fresh action clears the redo stack. Ops work from snapshots
+  // and keys (not live record refs), so an entry can be replayed in either direction.
+
+  _pushUR(entry) { this._undoStack.push(entry); this._redoStack = []; }
+  canUndo() { return this._undoStack.length > 0; }
+  canRedo() { return this._redoStack.length > 0; }
+  async undo() { const e = this._undoStack.pop(); if (!e) return; await e.undo(); this._redoStack.push(e); }
+  async redo() { const e = this._redoStack.pop(); if (!e) return; await e.redo(); this._undoStack.push(e); }
+
+  _edgeSnapshot(e) {
+    return { src: { key: e.src.key, portId: e.src.portId }, dst: { key: e.dst.key, portId: e.dst.portId }, bow: e.bow };
+  }
+  // Reconnect a snapshotted cable. Its depth follows the destination knob (untouched
+  // by undo/redo); the bow is carried back.
+  _restoreCable(snap) {
+    const e = this._tryConnect(snap.src, snap.dst);
+    if (e && snap.bow != null) { e.bow = snap.bow; this._drawCables(); }
+    return e;
+  }
+  // Remove the live cable matching a snapshot's endpoints.
+  _removeCable(snap) {
+    const e = this.patchbay.list().find((x) => x.src.key === snap.src.key && x.src.portId === snap.src.portId && x.dst.key === snap.dst.key && x.dst.portId === snap.dst.portId);
+    if (e) { this.patchbay.disconnect(e); this._drawCables(); this.onChange(); }
+  }
+  _disconnectAll() {
+    for (const e of [...this.patchbay.list()]) this.patchbay.disconnect(e);
+    this._exitIsolate(); this._drawCables(); this.onChange();
+  }
+  _cablesOf(key) {
+    return this.patchbay.list().filter((e) => e.src.key === key || e.dst.key === key).map((e) => this._edgeSnapshot(e));
+  }
+  _moduleSnap(rec) {
+    return { key: rec.key, descriptorId: rec.descriptorId, row: rec.row, x: rec.x, params: new Map(rec.values), cables: this._cablesOf(rec.key) };
+  }
+  async _reAddModule(snap) {
+    const re = await this.addModule(snap.descriptorId, snap.row, snap.x, { key: snap.key });
+    if (re) for (const [id, v] of snap.params) this._setParam(re, id, v);
+    for (const c of snap.cables) this._restoreCable(c);
+    return re;
+  }
+
+  // Record that a cable was just created.
+  _recordCableAdd(edge) {
+    if (!edge) return edge;
+    const s = this._edgeSnapshot(edge);
+    this._pushUR({ undo: () => this._removeCable(s), redo: () => this._restoreCable(s) });
+    return edge;
+  }
+
+  // Delete a module (with its cables + own knob values restorable). Pinned = no-op.
+  _deleteModuleWithUndo(rec) {
+    if (rec.pinned) return;
+    let snap = this._moduleSnap(rec);
+    this.deleteModule(rec);
+    this._pushUR({
+      undo: async () => { await this._reAddModule(snap); },
+      redo: () => { const r = this.records.get(snap.key); if (r) { snap = this._moduleSnap(r); this.deleteModule(r); } },
+    });
+  }
+
+  // Add a module (user action) and record it.
+  async _addModuleWithUndo(descriptorId, rowIndex, xMm) {
+    const rec = await this.addModule(descriptorId, rowIndex, xMm);
+    if (!rec) return rec;
+    const key = rec.key;
+    let snap = null;
+    this._pushUR({
+      undo: () => { const r = this.records.get(key); if (r) { snap = this._moduleSnap(r); this.deleteModule(r); } },
+      redo: async () => { if (snap) await this._reAddModule(snap); },
+    });
+    return rec;
+  }
+
+  // ---- control (knob/switch) reset, used by the clear-patch command ----
+  // Every module is reset, the pinned mixer included. onControlsReset lets the host
+  // resync its toolbar mirrors (master knob) and reconcile the master mute with the
+  // On/Off transport, so resetting masterMute can't leave the audio and button out of
+  // step.
+  _paramSnapshotAll() {
+    const out = [];
+    for (const rec of this.records.values()) out.push({ key: rec.key, values: new Map(rec.values) });
+    return out;
+  }
+  _restoreParams(snaps) {
+    for (const s of snaps) { const rec = this.records.get(s.key); if (rec) for (const [id, v] of s.values) this._setParam(rec, id, v); }
+    if (this.onControlsReset) this.onControlsReset();
+  }
+  // Set every control back to its descriptor default. Returns whether anything moved.
+  _resetAllControls() {
+    let changed = false;
+    for (const rec of this.records.values()) {
+      const type = this.moduleTypes.find((t) => t.descriptorId === rec.descriptorId);
+      if (!type) continue;
+      for (const p of type.descriptor.params) if (rec.values.get(p.id) !== p.default) { this._setParam(rec, p.id, p.default); changed = true; }
+    }
+    if (this.onControlsReset) this.onControlsReset();
+    return changed;
+  }
+  _anyControlChanged() {
+    for (const rec of this.records.values()) {
+      const type = this.moduleTypes.find((t) => t.descriptorId === rec.descriptorId);
+      if (!type) continue;
+      for (const p of type.descriptor.params) if (rec.values.get(p.id) !== p.default) return true;
+    }
+    return false;
+  }
+
+  // Fresh-start the patch in one undoable step: pull EVERY cable AND reset every
+  // (non-pinned) knob/switch to its default. Guarded by confirmDeleteAllCables().
+  deleteAllCables() {
+    const cableSnaps = this.patchbay.list().map((e) => this._edgeSnapshot(e));
+    const paramSnaps = this._paramSnapshotAll();
+    this._disconnectAll();
+    const knobsChanged = this._resetAllControls();
+    if (!cableSnaps.length && !knobsChanged) return;   // nothing happened → no undo entry
+    this._pushUR({
+      undo: () => { for (const s of cableSnaps) this._restoreCable(s); this._restoreParams(paramSnaps); },
+      redo: () => { this._disconnectAll(); this._resetAllControls(); },
+    });
+  }
+  confirmDeleteAllCables() {
+    if (!this.patchbay.list().length && !this._anyControlChanged()) return;
+    this._confirm('Delete all connections and reset every control to its default?', 'Reset all', () => this.deleteAllCables());
+  }
+
+  // A small centred confirm dialog for destructive commands. Enter/click Yes runs it;
+  // Escape / click-away / Cancel dismisses.
+  _confirm(message, yesLabel, onYes) {
+    const overlay = document.createElement('div'); overlay.className = 'confirm-overlay';
+    const box = document.createElement('div'); box.className = 'confirm-box';
+    const msg = document.createElement('div'); msg.className = 'confirm-msg'; msg.textContent = message;
+    const btns = document.createElement('div'); btns.className = 'confirm-btns';
+    const no = document.createElement('button'); no.className = 'confirm-btn'; no.textContent = 'Cancel';
+    const yes = document.createElement('button'); yes.className = 'confirm-btn confirm-danger'; yes.textContent = yesLabel;
+    btns.appendChild(no); btns.appendChild(yes);
+    box.appendChild(msg); box.appendChild(btns); overlay.appendChild(box); document.body.appendChild(overlay);
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey, true); };
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } else if (e.key === 'Enter') { e.preventDefault(); close(); onYes(); } };
+    no.addEventListener('click', close);
+    yes.addEventListener('click', () => { close(); onYes(); });
+    overlay.addEventListener('pointerdown', (e) => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', onKey, true);
+    yes.focus();
+  }
+
   _moveModule(rec, newRow, newX) {
     const old = this.rows[rec.row];
     const i = old.indexOf(rec);
@@ -2095,7 +2248,7 @@ export class Rack {
     const xMm = this._snapLeftX(rowIndex, cursorX);
     const items = this.moduleTypes.filter((t) => !t.hidden).map((t) => ({
       label: `Add ${t.name}`,
-      action: () => this.addModule(t.descriptorId, rowIndex, xMm),
+      action: () => this._addModuleWithUndo(t.descriptorId, rowIndex, xMm),
     }));
     this._openMenu(e.clientX, e.clientY, items);
   }
@@ -2142,7 +2295,7 @@ export class Rack {
     if (rec.pinned) return;
     openPieMenu({
       x: e.clientX, y: e.clientY,
-      segments: [{ dir: 'NE', icon: TRASH_ICON, label: `delete ${rec.name}`, keepOpen: false, onClick: () => this.deleteModule(rec) }],
+      segments: [{ dir: 'NE', icon: TRASH_ICON, label: `delete ${rec.name}`, keepOpen: false, onClick: () => this._deleteModuleWithUndo(rec) }],
     });
   }
 
@@ -2213,8 +2366,23 @@ export class Rack {
       const lbl = document.createElement('span');
       lbl.textContent = it.label;
       item.appendChild(lbl);
-      // A selection closes the menu, then runs — one pick is the common case.
-      item.addEventListener('click', () => { this._closeMenu(); it.action(); });
+      if (it.submenu) {
+        // A heading with a submenu (File/Edit/View): a right arrow, and hovering (or
+        // clicking) it opens its submenu to the side, Electron-style.
+        item.classList.add('has-sub');
+        const arrow = document.createElement('span');
+        arrow.className = 'rack-menu-arrow'; arrow.textContent = '›';
+        item.appendChild(arrow);
+        item.addEventListener('mouseenter', () => this._openSubmenu(item, it.submenu));
+        item.addEventListener('click', (e) => { e.stopPropagation(); this._openSubmenu(item, it.submenu); });
+      } else if (it.disabled) {
+        item.classList.add('disabled');
+        item.addEventListener('mouseenter', () => this._closeSubs());
+      } else {
+        // A selection closes the menu, then runs — one pick is the common case.
+        item.addEventListener('click', () => { this._closeMenu(); it.action(); });
+        item.addEventListener('mouseenter', () => this._closeSubs());
+      }
       (group || menu).appendChild(item);
       // The first connected row is the focus: the menu opens with it under the
       // pointer and pre-highlighted, so a right-click shows the current connection.
@@ -2253,6 +2421,44 @@ export class Rack {
   }
 
   _closeMenu() {
+    this._closeSubs();
     if (this._menuEl) { this._menuEl.remove(); this._menuEl = null; }
+  }
+
+  _closeSubs() { for (const s of this._openSubs) s.remove(); this._openSubs = []; }
+
+  // Build (but don't place) a submenu of leaf items — check marks, disabled state, and
+  // a click that runs the item and closes the whole menu.
+  _buildSubmenu(items) {
+    const sub = document.createElement('div');
+    sub.className = 'rack-menu rack-submenu';
+    for (const it of items) {
+      if (it.header) { const h = document.createElement('div'); h.className = 'rack-menu-header'; h.textContent = it.label; sub.appendChild(h); continue; }
+      const item = document.createElement('div');
+      item.className = 'rack-menu-item';
+      const on = it.checkFn ? it.checkFn() : !!it.checked;
+      if (it.checkFn || it.checked !== undefined) { const ck = document.createElement('span'); ck.className = 'rack-menu-check'; ck.textContent = on ? '✓' : ''; item.appendChild(ck); }
+      const lbl = document.createElement('span'); lbl.textContent = it.label; item.appendChild(lbl);
+      if (it.disabled) item.classList.add('disabled');
+      else item.addEventListener('click', () => { this._closeMenu(); it.action(); });
+      sub.appendChild(item);
+    }
+    return sub;
+  }
+
+  // Open one submenu at a time, to the right of its parent heading (flips left / rides
+  // up if it would run off-screen).
+  _openSubmenu(item, items) {
+    this._closeSubs();
+    const sub = this._buildSubmenu(items);
+    sub.style.left = '0px'; sub.style.top = '0px'; sub.style.visibility = 'hidden';
+    document.body.appendChild(sub);
+    this._openSubs.push(sub);
+    const pad = 8, vw = window.innerWidth, vh = window.innerHeight;
+    const r = item.getBoundingClientRect();
+    const sw = sub.offsetWidth, sh = sub.offsetHeight;
+    let sl = r.right - 2; if (sl + sw > vw - pad) sl = Math.max(pad, r.left - sw + 2);
+    let st = r.top; if (st + sh > vh - pad) st = Math.max(pad, vh - pad - sh);
+    sub.style.left = sl + 'px'; sub.style.top = st + 'px'; sub.style.visibility = '';
   }
 }

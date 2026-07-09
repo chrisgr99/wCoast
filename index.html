@@ -132,6 +132,21 @@
     .rack-menu-item.dim { color: var(--ink-dim); }
     .rack-menu-item.dim:hover { color: var(--accent-ink); }
     .rack-menu-check { display: inline-block; width: 1.2em; margin-right: 2px; color: var(--accent); }
+    .rack-menu-item { display: flex; align-items: center; }
+    .rack-menu-arrow { margin-left: auto; padding-left: 16px; color: var(--ink-dim); }
+    .rack-menu-item:hover .rack-menu-arrow { color: var(--accent-ink); }
+    .rack-menu-item.disabled { color: var(--ink-dim); opacity: 0.55; cursor: default; }
+    .rack-menu-item.disabled:hover { background: none; color: var(--ink-dim); }
+    .rack-submenu { z-index: 1410; }
+    .confirm-overlay { position: fixed; inset: 0; z-index: 3200; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+    .confirm-box { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
+      min-width: 240px; max-width: 360px; box-shadow: 0 12px 36px rgba(0,0,0,0.55); font: 13px/1.45 -apple-system, system-ui, sans-serif; }
+    .confirm-msg { margin-bottom: 16px; }
+    .confirm-btns { display: flex; justify-content: flex-end; gap: 8px; }
+    .confirm-btn { padding: 5px 14px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; font: inherit; }
+    .confirm-btn:hover { border-color: var(--ink-dim); }
+    .confirm-danger { background: #8a3030; border-color: #8a3030; color: #fff; }
+    .confirm-danger:hover { background: #a23a3a; border-color: #a23a3a; }
 
     /* ---- patch cables (SVG overlay; pointer-transparent) ---- */
     .rack-cables { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 12; overflow: visible; }
