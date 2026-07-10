@@ -131,6 +131,7 @@ export function openPieMenu({ x, y, segments = [], onClose, innerR = 11, outerR 
   let hovered = null, activeSeg = null, peeking = false, done = false, pressed = false;
   let pendingGrab = null;   // { seg, x, y }: a press on a `grab` wedge, awaiting drag-vs-click
   const GRAB_THRESH = 4;    // px of movement that turns a press into a button-held drag
+  let captureCentreTimer = null;   // grace before a capture wedge cancels at the centre (transit vs linger)
   let lastCtx = { x: cx, y: cy, cx, cy, outerR };
   const setHover = (dir) => {
     if (hovered && wedgeEls.get(hovered)) wedgeEls.get(hovered).classList.remove('hover');
@@ -176,10 +177,19 @@ export function openPieMenu({ x, y, segments = [], onClose, innerR = 11, outerR 
       return;
     }
     // A `capture` peek (the pull-a-cable wedge) owns the interaction once entered: its
-    // preview follows the cursor across the whole ring; back to the CENTRE cancels it,
-    // and crossing the outer edge in ANY direction commits it (starts the real cord).
+    // preview follows the cursor across the whole ring; crossing the outer edge in ANY
+    // direction commits it (starts the real cord). Reaching the CENTRE does NOT cancel at
+    // once: it starts a 500 ms grace timer so the pointer can TRANSIT the centre (grabbed
+    // at, say, NW and pulling out toward SE) without dropping the cable — only a pointer
+    // that LINGERS in the centre past the grace cancels. Leaving the centre in time clears
+    // the timer and the pull continues.
     if (activeSeg && activeSeg.capture && peeking) {
-      if (dist < innerR) { enter(null); return; }              // centre → cancel
+      if (dist < innerR) {                                       // centre → grace, not instant cancel
+        if (!captureCentreTimer) captureCentreTimer = setTimeout(() => { captureCentreTimer = null; enter(null); }, 500);
+        if (activeSeg.onPeekMove) activeSeg.onPeekMove(lastCtx); // keep the cord tracking across the middle
+        return;
+      }
+      if (captureCentreTimer) { clearTimeout(captureCentreTimer); captureCentreTimer = null; }   // transited out in time → keep pulling
       if (dist > outerR) { commitSeg(activeSeg); return; }       // out any direction → commit
       if (activeSeg.onPeekMove) activeSeg.onPeekMove(lastCtx);   // follow the cursor
       return;
@@ -228,6 +238,7 @@ export function openPieMenu({ x, y, segments = [], onClose, innerR = 11, outerR 
 
   closeCurrent = () => {
     closeCurrent = null;
+    if (captureCentreTimer) { clearTimeout(captureCentreTimer); captureCentreTimer = null; }
     endPeek();                    // tear down a live momentary command (a commit clears peeking first)
     document.removeEventListener('pointermove', onMove, true);
     document.removeEventListener('keydown', onKey, true);
