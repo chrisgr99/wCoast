@@ -74,7 +74,14 @@ const domainStyle = (domain) => (domain === 'audio' ? 'audio' : domain === 'trig
 const CABLE_PX = 3.8;   // cord thickness in px at zoom 1 (scales up as you zoom in)
 const JACK_DROP_MARGIN_MM = 2;   // a cable arms/drops within this much of a terminal's edge (a forgiving zone)
 // Ear-monitor volume knob: scroll with the same momentum feel as a panel knob.
-const MON_VOL_STEP = 0.04, MON_VOL_DRAG = 6, MON_VOL_MAXV = 8, MON_VOL_DEFAULT = 0.75;
+const MON_VOL_STEP = 0.04, MON_VOL_DRAG = 6, MON_VOL_MAXV = 8;
+// The monitor knob is a dB-LINEAR taper (like the mixer faders): unity at the top, down
+// to MON_MIN_DB near the bottom, so scrolling feels perceptual. m.vol is the KNOB
+// POSITION (0..1); the applied gain is _monGainMul(vol) = 10^(MIN_DB·(1−vol)/20).
+const MON_MIN_DB = -60;
+// Default POSITION ≈ 0.69 → ~-18 dB (gain ~0.12): monitored terminals are internal-level
+// (~15–20 dB hotter than the line-level output), so the un-measured default must be low.
+const MON_VOL_DEFAULT = 0.69;
 // Flow animation (on every cable, always): black dashes crawl each cord source->dest
 // to show direction. Dash LENGTH (in cable-widths) encodes the DESTINATION family —
 // audio shortest, CV/pitch medium, trigger longest — a shape cue on top of colour.
@@ -1846,7 +1853,7 @@ export class Rack {
   _monTapConnect(m) {
     const mix = this._mixerInstance();
     const base = mix && mix.getParam && mix.getParam('master') ? mix.getParam('master').value : 0.7;
-    m.gain.gain.value = base * (m.vol != null ? m.vol : MON_VOL_DEFAULT);
+    m.gain.gain.value = base * this._monGainMul(m.vol != null ? m.vol : MON_VOL_DEFAULT);
     const tap = this._probeTap(m.key, m.portId);
     if (tap && tap.node) { try { tap.node.connect(m.gain, tap.index || 0); m.tap = tap; } catch (_e) { m.tap = null; } }
     return m.tap;
@@ -1884,6 +1891,7 @@ export class Rack {
     m.dot.className = 'scope-dot'; document.body.appendChild(m.dot);   // grab handle at the loop
     this._monTapConnect(m);
     this._drawMonTick(m);
+    if (showCallout) this._autoLevelMonitor(m);   // placed monitor opens at a comfortable level (not the quick hover preview)
     close.addEventListener('click', (ev) => { ev.stopPropagation(); this._closeMonitor(m); });
     el.addEventListener('pointerdown', (ev) => this._dragMonitor(ev, m));
     el.addEventListener('wheel', (ev) => this._onMonWheel(m, ev), { passive: false });
@@ -1894,18 +1902,60 @@ export class Rack {
     return m;
   }
 
-  // Set the monitor's volume (0..1): gain = master base × vol, and turn the tick.
+  // Knob position (0..1) <-> gain multiplier, a dB-linear taper (unity at 1, MON_MIN_DB
+  // floor at 0), so the monitor knob turns like a real fader.
+  _monGainMul(vol) { return vol <= 0 ? 0 : Math.pow(10, (MON_MIN_DB * (1 - clamp01(vol))) / 20); }
+  _monVolFromMul(mul) { return mul <= 0 ? 0 : clamp01(1 - (20 * Math.log10(Math.min(1, mul))) / MON_MIN_DB); }
+
+  // Set the monitor's volume by knob POSITION (0..1): gain = master base × taper(pos).
   _setMonVol(m, vol) {
     m.vol = clamp01(vol);
     if (!m.muted) {
       const mix = this._mixerInstance();
       const base = mix && mix.getParam && mix.getParam('master') ? mix.getParam('master').value : 0.7;
-      try { m.gain.gain.value = base * m.vol; } catch (_e) { /* node gone */ }
+      try { m.gain.gain.value = base * this._monGainMul(m.vol); } catch (_e) { /* node gone */ }
     }
     this._drawMonTick(m);
   }
   _drawMonTick(m) {
     if (m.tick) m.tick.style.transform = `rotate(${r2(-135 + m.vol * 270)}deg)`;   // min lower-left → max lower-right
+  }
+  // Open a freshly-placed monitor at a comfortable level: measure the tapped signal's RMS
+  // briefly (while silent), then set the knob so it plays at ~75% of the loudest the main
+  // output has reached this session. Fixed fallback if there's no reference yet; if the
+  // signal is essentially silent, keep the default.
+  _autoLevelMonitor(m) {
+    if (!m.tap || !m.tap.node) return;
+    const ctx = this.host.ctx;
+    let an; try { an = ctx.createAnalyser(); } catch (_e) { return; }
+    an.fftSize = 1024; an.smoothingTimeConstant = 0;
+    const buf = new Float32Array(an.fftSize);
+    try { m.tap.node.connect(an, m.tap.index || 0); } catch (_e) { return; }
+    try { m.gain.gain.value = 0; } catch (_e) { /* node gone */ }   // silent while measuring
+    let peak = 0, frames = 0;
+    const step = () => {
+      if (!this._monitors.has(m) || !m.tap || !m.tap.node) { try { m.tap && m.tap.node.disconnect(an); } catch (_e) { /* gone */ } return; }
+      an.getFloatTimeDomainData(buf);
+      for (let i = 0; i < buf.length; i++) { const a = Math.abs(buf[i]); if (a > peak) peak = a; }   // PEAK, not RMS — controls the loudest instant
+      if (++frames < 24) { requestAnimationFrame(step); return; }   // ~400ms window
+      try { m.tap.node.disconnect(an); } catch (_e) { /* gone */ }
+      if (!m.muted) this._setMonVol(m, this._autoMonVol(peak));
+    };
+    requestAnimationFrame(step);
+  }
+  // Knob value that lands a signal whose PEAK is `sigPeak` at ~75% of the loudest PEAK the
+  // main output has reached this session. Silent signal or no master gain → default knob.
+  _autoMonVol(sigPeak) {
+    if (sigPeak < 0.008) return MON_VOL_DEFAULT;
+    const mix = this._mixerInstance();
+    const base = mix && mix.getParam && mix.getParam('master') ? mix.getParam('master').value : 0.7;
+    if (base <= 0) return MON_VOL_DEFAULT;
+    // The reference is the main output's PEAK, which is LINE level (~0.02–0.08), not
+    // internal-signal level. Returns a knob POSITION (via the dB taper), but NEVER above
+    // the safe default — auto-level only turns a hot terminal DOWN from the quiet default,
+    // it never makes a placed monitor louder than the hover preview.
+    const ref = (this._sessionMaxMaster > 0.006) ? this._sessionMaxMaster : 0.05;
+    return Math.min(MON_VOL_DEFAULT, this._monVolFromMul((0.75 * ref) / (sigPeak * base)));
   }
   // The static "this is a volume control" decoration inside a monitor: a wedge hugging
   // the ring's inner edge that tapers from zero thickness at the lower-left limit up over

@@ -159,7 +159,7 @@ async function boot() {
   const knobHost = document.getElementById('master-knob');
   knobHost.innerHTML = masterKnobSvg();
   const { controls: masterControls } = parsePanel(knobHost.querySelector('svg'),
-    { params: [{ id: 'master', curve: 'linear', min: 0, max: 1, default: 0.7 }], ports: [] });
+    { params: [{ id: 'master', curve: 'gainDb', min: 0, max: 1, default: 0.7 }], ports: [] });
   const masterKnob = masterControls.get('master');
   const syncToolbarMaster = () => { masterValue = Number(mixRec.values.get('master')); showValue(masterKnob, masterValue); };
   attachControlInteraction(masterKnob, {
@@ -219,15 +219,24 @@ async function boot() {
       (a, b) => (+a.getAttribute('data-wcoast-seg')) - (+b.getAttribute('data-wcoast-seg'))),
   }));
   const vuColour = (i, n) => { const f = i / (n - 1); return f > 0.85 ? '#ff5a4a' : f > 0.6 ? '#f4c430' : '#3ad16b'; };
-  const vuScale = (rms) => Math.min(1, rms * 3.2);   // RMS ~0..0.3 → full scale
+  // dB meter: map RMS to dBFS and spread a fixed range across the segments, so the meter
+  // tracks perceived loudness (a linear meter crowds everything at the top).
+  const VU_FLOOR_DB = -48;
+  const vuScale = (rms) => { if (rms <= 0) return 0; const db = 20 * Math.log10(rms); return Math.max(0, Math.min(1, (db - VU_FLOOR_DB) / -VU_FLOOR_DB)); };
 
   const masterVuEl = document.getElementById('master-vu');
   const TB_SEGS = 16;
   const tbSegs = [];
   if (masterVuEl) for (let i = 0; i < TB_SEGS; i++) { const s = document.createElement('span'); masterVuEl.appendChild(s); tbSegs.push(s); }
 
+  // Master PEAK reader (not RMS): peak is what makes a signal "too loud", so an ear
+  // monitor auto-levels against the loudest PEAK the main output has actually reached.
+  const masterAn = mixer.instance.analysers && mixer.instance.analysers.master;
+  const peakBuf = new Float32Array(masterAn && masterAn.l ? masterAn.l.fftSize : 1024);
+  const peakOf = (an) => { if (!an) return 0; an.getFloatTimeDomainData(peakBuf); let p = 0; for (let i = 0; i < peakBuf.length; i++) { const a = Math.abs(peakBuf[i]); if (a > p) p = a; } return p; };
   function paintVU() {
     const lv = mixer.instance.levels();
+    if (started && masterAn) { const mp = Math.max(peakOf(masterAn.l), peakOf(masterAn.r)); if (mp > (rack._sessionMaxMaster || 0)) rack._sessionMaxMaster = mp; }
     for (const col of vuColumns) {
       const n = col.segs.length;
       const lit = Math.round(vuScale(col.chan === 'M' ? lv.master : (lv.channels[col.chan] || 0)) * n);

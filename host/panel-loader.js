@@ -93,7 +93,15 @@ export function resolveToRoot(el, x, y) {
 // A knob turns LINEARLY in position; the value comes from position through the
 // descriptor's curve (so an exp knob turns evenly while its Hz value tapers).
 
+// A volume/gain fader taper: the throw is dB-LINEAR (equal travel = equal dB), unity at
+// the top and ~GAIN_FLOOR_DB near the bottom, so it matches how the ear hears level.
+const GAIN_FLOOR_DB = -60;
+
 export function valueToPosition(meta, value) {
+  if (meta.curve === 'gainDb') {
+    if (value <= meta.min) return 0;
+    return clamp01(1 - (20 * Math.log10(value / meta.max)) / GAIN_FLOOR_DB);
+  }
   if (meta.curve === 'exp') {
     const lo = Math.max(meta.min, 1e-6);
     return clamp01(Math.log(value / lo) / Math.log(meta.max / lo));
@@ -109,6 +117,10 @@ export function valueToPosition(meta, value) {
 
 export function positionToValue(meta, pos) {
   pos = clamp01(pos);
+  if (meta.curve === 'gainDb') {
+    if (pos <= 0) return meta.min;
+    return meta.max * Math.pow(10, (GAIN_FLOOR_DB * (1 - pos)) / 20);
+  }
   if (meta.curve === 'exp') {
     const lo = Math.max(meta.min, 1e-6);
     return lo * Math.pow(meta.max / lo, pos);
