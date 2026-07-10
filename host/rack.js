@@ -1877,6 +1877,8 @@ export class Rack {
       lim.threshold.value = -6; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.003; lim.release.value = 0.12;
       this._monBus.connect(lim); lim.connect(ctx.destination);
     }
+    // Independent of the master mute: a terminal can be auditioned even with the main
+    // output muted.
     if (this.host.ctx.resume) this.host.ctx.resume();
     return this._monBus;
   }
@@ -2099,6 +2101,7 @@ export class Rack {
     m.muted = !m.muted;
     m.el.classList.toggle('mon-muted', m.muted);
     if (m.muted) this._monTapDisconnect(m); else this._monTapConnect(m);
+    this._refreshSolo();   // muting the last listening monitor restores the main output
   }
 
   // Carry a freshly-placed monitor circle out to be dropped (see _carryScope): it

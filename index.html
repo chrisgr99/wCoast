@@ -73,8 +73,8 @@
     .mon-close:hover { background: rgba(255,80,80,0.75); color: #fff; }
     .mon-tick { position: absolute; left: 50%; top: 2.5px; width: 2px; height: 6px; margin-left: -1px; background: #dfeee3; border-radius: 1px; transform-origin: 50% 14.5px; pointer-events: none; }
     .mon-arc { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-    .mon-muted { opacity: 0.75; }
-    .mon-muted::after { content: ''; position: absolute; left: 4px; right: 4px; top: calc(50% - 1px); height: 2px; background: #ff5a5a; border-radius: 1px; transform: rotate(-45deg); pointer-events: none; }   /* struck-out when muted (upper-right to lower-left) */
+    .mon-muted { border-color: #e22a2a; box-shadow: inset 0 0 0 2px #e22a2a, 0 4px 12px rgba(0,0,0,0.5); }   /* muted: red ring, thickened inward */
+    .mon-muted::after { content: ''; position: absolute; left: 3px; right: 3px; top: calc(50% - 1.5px); height: 3px; background: #e22a2a; border-radius: 1px; transform: rotate(-45deg); pointer-events: none; }   /* red diagonal, upper-right to lower-left, as thick as the ring */
 
     /* master group at the far right: house-style knob + horizontal VU */
     #master-group { display: flex; align-items: center; gap: 8px; flex: none; }
