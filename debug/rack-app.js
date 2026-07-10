@@ -454,6 +454,40 @@ async function boot() {
   // ready-to-show gate means this is already correct; a bare browser settles its
   // flex layout a beat later, so the boot-time fit can be measured too tall.
   requestAnimationFrame(() => rack.relayout());
+
+  maybeShowIntro();
+}
+
+const README_URL = 'https://github.com/chrisgr99/wCoast/blob/main/README.md';
+
+// First run only: a small card pointing newcomers at the "?" in any panel's pie
+// menu. "Dismiss" closes for now (it returns next launch); "Don't show this again"
+// remembers the choice in local storage. The README link opens in the browser.
+function maybeShowIntro() {
+  let seen = false;
+  try { seen = localStorage.getItem('wcoast.introSeen') === '1'; } catch (_e) { /* no storage */ }
+  if (seen) return;
+  const overlay = document.createElement('div'); overlay.className = 'confirm-overlay';
+  const box = document.createElement('div'); box.className = 'confirm-box';
+  const msg = document.createElement('div'); msg.className = 'confirm-msg';
+  msg.innerHTML = 'Welcome to Wcoast.<br><br>Click any panel to open the main circular (i.e. pie) menu, then move the pointer toward the “?” to access the quick guide.';
+  const linkRow = document.createElement('div'); linkRow.style.marginTop = '10px';
+  const link = document.createElement('a');
+  link.textContent = 'Read the README'; link.href = README_URL; link.style.color = 'var(--accent)';
+  link.addEventListener('click', (e) => { e.preventDefault(); if (rack) rack._openExternal(README_URL); });
+  linkRow.appendChild(link); msg.appendChild(linkRow);
+  const btns = document.createElement('div'); btns.className = 'confirm-btns';
+  const dismiss = document.createElement('button'); dismiss.className = 'confirm-btn'; dismiss.textContent = 'Dismiss';
+  const never = document.createElement('button'); never.className = 'confirm-btn'; never.textContent = "Don't show this again";
+  btns.appendChild(dismiss); btns.appendChild(never);
+  box.appendChild(msg); box.appendChild(btns); overlay.appendChild(box); document.body.appendChild(overlay);
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey, true); };
+  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+  dismiss.addEventListener('click', close);
+  never.addEventListener('click', () => { try { localStorage.setItem('wcoast.introSeen', '1'); } catch (_e) { /* no storage */ } close(); });
+  overlay.addEventListener('pointerdown', (e) => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onKey, true);
+  dismiss.focus();
 }
 
 window.addEventListener('DOMContentLoaded', () => {

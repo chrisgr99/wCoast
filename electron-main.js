@@ -24,7 +24,7 @@
 // browser deployment these headers are a hosting hassle; in Electron we
 // control how the page reaches the renderer, so it's trivial.
 
-const { app, BrowserWindow, protocol, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, protocol, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { initMirror } = require('./electron-mirror');
@@ -48,6 +48,11 @@ app.on('before-quit', () => { appQuitting = true; });
 
 function registerPatchIpc() {
   ipcMain.on('patch:dirty', (_e, v) => { hasUnsavedChanges = !!v; });
+  // Open a docs/help link in the user's default browser. Restricted to http(s)
+  // so the renderer can't ask the OS to open arbitrary schemes.
+  ipcMain.handle('open-external', async (_e, url) => {
+    if (typeof url === 'string' && /^https?:\/\//i.test(url)) await shell.openExternal(url);
+  });
   ipcMain.handle('patch:open', async () => {
     const r = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: PATCH_FILTER, defaultPath: await patchesDir() });
     if (r.canceled || !r.filePaths[0]) return null;

@@ -10,6 +10,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('wcoast', {
   isElectron: true,
+  // Open an external URL (docs / help links) in the user's default browser,
+  // rather than a new Electron window.
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
   versions: {
     electron: process.versions.electron,
     chrome: process.versions.chrome,
