@@ -4,6 +4,8 @@ Wcoast is a modular synthesizer for Web Audio. Building on Web Audio makes it
 cross-platform: it plays in any modern browser, and a native desktop application
 will be available as well. It's non-commercial, free to use.
 
+**Try it in your browser:** [chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/)
+
 This is a personal project with two main objectives:
 
 - To provide a general-purpose, open-architecture modular synthesizer platform for
