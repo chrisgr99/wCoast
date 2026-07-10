@@ -15,7 +15,7 @@ Wcoast recreates the feel of a hardware modular synthesizer: you place modules o
 a rack, wire their jacks with virtual cables on easy-to-read panels, turn the
 knobs, and listen. The modules available initially are West Coast — complex
 oscillators, low-pass gates, function generators and the like. The name Wcoast
-comes from the project's initial focus on West Coast (Buchla/Serge inspired)
+comes from the project's initial focus on West Coast (Buchla/Serge-style)
 synthesis, but it has since grown to support modules of any style equally.
 
 The open architecture is structural: each module is just a folder holding a
@@ -49,13 +49,14 @@ A working modular environment you can patch and play:
 
 - A **rack** you place modules on, with faithful light/dark faceplates.
 - **Save and load** whole patches.
-- **Modules so far:** Complex Oscillator (259, feature-complete), Low Pass Gate
-  (292), Function Generator (281), and a Mixer — plus a "gallery" module used to
-  exercise every control and jack type.
+- **Modules so far:** Complex Oscillator (feature-complete), Low Pass Gate,
+  Function Generator, and a Mixer — plus a "gallery" module used to exercise every
+  control and jack type.
 
-Still ahead: more modules (a Source of Uncertainty is designed), polyphony (it's
-currently one voice), and a bridge that lets any Web Audio companion app drive it
-over a local message link. These are designed but not yet built.
+Still ahead: more modules (a random and fluctuating voltage source is designed),
+polyphony (it's currently one voice), and a bridge that lets any Web Audio
+companion app drive it over a local message link. These are designed but not yet
+built.
 
 ## Running it
 
