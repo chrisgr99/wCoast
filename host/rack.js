@@ -170,6 +170,9 @@ export class Rack {
     // `_swallowClick` blocks the trailing click that the backdrop pie listens for.
     document.addEventListener('pointerdown', (e) => {
       if (this._menuEl && !this._menuEl.contains(e.target) && !this._openSubs.some((s) => s.contains(e.target))) {
+        // A pie owns clicks over its own overlay (it may be showing the app-menu preview);
+        // let the pie decide, don't yank the menu out from under it here.
+        if (e.target && e.target.closest && e.target.closest('.pie-overlay')) { this._swallowClick = false; return; }
         this._closeMenu();
         this._swallowClick = true;
         e.preventDefault(); e.stopPropagation();
@@ -2630,13 +2633,15 @@ export class Rack {
     };
     openPieMenu({
       x: e.clientX, y: e.clientY,
+      onClose: () => this._appMenuCancel(),   // any pie close that isn't a menu-arrival drops the preview
       segments: [
-        // App menu (N, top): hovering pops the menu beside the pointer, over the pie;
-        // moving onto it (or a click) commits and the pie closes, back-to-centre cancels.
+        // App menu (N, top): hovering previews the menu beside the pointer; it only sticks
+        // once the pointer lands IN it (with a grace window for the gap), back-to-centre
+        // cancels, and a click on the wedge opens it directly.
         { dir: 'N', icon: APPMENU_ICON, label: 'menu',
           onPeekStart: (ctx) => this._appMenuPeek(ctx),
-          onPeekEnd: () => this._appMenuPeekEnd(),
-          commit: () => this._finalizeAppMenu() },
+          onPeekEnd: (ctx) => this._appMenuPeekEnd(ctx),
+          commit: (ctx) => this._appMenuCommitClick(ctx) },
         soundSeg,
       ],
     });
@@ -2788,28 +2793,45 @@ export class Rack {
   // pointerenter) commits — the pie closes and the menu stays live where it is; moving
   // back to the pie centre cancels (onPeekEnd). A click on the wedge also commits.
   _appMenuPeek(ctx) {
-    this._appMenuHeld = false;
+    this._appMenuClearGrace();
+    if (this._appMenuEl && document.body.contains(this._appMenuEl)) return;   // re-entered the wedge → keep the existing preview
     this.onAppMenu(0, 0);                 // build+open (rack-app fills the items); we reposition
     const el = this._menuEl; if (!el) return;
-    el.classList.add('app-menu-peek');    // raised above the pie, but still a preview
+    el.classList.add('app-menu-peek');    // raised above the pie, still a preview
     this._positionAppMenuBeside(el, ctx);
-    el.addEventListener('pointerenter', () => this._finalizeAppMenu(), { once: true });   // move onto it → keep it
-    this._appMenuPeekEl = el;
+    el.addEventListener('pointerenter', () => this._appMenuArrive(), { once: true });   // pointer reaches it → commit
+    this._appMenuEl = el;
   }
-  // Cancel: only tears the menu down if it wasn't committed (pointer went back to centre).
-  _appMenuPeekEnd() {
-    if (this._appMenuHeld) { this._appMenuPeekEl = null; return; }
-    if (this._appMenuPeekEl) { this._closeMenu(); this._appMenuPeekEl = null; }
+  // Left the wedge: back to the pie CENTRE cancels the preview now; heading anywhere else
+  // starts a short grace window so the gap to the menu can be crossed unhurried.
+  _appMenuPeekEnd(ctx) {
+    this._appMenuClearGrace();
+    if (!this._appMenuEl) return;
+    const toCentre = ctx && Math.hypot(ctx.x - ctx.cx, ctx.y - ctx.cy) < 14;
+    if (toCentre) { this._appMenuCancel(); return; }
+    this._appMenuGrace = setTimeout(() => { this._appMenuGrace = null; this._appMenuCancel(); }, 500);
   }
-  // Commit: keep the menu, drop its preview styling (so it's a normal live menu), and
-  // close the pie. Setting _appMenuHeld first makes the pie's onPeekEnd leave it alone.
-  _finalizeAppMenu() {
-    if (!this._appMenuPeekEl) return;
-    this._appMenuHeld = true;
-    this._appMenuPeekEl.classList.remove('app-menu-peek');
-    this._appMenuPeekEl = null;
+  // The pointer ARRIVED in the preview → it becomes a normal sticky menu and the pie
+  // closes. _appMenuEl is cleared so the pie's onClose won't tear the (now sticky) menu down.
+  _appMenuArrive() {
+    this._appMenuClearGrace();
+    const el = this._appMenuEl;
+    if (el && document.body.contains(el)) el.classList.remove('app-menu-peek');
+    this._appMenuEl = null;
     closePieMenu();
   }
+  // A click on the wedge opens the menu directly: drop any preview, open a fresh sticky
+  // menu at the pointer (the pie is already closing via commit).
+  _appMenuCommitClick(ctx) {
+    this._appMenuCancel();
+    this.onAppMenu(ctx.x, ctx.y);
+  }
+  // Tear the preview down (a no-op once it has become sticky, since _appMenuEl is null).
+  _appMenuCancel() {
+    this._appMenuClearGrace();
+    if (this._appMenuEl) { this._closeMenu(); this._appMenuEl = null; }
+  }
+  _appMenuClearGrace() { if (this._appMenuGrace) { clearTimeout(this._appMenuGrace); this._appMenuGrace = null; } }
   // Place the menu ~2mm to the RIGHT of the pointer (flipping LEFT if it won't fit),
   // clamped fully on-screen, drawn over the pie.
   _positionAppMenuBeside(el, ctx) {

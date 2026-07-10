@@ -117,13 +117,13 @@ export function openPieMenu({ x, y, segments = [], onClose, innerR = 11, outerR 
   overlay.appendChild(cursor);
 
   // Hover-activate. The rendered cursor roams the wedges; entering one makes it the
-  // `activeSeg` and runs its onPeekStart (a momentary preview), onPeekEnd on leaving
-  // (to the centre, another segment, outside, or on close). A segment COMMITS two ways,
-  // which do the same thing: CLICK it, or move the pointer OUT through its edge (cross
-  // the outer circle in that wedge's direction). Committing closes the pie and runs
-  // seg.commit — the lasting form (open the app menu, latch the subnet, carry out a
-  // scope/monitor, toggle the sound). Crossing out through an EMPTY direction, Escape,
-  // a right-click, or a click in the dead zone just closes the pie.
+  // `activeSeg` and runs its onPeekStart (a momentary preview), onPeekEnd on leaving (to
+  // the centre, another segment, outside, or on close). A segment COMMITS on a CLICK,
+  // running seg.commit — the lasting form (open the app menu, latch the subnet, carry out
+  // a scope/monitor, toggle the sound). Like a pop-up menu the pie is CLICK-to-dismiss:
+  // the pointer wandering off the ring only ends the peek, it doesn't close the pie — you
+  // close it with a click that isn't on a command wedge, Escape, or a right-click. (A
+  // `capture` wedge is the exception: it commits on cross-out.)
   let hovered = null, activeSeg = null, peeking = false, done = false, pressed = false;
   let lastCtx = { x: cx, y: cy, cx, cy, outerR };
   const setHover = (dir) => {
@@ -171,25 +171,27 @@ export function openPieMenu({ x, y, segments = [], onClose, innerR = 11, outerR 
       if (inSeg && inSeg === activeSeg && peeking && inSeg.onPeekMove) inSeg.onPeekMove(lastCtx);
       return;
     }
-    // Crossing the outer circle otherwise just CLOSES the pie — creation/latching happens
-    // on a click, never on an accidental cross-out.
-    closePieMenu();
+    // Outside the ring: end any peek but LEAVE THE PIE OPEN. Like a pop-up menu, the pie
+    // dismisses on a click, not on the pointer wandering off — so a preview heading to a
+    // side menu (the app menu) isn't lost by moving out. (A `capture` wedge, handled
+    // above, still commits on cross-out.)
+    setHover(null);
+    enter(null);
   };
   const onDown = (e) => {
     e.preventDefault(); e.stopPropagation();
     if (e.button === 2) { closePieMenu(); return; }   // a fresh right-click cancels
     pressed = true;
   };
-  // A click ON a wedge with a commit runs it and closes; a click in the dead zone
-  // closes. `pressed` guards the opening click's release.
+  // A click ON a command wedge runs it and closes. A click anywhere else — the dead
+  // zone, an empty wedge, or outside the ring — dismisses the pie (it stays up on mere
+  // pointer movement). `pressed` guards the opening click's release.
   const onUp = (e) => {
     if (done) return;
     const { dist, dir } = zoneOf(e.clientX, e.clientY);
-    if (dist < innerR) { if (pressed) { done = true; closePieMenu(); } return; }
-    if (dist <= outerR && byDir.has(dir)) {
-      const seg = byDir.get(dir);
-      if (seg && seg.commit) { commitSeg(seg); }
-    }
+    const seg = (dist >= innerR && dist <= outerR && byDir.has(dir)) ? byDir.get(dir) : null;
+    if (seg && seg.commit) { commitSeg(seg); return; }
+    if (pressed) { done = true; closePieMenu(); }
   };
   const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); closePieMenu(); } };
   document.addEventListener('pointermove', onMove, true);
