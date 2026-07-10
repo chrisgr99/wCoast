@@ -45,6 +45,9 @@ patches easier to build, follow, and understand:
 
 ## Current state
 
+Wcoast is in alpha. It is fully usable, but expect rough edges and things to
+change.
+
 A working modular environment you can patch and play:
 
 - A **rack** you place modules on, with faithful light/dark faceplates.
@@ -57,6 +60,9 @@ Still ahead: more modules (a random and fluctuating voltage source is designed),
 polyphony (it's currently one voice), and a bridge that lets any Web Audio
 companion app drive it over a local message link. These are designed but not yet
 built.
+
+Feedback is very welcome — share thoughts, bugs, and ideas in the
+[discussions](https://github.com/chrisgr99/wCoast/discussions).
 
 ## Running it
 
