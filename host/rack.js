@@ -262,9 +262,49 @@ export class Rack {
   // kept — they're recreated once at boot, not per patch — but their cords are
   // pulled so a restore rewires from a clean slate.
   clear() {
+    for (const sc of [...this._scopes]) this._closeScope(sc);
+    for (const m of [...this._monitors]) this._closeMonitor(m);
     for (const rec of [...this.records.values()]) {
       if (rec.pinned) this.patchbay.disconnectModule(rec.key);
       else this.deleteModule(rec);
+    }
+  }
+
+  // ---- probes (scopes + ear monitors) as part of the saved patch ----
+  // Only the PERMANENT ones (a temporary pie peek has showCallout === false). Endpoints
+  // are module keys, which patch-io remaps to the fresh session keys on restore.
+  serializeProbes() {
+    const at = (el) => ({ x: Math.round(parseFloat(el.style.left) || 0), y: Math.round(parseFloat(el.style.top) || 0) });
+    const out = [];
+    for (const sc of this._scopes) {
+      if (sc.showCallout === false || !sc.key) continue;
+      out.push({ kind: 'scope', module: sc.key, port: sc.portId, ...at(sc.el), w: sc.canvas.width, gainMul: r2(sc.gainMul), timeMul: r2(sc.timeMul), trigger: !!sc.trigger, frozen: !!sc.frozen });
+    }
+    for (const m of this._monitors) {
+      if (m.showCallout === false || !m.key) continue;
+      out.push({ kind: 'monitor', module: m.key, port: m.portId, ...at(m.el), vol: r2(m.vol), muted: !!m.muted });
+    }
+    return out;
+  }
+  // Recreate probes (called after modules + wiring exist, so an input probe finds its
+  // feeding cord). Monitors restore their saved level rather than auto-levelling.
+  restoreProbes(probes) {
+    for (const p of probes || []) {
+      if (!p || !p.module || !p.port) continue;
+      const x = p.x || 60, y = p.y || 60;
+      if (p.kind === 'scope') {
+        const sc = this._createScope(p.module, p.port, x, y);
+        if (!sc) continue;
+        if (p.w) { sc.canvas.width = Math.max(120, Math.min(640, Math.round(p.w))); }
+        if (p.gainMul) sc.gainMul = p.gainMul;
+        if (p.timeMul) sc.timeMul = p.timeMul;
+        if (p.trigger != null) sc.trigger = !!p.trigger;
+        if (p.frozen != null) sc.frozen = !!p.frozen;
+        this._updateCallout(sc);
+      } else if (p.kind === 'monitor') {
+        const m = this._createMonitor(p.module, p.port, x, y, true, { vol: p.vol, skipAutoLevel: true });
+        if (m && p.muted) this._toggleMonMute(m);
+      }
     }
   }
   // Apply one module param value (knob/switch), updating DSP and the panel.
@@ -1570,6 +1610,7 @@ export class Rack {
     canvas.addEventListener('wheel', (ev) => this._scopeWheel(ev, sc), { passive: false });
 
     this._scopes.add(sc);
+    if (showCallout) this.onChange();   // a placed scope is part of the patch (not the temporary peek)
     this._updateCallout(sc);
     this._startScopeLoop();
     return sc;
@@ -1814,6 +1855,7 @@ export class Rack {
     this._scopeTapDisconnect(sc);
     sc.el.remove(); sc.ring.remove(); sc.line.remove(); sc.dot.remove();
     this._scopes.delete(sc);
+    if (sc.showCallout !== false) this.onChange();   // removing a placed scope changes the patch
     if (!this._scopes.size && this._scopeRaf) { cancelAnimationFrame(this._scopeRaf); this._scopeRaf = null; }
   }
 
@@ -1865,7 +1907,7 @@ export class Rack {
 
   // A placed ear monitor: a small circle with an ear icon and an X, a callout ring/
   // line back to its terminal, and its tap summed into the monitor bus.
-  _createMonitor(key, portId, x, y, showCallout = true) {
+  _createMonitor(key, portId, x, y, showCallout = true, opts = {}) {
     const el = document.createElement('div');
     el.className = 'mon'; el.title = 'Click to mute · drag to move';
     el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px';
@@ -1880,7 +1922,8 @@ export class Rack {
     // over the top to max (lower-right); the scroll wheel turns it with knob momentum.
     const tick = document.createElement('div'); tick.className = 'mon-tick'; el.appendChild(tick);
     const m = {
-      key, portId, el, gain: g, tap: null, muted: false, showCallout, vol: MON_VOL_DEFAULT, tick,
+      key, portId, el, gain: g, tap: null, muted: false, showCallout, tick,
+      vol: (opts.vol != null ? clamp01(opts.vol) : MON_VOL_DEFAULT),
       volVel: 0, volRaf: null, volLast: 0,
       ring: document.createElementNS(SVG_NS, 'circle'), line: document.createElementNS(SVG_NS, 'line'),
       dot: document.createElement('div'),
@@ -1891,12 +1934,13 @@ export class Rack {
     m.dot.className = 'scope-dot'; document.body.appendChild(m.dot);   // grab handle at the loop
     this._monTapConnect(m);
     this._drawMonTick(m);
-    if (showCallout) this._autoLevelMonitor(m);   // placed monitor opens at a comfortable level (not the quick hover preview)
+    if (showCallout && !opts.skipAutoLevel) this._autoLevelMonitor(m);   // placed monitor opens at a comfortable level (not the quick hover preview or a restore)
     close.addEventListener('click', (ev) => { ev.stopPropagation(); this._closeMonitor(m); });
     el.addEventListener('pointerdown', (ev) => this._dragMonitor(ev, m));
     el.addEventListener('wheel', (ev) => this._onMonWheel(m, ev), { passive: false });
     m.dot.addEventListener('pointerdown', (ev) => this._regrabMonitor(ev, m));
     this._monitors.add(m);
+    if (showCallout) this.onChange();   // a placed monitor is part of the patch (not the temporary peek)
     this._updateCallout(m);
     this._refreshSolo();
     return m;
@@ -2027,6 +2071,7 @@ export class Rack {
     try { m.gain.disconnect(); } catch (_e) { /* gone */ }
     m.el.remove(); m.ring.remove(); m.line.remove(); m.dot.remove();
     this._monitors.delete(m);
+    if (m.showCallout !== false) this.onChange();   // removing a placed monitor changes the patch
     this._refreshSolo();
   }
 

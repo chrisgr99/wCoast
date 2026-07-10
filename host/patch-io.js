@@ -50,6 +50,10 @@ export function serialize(rack, mixer) {
     return w;
   });
 
+  // Probes (scopes + ear monitors) clipped onto terminals — their kind, endpoint,
+  // position and settings — so a bench of monitors/scopes reopens with the patch.
+  const probes = rack.serializeProbes ? rack.serializeProbes() : [];
+
   return {
     format: FORMAT,
     version: VERSION,
@@ -57,6 +61,7 @@ export function serialize(rack, mixer) {
     modules,
     wiring,
     settings: { params },
+    probes,
   };
 }
 
@@ -95,6 +100,14 @@ export async function restore(obj, rack, mixer) {
     if (edge && w.bow) edge.bow = w.bow;
   }
   rack.redrawCables();
+
+  // Probes last: modules and wiring exist now, so an input probe finds its feeding cord.
+  // Remap each saved endpoint id to the fresh session key.
+  if (Array.isArray(obj.probes) && rack.restoreProbes) {
+    rack.restoreProbes(obj.probes
+      .map((p) => (p && idToKey.has(p.module) ? { ...p, module: idToKey.get(p.module) } : null))
+      .filter(Boolean));
+  }
 }
 
 // Validate an (AI-authored) patch object against the registered descriptors.
