@@ -1,6 +1,6 @@
-# Wcoast
+# wCoast
 
-Wcoast is a modular synthesizer for Web Audio. Building on Web Audio makes it
+wCoast is a modular synthesizer for Web Audio. Building on Web Audio makes it
 cross-platform: it plays in any modern browser, and a native desktop application
 will be available as well. It's non-commercial, free to use.
 
@@ -13,10 +13,10 @@ This is a personal project with two main objectives:
 - To explore user-interface techniques to make a modular synthesizer easier to
   work with, and patches easier to explore and understand.
 
-Wcoast recreates the feel of a hardware modular synthesizer: you place modules on
+wCoast recreates the feel of a hardware modular synthesizer: you place modules on
 a rack, wire their jacks with virtual cables on easy-to-read panels, turn the
 knobs, and listen. The modules available initially are West Coast — complex
-oscillators, low-pass gates, function generators and the like. The name Wcoast
+oscillators, low-pass gates, function generators and the like. The name wCoast
 comes from the project's initial focus on West Coast (Buchla/Serge-style)
 synthesis, but it has since grown to support modules of any style equally.
 
@@ -26,7 +26,7 @@ building the panel, handling patching, saving, and more (pure JavaScript) —
 without reaching inside the module. That lets new modules of any kind, with or
 without a hardware ancestor, drop in as plug-ins.
 
-Toward the second objective, Wcoast tries a number of interface ideas for making
+Toward the second objective, wCoast tries a number of interface ideas for making
 patches easier to build, follow, and understand:
 
 - **Patching by identity, not cord-tracing.** Click to open a radial "pie" menu
@@ -47,7 +47,7 @@ patches easier to build, follow, and understand:
 
 ## Current state
 
-Wcoast is in alpha. It is fully usable, but expect rough edges and things to
+wCoast is in alpha. It is fully usable, but expect rough edges and things to
 change.
 
 A working modular environment you can patch and play:
