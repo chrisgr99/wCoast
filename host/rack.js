@@ -2649,24 +2649,16 @@ export class Rack {
       onPeekEnd: () => { this.soundPeek(pre); if (soundSeg.iconEl) soundSeg.iconEl.innerHTML = SOUND_BTN_ICON(pre); },
       commit: () => this.setSound(!this.isPlaying()),
     };
-    const appOpen = (x, y) => this.onAppMenu(x, y);       // hamburger (rack-app fills the items)
-    const helpOpen = (x, y) => this._openHelpMenu(x, y);   // the "?" docs menu
     openPieMenu({
       x: e.clientX, y: e.clientY,
-      onClose: () => this._sideMenuCancel(),   // any pie close that isn't a menu-arrival drops the preview
       segments: [
-        // App menu (N, top) and help "?" (NE, upper-right): hovering previews the menu
-        // beside the pointer; it only sticks once the pointer lands IN it (with a grace
-        // window for the gap), back-to-centre cancels, and a click on the wedge opens it
-        // directly. Same behaviour for both, keyed by `owner` so sliding N↔NE swaps them.
+        // App menu (N, top) and help "?" (NE, upper-right) are CLICK-only: a click opens
+        // the menu (a normal sticky pop-up) at the pointer and closes the pie. Hovering
+        // just highlights the wedge — there's no preview to lose to a slow or stray slide.
         { dir: 'N', icon: APPMENU_ICON, label: 'menu',
-          onPeekStart: (ctx) => this._sideMenuPeek(ctx, 'app', appOpen),
-          onPeekEnd: (ctx) => this._sideMenuPeekEnd(ctx),
-          commit: (ctx) => this._sideMenuCommitClick(ctx, appOpen) },
+          commit: (ctx) => this.onAppMenu(ctx.x, ctx.y) },
         { dir: 'NE', icon: HELP_ICON, label: 'help',
-          onPeekStart: (ctx) => this._sideMenuPeek(ctx, 'help', helpOpen),
-          onPeekEnd: (ctx) => this._sideMenuPeekEnd(ctx),
-          commit: (ctx) => this._sideMenuCommitClick(ctx, helpOpen) },
+          commit: (ctx) => this._openHelpMenu(ctx.x, ctx.y) },
         soundSeg,
       ],
     });
@@ -2812,61 +2804,6 @@ export class Rack {
     if (this._menuEl) { this._menuEl.remove(); this._menuEl = null; }
   }
 
-  // ---- app menu as a pie peek (panel-pie top wedge) ----
-  // Hovering the top wedge previews the app menu just to the side of the pointer, drawn
-  // OVER the pie (leaving the pie centre visible). Moving the pointer onto the menu (its
-  // pointerenter) commits — the pie closes and the menu stays live where it is; moving
-  // back to the pie centre cancels (onPeekEnd). A click on the wedge also commits.
-  // A "side menu" pie wedge (the hamburger app menu, or the help "?") previews a normal
-  // pop-up beside the pointer that only STICKS once the pointer lands in it. `owner` tags
-  // which wedge owns the current preview (so sliding from one menu wedge to the adjacent
-  // one swaps previews instead of keeping the first); `open(x, y)` builds+opens that menu
-  // into this._menuEl.
-  _sideMenuPeek(ctx, owner, open) {
-    this._sideMenuClearGrace();
-    if (this._sideMenuEl && document.body.contains(this._sideMenuEl)) {
-      if (this._sideMenuOwner === owner) return;   // re-entered the same wedge → keep the preview
-      this._sideMenuCancel();                       // slid to a different menu wedge → drop the old preview
-    }
-    open(0, 0);                           // build+open; we reposition beside the pointer
-    const el = this._menuEl; if (!el) return;
-    el.classList.add('app-menu-peek');    // raised above the pie, still a preview
-    this._positionSideMenu(el, ctx);
-    el.addEventListener('pointerenter', () => this._sideMenuArrive(), { once: true });   // pointer reaches it → commit
-    this._sideMenuEl = el;
-    this._sideMenuOwner = owner;
-  }
-  // Left the wedge: back to the pie CENTRE cancels the preview now; heading anywhere else
-  // starts a short grace window so the gap to the menu can be crossed unhurried.
-  _sideMenuPeekEnd(ctx) {
-    this._sideMenuClearGrace();
-    if (!this._sideMenuEl) return;
-    const toCentre = ctx && Math.hypot(ctx.x - ctx.cx, ctx.y - ctx.cy) < 14;
-    if (toCentre) { this._sideMenuCancel(); return; }
-    this._sideMenuGrace = setTimeout(() => { this._sideMenuGrace = null; this._sideMenuCancel(); }, 500);
-  }
-  // The pointer ARRIVED in the preview → it becomes a normal sticky menu and the pie
-  // closes. _sideMenuEl is cleared so the pie's onClose won't tear the (now sticky) menu down.
-  _sideMenuArrive() {
-    this._sideMenuClearGrace();
-    const el = this._sideMenuEl;
-    if (el && document.body.contains(el)) el.classList.remove('app-menu-peek');
-    this._sideMenuEl = null;
-    closePieMenu();
-  }
-  // A click on the wedge opens the menu directly: drop any preview, open a fresh sticky
-  // menu at the pointer (the pie is already closing via commit).
-  _sideMenuCommitClick(ctx, open) {
-    this._sideMenuCancel();
-    open(ctx.x, ctx.y);
-  }
-  // Tear the preview down (a no-op once it has become sticky, since _sideMenuEl is null).
-  _sideMenuCancel() {
-    this._sideMenuClearGrace();
-    if (this._sideMenuEl) { this._closeMenu(); this._sideMenuEl = null; }
-  }
-  _sideMenuClearGrace() { if (this._sideMenuGrace) { clearTimeout(this._sideMenuGrace); this._sideMenuGrace = null; } }
-
   // The help "?" menu: links to the docs, opened in the user's browser.
   _openHelpMenu(x, y) {
     this._openMenu(x, y, [
@@ -2881,21 +2818,6 @@ export class Rack {
     if (window.wcoast && window.wcoast.openExternal) window.wcoast.openExternal(url);
     else window.open(url, '_blank', 'noopener');
   }
-  // Place the menu ~2mm to the RIGHT of the pointer (flipping LEFT if it won't fit),
-  // clamped fully on-screen, drawn over the pie.
-  _positionSideMenu(el, ctx) {
-    const pad = 8, gap = 8, vw = window.innerWidth, vh = window.innerHeight;   // gap ~2mm
-    const mw = el.offsetWidth, mh = el.offsetHeight;
-    let left = ctx.x + gap;
-    if (left + mw > vw - pad) left = ctx.x - gap - mw;   // no room right → go left
-    left = Math.max(pad, Math.min(vw - pad - mw, left));
-    let top = Math.round(ctx.y - 6);                     // pointer near the first row
-    top = Math.max(pad, Math.min(vh - pad - mh, top));
-    el.style.left = Math.round(left) + 'px';
-    el.style.top = top + 'px';
-    el.style.clipPath = '';
-  }
-
   _closeSubs() { for (const s of this._openSubs) s.remove(); this._openSubs = []; }
 
   // Build (but don't place) a submenu of leaf items — check marks, disabled state, and
