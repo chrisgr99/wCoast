@@ -82,7 +82,7 @@ draw our own cursor rather than move the real one:
 ## 5. Item placement (fixed directions)
 
 **Panel pie**
-- **NW** (upper-left): app main menu (the hamburger). Opens the existing vertical menu.
+- **N** (top): app main menu (the hamburger). Opens the existing vertical menu.
 - **S** (bottom): **start/stop sound**. Its wedge is highlighted while the transport
   runs and unhighlighted when stopped — the current toolbar toggle behaviour.
 - The other positions are empty for now.
@@ -93,7 +93,9 @@ draw our own cursor rather than move the real one:
   bus (a brick-wall limiter protects ears/speakers; level respects the master gain)
   and ducks the normal output; several monitors *add* to the solo mix. Click a circle
   to mute/unmute it, drag to move it, the × to remove.
-- **NW** (upper-left): **what feeds this** — isolate the terminal's UPSTREAM (see §9).
+- **N** (top): **what feeds this** — isolate the terminal's UPSTREAM (see §9).
+- **NW** (upper-left): **pull a cable** — start a cord from this terminal. Placed away
+  from the lower wedges so it isn't triggered by accident.
 
 Both viewers follow the click-vs-drag rule (§3): a **click** shows a temporary one
 beside the menu that vanishes on close; **press-and-drag out** drops a permanent one.

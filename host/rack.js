@@ -753,7 +753,7 @@ export class Rack {
     };
     // A clean click (no drag) OPENS the terminal pie — same as a right-click. It fires
     // on release, so a press that becomes a drag is unambiguously a cable and never a
-    // menu. (Pulling a cord by click is now the pie's lower-right "pull a cable" wedge.)
+    // menu. (Pulling a cord by click is now the pie's upper-left "pull a cable" wedge.)
     const onUp = (ev) => { cleanup(); this._onJackContextMenu(ev, key, portId); };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
@@ -1447,20 +1447,13 @@ export class Rack {
   // menu, vertically centred on the pointer, so the middle of its left edge sits as
   // close to the pointer as it can without the menu obscuring it. Flips to the left if
   // there's no room on the right; clamped to stay on-screen. (px,py) = pie centre.
-  _viewerSpot(px, py, w, h) {
-    const pad = 6, clear = 34;   // just past the pie's outer edge (~30)
-    let x = px + clear;                       // right of the menu
-    const y = py - h / 2;                     // vertically centred on the pointer
-    if (x + w > window.innerWidth - pad) x = px - clear - w;   // no room right → left of the menu
-    x = Math.max(pad, x);
-    return { x, y: Math.max(pad, Math.min(window.innerHeight - pad - h, y)) };
-  }
-
-  // A click on a terminal → the terminal pie (scope NE, listen SE). A CLICK on a wedge
-  // shows a TEMPORARY viewer (a live scope / ear monitor) beside the menu — a quick
-  // look that is removed when the menu closes (a second click also hides it). The only
-  // way to keep one is to PRESS the wedge and drag out through the circle, which drops
-  // a permanent instance where you release.
+  // A click on a terminal → the terminal pie (scope NE, listen SE). Hovering the SCOPE
+  // wedge pops a live preview scope over the pie, its centre-left edge under the pointer;
+  // hovering LISTEN just plays the tapped signal (no circle) — both are removed when the
+  // menu closes. To KEEP one, grab it off the wedge: PRESS and drag carries it with the
+  // button held (dropped on release), a CLICK carries it following the cursor (dropped on
+  // the next click). Either way it hangs by its centre-left edge, down-and-right of the
+  // pointer, and auto-levels/positions exactly like its preview.
   _onJackContextMenu(e, key, portId) {
     e.preventDefault(); e.stopPropagation();
     const ox = e.clientX, oy = e.clientY;
@@ -1473,19 +1466,34 @@ export class Rack {
       },
       segments: [
         {
-          // Hover: a temporary scope beside the menu. Commit (click or cross-out): carry
-          // a permanent one out, following the pointer, dropped on the next click.
+          // Hover: a live preview scope OVER the pie, centre-left edge at the pointer
+          // (pointer-events off so the press still reaches the pie). Grab: carry a
+          // permanent one from the same spot.
           dir: 'NE', icon: SCOPE_ICON, label: 'scope',
-          onPeekStart: () => { if (!tempScope) { const p = this._viewerSpot(ox, oy, 246, 92); tempScope = this._createScope(key, portId, p.x, p.y, false); } },
+          onPeekStart: (ctx) => {
+            if (tempScope) return;
+            tempScope = this._createScope(key, portId, ctx.x, ctx.y, false);
+            tempScope.el.style.zIndex = 3100;             // above the pie overlay (z 3000)
+            tempScope.el.style.pointerEvents = 'none';    // a visual preview; the pie owns the pointer
+            const h = tempScope.el.offsetHeight || 80;
+            tempScope.el.style.left = Math.round(ctx.x + 3 * (this.pxPerMm || 1)) + 'px';   // 3mm right so it doesn't cover the pointer (snaps under it on grab)
+            tempScope.el.style.top = Math.round(ctx.y - h / 2) + 'px';                       // vertically centred on the pointer
+          },
           onPeekEnd: () => { if (tempScope) { this._closeScope(tempScope); tempScope = null; } },
-          commit: (ctx) => this._carryScope(this._createScope(key, portId, ctx.x, ctx.y), { clientX: ctx.x, clientY: ctx.y }, 'up', ox),
+          grab: (ctx, mode) => this._carryScope(this._createScope(key, portId, ctx.x, ctx.y), { clientX: ctx.x, clientY: ctx.y }, mode),
         },
         {
-          // Hover: a temporary ear monitor (plays). Commit: carry a permanent one out.
+          // Hover: play the tapped signal with NO circle (a hidden, auto-levelled monitor).
+          // Grab: carry a permanent, visible one from the pointer.
           dir: 'S', icon: EAR_ICON, label: 'listen',
-          onPeekStart: () => { if (!tempMon) { const p = this._viewerSpot(ox, oy, 34, 34); tempMon = this._createMonitor(key, portId, p.x, p.y, false); } },
+          onPeekStart: () => {
+            if (tempMon) return;
+            tempMon = this._createMonitor(key, portId, ox, oy, false);   // audio only
+            tempMon.el.style.display = 'none';                          // heard, not seen
+            this._autoLevelMonitor(tempMon);                            // the preview auto-levels too
+          },
           onPeekEnd: () => { if (tempMon) { this._closeMonitor(tempMon); tempMon = null; } },
-          commit: (ctx) => this._carryMonitor(this._createMonitor(key, portId, ctx.x, ctx.y), { clientX: ctx.x, clientY: ctx.y }, 'up'),
+          grab: (ctx, mode) => this._carryMonitor(this._createMonitor(key, portId, ctx.x, ctx.y), { clientX: ctx.x, clientY: ctx.y }, mode),
         },
         // What feeds this (top): hover shows the upstream subnet momentarily; a click
         // latches it (peeking is cleared on commit so it isn't torn down).
@@ -1493,11 +1501,12 @@ export class Rack {
           onPeekStart: () => this._isolateSubnet(key, portId),
           onPeekEnd: () => this._exitIsolate(),
           commit: () => {} },
-        // Pull a cable (lower-left): entering shows a PREVIEW cord from the terminal to
-        // the cursor. Pull it OUT past the pie's edge (any direction but back to centre)
-        // and it becomes a real sticky cord that follows the cursor (click a jack to
-        // connect, Escape/right-click to cancel). Back to the centre cancels.
-        { dir: 'SW', icon: CABLE_DROOP_ICON, label: 'pull a cable', capture: true,
+        // Pull a cable (upper-left — away from the lower wedges so it isn't triggered by
+        // accident): entering shows a PREVIEW cord from the terminal to the cursor. Pull it
+        // OUT past the pie's edge (any direction but back to centre) and it becomes a real
+        // sticky cord that follows the cursor (click a jack to connect, Escape/right-click
+        // to cancel). Back to the centre cancels.
+        { dir: 'NW', icon: CABLE_DROOP_ICON, label: 'pull a cable', capture: true,
           onPeekStart: (ctx) => { this._startCablePreview(key, portId); this._updateCablePreview(ctx.x, ctx.y); },
           onPeekMove: (ctx) => this._updateCablePreview(ctx.x, ctx.y),
           onPeekEnd: () => this._endCablePreview(),
@@ -1619,16 +1628,14 @@ export class Rack {
     return sc;
   }
 
-  // Carry an already-live scope (created on a pie peek) so it follows the pointer and
-  // drops. It hangs by the middle of its LEFT side when the drag went out to the right
-  // (scope trails to the right), or by the middle of its RIGHT side when the drag went
-  // left — decided by the cross-out direction relative to the pie origin. mode 'down'
-  // drops on the next RELEASE (dragged out holding a button); mode 'up' drops on the
-  // next CLICK. Escape cancels — the scope is removed.
-  _carryScope(sc, e, mode, originX) {
-    const w = sc.el.offsetWidth || 246, h = sc.el.offsetHeight || 80;
-    const ax = e.clientX >= originX ? 0 : -w;   // right-going: grab left-centre; left-going: grab right-centre
-    const place = (px, py) => { sc.el.style.left = Math.round(px + ax) + 'px'; sc.el.style.top = Math.round(py - h / 2) + 'px'; this._updateCallout(sc); };
+  // Carry an already-live scope (created on a pie grab) so it follows the pointer and
+  // drops. It hangs by the middle of its LEFT edge, so it trails down-and-right of the
+  // pointer (matching how the hover preview popped up). mode 'down' drops on the next
+  // RELEASE (dragged out holding a button); mode 'up' drops on the next CLICK. Escape
+  // cancels — the scope is removed.
+  _carryScope(sc, e, mode) {
+    const h = sc.el.offsetHeight || 80;
+    const place = (px, py) => { sc.el.style.left = Math.round(px) + 'px'; sc.el.style.top = Math.round(py - h / 2) + 'px'; this._updateCallout(sc); };
     place(e.clientX, e.clientY);
     const onMove = (ev) => place(ev.clientX, ev.clientY);
     const finish = () => {
@@ -1779,10 +1786,16 @@ export class Rack {
     const rr = Math.max(jr.width, jr.height) / 2 + 3;
     sc.ring.setAttribute('cx', r2(px)); sc.ring.setAttribute('cy', r2(py)); sc.ring.setAttribute('r', r2(rr));
     sc.ring.setAttribute('stroke', col); sc.ring.setAttribute('stroke-width', lw);
-    // Line from the loop's scope-facing point to the nearest corner of the scope box.
+    // Line from the loop to the CENTRE of the control's side that's closest to the
+    // terminal — dynamic, so it re-picks the facing side as the control moves. The four
+    // candidates are the mid-points of the box's sides (for the circular monitor, its
+    // cardinal edge points); nearest to the loop wins. The carry/drag grab point stays
+    // the left-centre regardless — this only steers the drawn line.
     const sr = sc.el.getBoundingClientRect();
-    const cx = px < sr.left + sr.width / 2 ? sr.left : sr.right;
-    const cy = py < sr.top + sr.height / 2 ? sr.top : sr.bottom;
+    const midX = sr.left + sr.width / 2, midY = sr.top + sr.height / 2;
+    const sides = [[sr.left, midY], [sr.right, midY], [midX, sr.top], [midX, sr.bottom]];
+    let cx = sr.left, cy = midY, bd = Infinity;
+    for (const [sx, sy] of sides) { const d = (sx - px) * (sx - px) + (sy - py) * (sy - py); if (d < bd) { bd = d; cx = sx; cy = sy; } }
     const u = unit(cx - px, cy - py);
     const jx = px + u.x * rr, jy = py + u.y * rr;   // where the line meets the loop
     sc.line.setAttribute('x1', r2(jx)); sc.line.setAttribute('y1', r2(jy));
@@ -2107,11 +2120,12 @@ export class Rack {
     this._refreshSolo();   // muting the last listening monitor restores the main output
   }
 
-  // Carry a freshly-placed monitor circle out to be dropped (see _carryScope): it
-  // follows the pointer by its centre. Escape cancels — the monitor is removed.
+  // Carry a freshly-placed monitor circle out to be dropped (see _carryScope): the
+  // pointer touches the LEFT of its circumference, so it hangs down-and-right, centred
+  // vertically. Escape cancels — the monitor is removed.
   _carryMonitor(m, e, mode) {
-    const w = m.el.offsetWidth || 34, h = m.el.offsetHeight || 34;
-    const place = (px, py) => { m.el.style.left = Math.round(px - w / 2) + 'px'; m.el.style.top = Math.round(py - h / 2) + 'px'; this._updateCallout(m); };
+    const h = m.el.offsetHeight || 34;
+    const place = (px, py) => { m.el.style.left = Math.round(px) + 'px'; m.el.style.top = Math.round(py - h / 2) + 'px'; this._updateCallout(m); };
     place(e.clientX, e.clientY);
     const onMove = (ev) => place(ev.clientX, ev.clientY);
     const finish = () => {

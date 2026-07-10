@@ -25,7 +25,8 @@ let closeCurrent = null;
 export function closePieMenu() { if (closeCurrent) closeCurrent(); }
 
 // segments: [{ dir, icon (SVG/HTML string), label, highlighted, plain, capture,
-//              onPeekStart(ctx), onPeekMove(ctx), onPeekEnd(ctx), commit(ctx) }].
+//              onPeekStart(ctx), onPeekMove(ctx), onPeekEnd(ctx), commit(ctx),
+//              grab(ctx, mode) }].
 // Positions are fixed by `dir` (muscle memory). Moving the pointer INTO a segment
 // activates it: a `peek` segment (one with onPeekStart) runs onPeekStart while the
 // pointer stays inside and onPeekEnd when it leaves (to the centre, another segment,
@@ -35,8 +36,11 @@ export function closePieMenu() { if (closeCurrent) closeCurrent(); }
 // commits — so an accidental slide off the edge does nothing. A `capture` wedge is the
 // exception: once entered it owns the interaction (its onPeekMove preview follows the
 // cursor across the whole ring) and commits when the pointer crosses the outer edge in
-// ANY direction, or cancels back at the centre — the pull-a-cable puller. ctx passed to
-// callbacks is { x, y, cx, cy, outerR }: the rendered cursor position plus the pie's centre and
+// ANY direction, or cancels back at the centre — the pull-a-cable puller. A `grab` wedge
+// (scope / ear monitor) hands off to a carried object: pressing it and DRAGGING carries
+// with the button held (grab(ctx,'down'), drop on release); a plain CLICK carries it
+// following the cursor (grab(ctx,'up'), drop on the next click). ctx passed to callbacks
+// is { x, y, cx, cy, outerR }: the rendered cursor position plus the pie's centre and
 // radius, so a commit/peek can place things relative to the pie.
 export function openPieMenu({ x, y, segments = [], onClose, innerR = 11, outerR = 30, iconR = 19, tickLen = 5, pad = 12, topReserve = 0 } = {}) {
   closePieMenu();
@@ -125,6 +129,8 @@ export function openPieMenu({ x, y, segments = [], onClose, innerR = 11, outerR 
   // close it with a click that isn't on a command wedge, Escape, or a right-click. (A
   // `capture` wedge is the exception: it commits on cross-out.)
   let hovered = null, activeSeg = null, peeking = false, done = false, pressed = false;
+  let pendingGrab = null;   // { seg, x, y }: a press on a `grab` wedge, awaiting drag-vs-click
+  const GRAB_THRESH = 4;    // px of movement that turns a press into a button-held drag
   let lastCtx = { x: cx, y: cy, cx, cy, outerR };
   const setHover = (dir) => {
     if (hovered && wedgeEls.get(hovered)) wedgeEls.get(hovered).classList.remove('hover');
@@ -144,6 +150,11 @@ export function openPieMenu({ x, y, segments = [], onClose, innerR = 11, outerR 
   // Run a segment's commit and close the pie. `peeking` is cleared first so close won't
   // tear the peek down — the commit owns the lasting state.
   const commitSeg = (seg) => { done = true; peeking = false; const c = lastCtx; closePieMenu(); if (seg.commit) seg.commit(c); };
+  // Hand a `grab` wedge off to its carried object. `peeking` is cleared first (like a
+  // commit) so closing the pie tears down the hover preview; then the grab creates the
+  // lasting object and carries it — 'down' = dragged out (drop on release), 'up' =
+  // clicked (follows the cursor, drop on the next click).
+  const commitGrab = (seg, mode) => { done = true; peeking = false; const c = lastCtx; closePieMenu(); if (seg.grab) seg.grab(c, mode); };
   // Move the active segment as the pointer roams: end the old peek, then start the new one.
   const enter = (seg) => {
     if (seg === activeSeg) return;
@@ -155,6 +166,15 @@ export function openPieMenu({ x, y, segments = [], onClose, innerR = 11, outerR 
   const onMove = (e) => {
     if (done) return;
     const { dist, dir } = zoneOf(e.clientX, e.clientY);
+    // A pressed `grab` wedge: once the pointer travels past the threshold it becomes a
+    // button-held drag — carry the object out now (dropped on release). Until then the
+    // hover preview stays put, so a still press waits to see drag-vs-click.
+    if (pendingGrab) {
+      if (Math.hypot(e.clientX - pendingGrab.x, e.clientY - pendingGrab.y) > GRAB_THRESH) {
+        const seg = pendingGrab.seg; pendingGrab = null; commitGrab(seg, 'down');
+      }
+      return;
+    }
     // A `capture` peek (the pull-a-cable wedge) owns the interaction once entered: its
     // preview follows the cursor across the whole ring; back to the CENTRE cancels it,
     // and crossing the outer edge in ANY direction commits it (starts the real cord).
@@ -182,12 +202,18 @@ export function openPieMenu({ x, y, segments = [], onClose, innerR = 11, outerR 
     e.preventDefault(); e.stopPropagation();
     if (e.button === 2) { closePieMenu(); return; }   // a fresh right-click cancels
     pressed = true;
+    const { dist, dir } = zoneOf(e.clientX, e.clientY);
+    const seg = (dist >= innerR && dist <= outerR && byDir.has(dir)) ? byDir.get(dir) : null;
+    if (seg && seg.grab) pendingGrab = { seg, x: e.clientX, y: e.clientY };   // await drag-vs-click
   };
   // A click ON a command wedge runs it and closes. A click anywhere else — the dead
   // zone, an empty wedge, or outside the ring — dismisses the pie (it stays up on mere
   // pointer movement). `pressed` guards the opening click's release.
   const onUp = (e) => {
     if (done) return;
+    // A press on a `grab` wedge released without dragging is a CLICK: carry the object
+    // following the cursor (dropped on the next click).
+    if (pendingGrab) { const seg = pendingGrab.seg; pendingGrab = null; commitGrab(seg, 'up'); return; }
     const { dist, dir } = zoneOf(e.clientX, e.clientY);
     const seg = (dist >= innerR && dist <= outerR && byDir.has(dir)) ? byDir.get(dir) : null;
     if (seg && seg.commit) { commitSeg(seg); return; }
