@@ -81,3 +81,9 @@ loading patches as files on your computer relies on the browser's File System Ac
 feature, which today is available only in Chrome and Edge, so use one of those if you
 want to keep your patches. Everything else works the same in every browser; you just
 can't save to disk yet in Firefox or Safari.
+
+**Important — disable page-recolouring extensions.** If you use a browser add-on that
+changes how pages look — Dark Reader, or any dark-mode or colour-adjusting extension —
+turn it off for wCoast. The app has its own light and dark modes, and these extensions
+distort the panel graphics and lettering. If the panels ever look wrong, an extension
+like this is the most likely cause.

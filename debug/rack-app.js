@@ -477,7 +477,7 @@ function maybeShowIntro() {
   const overlay = document.createElement('div'); overlay.className = 'confirm-overlay';
   const box = document.createElement('div'); box.className = 'confirm-box';
   const msg = document.createElement('div'); msg.className = 'confirm-msg';
-  msg.innerHTML = 'Welcome to wCoast.<br><br>Right-click any panel to open its menu, then choose “Help” for the quick guide, README, and getting-started notes.<br><br>Click a jack to start dragging a cable and make a connection, or right-click a jack for its Scope, Listen, and Upstream options.';
+  msg.innerHTML = 'Welcome to wCoast.<br><br>Right-click any panel to open its menu, then choose “Help” for the quick guide, README, and getting-started notes.<br><br>Click a jack to start dragging a cable and make a connection, or right-click a jack for its Scope, Listen, and Upstream options.<br><br><b>Important: Please turn off any browser extension that changes how pages look — such as Dark Reader or other dark-mode or colour-adjusting add-ons — for this site. wCoast has its own light and dark modes, and those extensions distort its panels.</b>';
   const linkRow = document.createElement('div'); linkRow.style.marginTop = '10px';
   const link = document.createElement('a');
   link.textContent = 'Read the README'; link.href = README_URL; link.style.color = 'var(--accent)';
