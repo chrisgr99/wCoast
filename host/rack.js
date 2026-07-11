@@ -456,8 +456,9 @@ export class Rack {
     // subnet itself is recomputed live so it tracks patch edits (a new feeding cord
     // joins at once; a removed one leaves). Rebuild the enlarged jacks only on a change.
     if (this._isolateOrigin) {
-      const up = this._upstreamOf(this._isolateOrigin.key, this._isolateOrigin.portId);
-      if (!this._sameSet(up.edges, this._isolateNet)) { this._isolateNet = up.edges; this._isolateSections = up.sections; this._buildIsolateSwells(); this._buildControlHalos(); }
+      const o = this._isolateOrigin;
+      const net = o.dir === 'down' ? this._downstreamOf(o.key, o.portId) : this._upstreamOf(o.key, o.portId);
+      if (!this._sameSet(net.edges, this._isolateNet)) { this._isolateNet = net.edges; this._isolateSections = net.sections; this._buildIsolateSwells(); this._buildControlHalos(); }
     }
     this._netEdges = (!this._isolateNet && this._netOrigin) ? this._computeNet(this._netOrigin) : null;   // recompute so it tracks patch edits
     const s = this.pxPerMm;
@@ -1225,13 +1226,16 @@ export class Rack {
   // the rest of the patch stays visible but DIMMED (and dash-less). The subnet tracks
   // the patch live (add/remove a feeding cord and it joins/leaves at once). Persistent;
   // ends on Escape or a left click on empty faceplate.
-  _isolateSubnet(key, portId) {
+  // Isolate a terminal's subnet in one direction: 'up' = what FEEDS it (upstream), 'down' =
+  // what it DRIVES (downstream). The direction is remembered on _isolateOrigin so the live
+  // recompute in _drawCables walks the same way as the patch changes.
+  _isolateSubnet(key, portId, dir = 'up') {
     this._exitIsolate();
-    const up = this._upstreamOf(key, portId);
-    if (!up.edges.size) return;   // nothing feeds this terminal — nothing to isolate
-    this._isolateOrigin = { key, portId };
-    this._isolateNet = up.edges;
-    this._isolateSections = up.sections;
+    const net = dir === 'down' ? this._downstreamOf(key, portId) : this._upstreamOf(key, portId);
+    if (!net.edges.size) return;   // nothing in that direction — nothing to isolate
+    this._isolateOrigin = { key, portId, dir };
+    this._isolateNet = net.edges;
+    this._isolateSections = net.sections;
     this._isolateOffsets = new Map();     // edge id -> its own accumulated dash offset
     this._buildIsolateSwells();
     this._buildControlHalos();
@@ -1245,7 +1249,9 @@ export class Rack {
     this._clearIsolateSwells();
     this._isolateJackByTag = new Map();   // jack tag -> swell record (for the per-cable dash source level)
     const seen = new Set();
-    const swell = (k, p) => { const tag = k + '|' + p; if (!seen.has(tag)) { seen.add(tag); this._swellJack(k, p); } };
+    // Downstream: the mixer is the sink — light the cord reaching it but don't swell its jack.
+    const skipSink = !!(this._isolateOrigin && this._isolateOrigin.dir === 'down');
+    const swell = (k, p) => { if (skipSink && this._isSink(k)) return; const tag = k + '|' + p; if (!seen.has(tag)) { seen.add(tag); this._swellJack(k, p); } };
     if (this._isolateOrigin) swell(this._isolateOrigin.key, this._isolateOrigin.portId);   // always the clicked port
     for (const e of this.patchbay.list()) {
       if (!this._isolateNet.has(e.id)) continue;
@@ -1265,9 +1271,9 @@ export class Rack {
     this._isolateSwells = [];
   }
 
-  // While isolating, ring every control whose SECTION affects the terminal with a cyan
-  // halo, and dim the rest — so the user can focus on just the relevant knobs/switches.
-  // Per-section: on a quad, only the feeding channel's controls light up, not the module.
+  // While isolating, DIM every control whose section doesn't affect the terminal, leaving the
+  // relevant ones at normal opacity — the focus comes from the fade alone, no ring around
+  // knobs. Per-section: on a quad, only the feeding channel's controls stay lit, not the module.
   _buildControlHalos() {
     this._clearControlHalos();
     if (!this._isolateSections) return;
@@ -1278,12 +1284,10 @@ export class Rack {
         const inNet = this._isolateSections.has(this._controlSectionKey(rec, b));
         // A control that only shapes ONE input (a CV/FM attenuator, phase lock) is inert
         // when that input is unpatched — dim it too, so only controls that can actually
-        // affect the terminal light up.
+        // affect the terminal stay lit.
         const gate = inNet ? this._controlGatePort(rec, b) : null;
-        if (inNet && !(gate && !this._portOccupied(rec.key, gate))) {
-          const halo = this._makeControlHalo(b);
-          if (halo) this._controlHalos.push({ halo });
-        } else {
+        const lit = inNet && !(gate && !this._portOccupied(rec.key, gate));
+        if (!lit) {
           this._controlHalos.push({ dimEl: b.group, prev: b.group.style.opacity });
           b.group.style.opacity = '0.46';   // dimmed, but not too faint (fade reduced ~25%)
         }
@@ -1307,32 +1311,9 @@ export class Rack {
   _clearControlHalos() {
     if (!this._controlHalos) return;
     for (const h of this._controlHalos) {
-      if (h.halo) h.halo.remove();
       if (h.dimEl) h.dimEl.style.opacity = h.prev || '';
     }
     this._controlHalos = null;
-  }
-  // A cyan ring hugging one control's bounds (in the panel's mm space, so it scales with
-  // zoom). rx = half the short side, so a knob/button reads as a circle and a fader as a
-  // stadium. Inserted as the control's first child to share its coordinate system.
-  _makeControlHalo(b) {
-    let bb; try { bb = b.group.getBBox(); } catch (_e) { return null; }
-    if (!bb || !bb.width || !bb.height) return null;
-    const pad = 0.9;
-    const x = bb.x - pad, y = bb.y - pad, w = bb.width + 2 * pad, h = bb.height + 2 * pad;
-    const rect = document.createElementNS(SVG_NS, 'rect');
-    rect.setAttribute('class', 'control-halo');
-    rect.setAttribute('x', r2(x)); rect.setAttribute('y', r2(y));
-    rect.setAttribute('width', r2(w)); rect.setAttribute('height', r2(h));
-    const rr = r2(Math.min(w, h) / 2);
-    rect.setAttribute('rx', rr); rect.setAttribute('ry', rr);
-    rect.setAttribute('fill', 'none');
-    rect.setAttribute('stroke', '#2ad4e6');
-    rect.setAttribute('stroke-width', '0.7');
-    rect.setAttribute('opacity', '0.9');
-    rect.setAttribute('pointer-events', 'none');
-    b.group.insertBefore(rect, b.group.firstChild);
-    return rect;
   }
 
   _sameSet(a, b) {
@@ -1372,6 +1353,49 @@ export class Rack {
         result.add(e.id);
         const srcS = this._sectionKey(e.src.key, e.src.portId);
         if (!visited.has(srcS)) toExpand.push(srcS);
+      }
+    }
+    return { edges: result, sections: visited };
+  }
+
+  // The master sink — the pinned mixer module, the end of every downstream chain.
+  _isSink(key) { const rec = this.records.get(key); return !!(rec && rec.pinned); }
+
+  // The mirror of _upstreamOf: the set of edge ids this port transitively DRIVES (its
+  // downstream fan-out). The clicked port is precise — for an output, only the cords out of
+  // THAT port seed it; an input drives its whole module. From there, downstream is followed
+  // per module/channel section (a module is a black box: all its inputs drive all its
+  // outputs). Returns { edges, sections } — the driven cords AND the sections the signal
+  // flows through.
+  _downstreamOf(key, portId) {
+    const edges = this.patchbay.list();
+    const result = new Set();
+    const toExpand = [];        // sections whose output cords we still need to gather
+    const visited = new Set();  // sections already expanded
+    const ep = this._ep(key, portId);
+    // The mixer is the master SINK: a cord reaching it is the last link, so light that cord
+    // but never expand INTO the mixer (its jacks/controls stay un-highlighted).
+    const isSink = (k) => this._isSink(k);
+    if (ep && ep.meta.dir === 'in') {
+      if (!isSink(key)) toExpand.push(this._sectionKey(key, portId));   // an input drives its module's outputs
+    } else {
+      for (const e of edges) {                          // an output: only the cords out of this exact port
+        if (e.src.key === key && e.src.portId === portId) {
+          result.add(e.id);
+          if (!isSink(e.dst.key)) toExpand.push(this._sectionKey(e.dst.key, e.dst.portId));
+        }
+      }
+    }
+    while (toExpand.length) {
+      const S = toExpand.pop();
+      if (visited.has(S)) continue;
+      visited.add(S);
+      for (const e of edges) {
+        if (this._sectionKey(e.src.key, e.src.portId) !== S) continue;   // cords OUT of section S
+        result.add(e.id);
+        if (isSink(e.dst.key)) continue;                                  // stop at the mixer
+        const dstS = this._sectionKey(e.dst.key, e.dst.portId);
+        if (!visited.has(dstS)) toExpand.push(dstS);
       }
     }
     return { edges: result, sections: visited };
@@ -1472,6 +1496,51 @@ export class Rack {
     this._drawCables();
   }
 
+  // "Browse networks" mode: the pointer keeps its arrow but wears the network badge, and
+  // hovering ANY terminal live-shows its subnet — upstream for an input, downstream for an
+  // output. A way to roam the whole patch and read every connection pattern. A click
+  // anywhere (or Escape) cancels the mode.
+  _startBrowseNet() {
+    if (this._browsing) return;
+    this._browsing = true;
+    this._browseTag = null;                 // the terminal currently previewed, so we rebuild only on change
+    const badge = document.createElement('div');   // the net glyph riding just off the arrow tip
+    badge.className = 'net-browse-badge';
+    badge.innerHTML = NET_ICON;
+    document.body.appendChild(badge);
+    this._browseBadge = badge;
+    const onMove = (ev) => {
+      badge.style.left = ev.clientX + 'px';
+      badge.style.top = ev.clientY + 'px';
+      const j = this._jackNear(ev.clientX, ev.clientY);
+      const tag = j ? j.key + '|' + j.portId : null;
+      if (tag === this._browseTag) return;   // same terminal (or still empty space): nothing to redo
+      this._browseTag = tag;
+      if (!j) { this._exitIsolate(); return; }
+      const ep = this._ep(j.key, j.portId);
+      const dir = (ep && ep.meta.dir === 'out') ? 'down' : 'up';   // outputs look forward, inputs back
+      this._isolateSubnet(j.key, j.portId, dir);   // clears any previous; blank if nothing that way
+    };
+    const onDown = (ev) => { ev.preventDefault(); ev.stopPropagation(); this._stopBrowseNet(); };   // any click cancels
+    const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); this._stopBrowseNet(); } };
+    this._browseMove = onMove; this._browseDown = onDown; this._browseKey = onKey;
+    document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('keydown', onKey, true);
+  }
+
+  _stopBrowseNet() {
+    if (!this._browsing) return;
+    this._browsing = false;
+    document.removeEventListener('pointermove', this._browseMove, true);
+    document.removeEventListener('pointerdown', this._browseDown, true);
+    document.removeEventListener('keydown', this._browseKey, true);
+    this._browseMove = this._browseDown = this._browseKey = null;
+    if (this._browseBadge) { this._browseBadge.remove(); this._browseBadge = null; }
+    this._browseTag = null;
+    this._exitIsolate();
+  }
+
   // The crawl offset (content mm) from one running clock, so the dashes drift
   // continuously even though _drawCables rebuilds the dash paths constantly.
   _flowOffset() {
@@ -1523,6 +1592,14 @@ export class Rack {
     e.preventDefault(); e.stopPropagation();
     const ox = e.clientX, oy = e.clientY;
     let tempScope = null, tempMon = null;
+    // The subnet item follows the signal's natural direction for this terminal: an OUTPUT looks
+    // forward ("Show downstream"), an INPUT looks back ("Show upstream"). It's greyed when there's
+    // nothing to show (an unconnected terminal, or one with no cords in that direction).
+    const ep = this._ep(key, portId);
+    const isOut = !!ep && ep.meta.dir === 'out';
+    const netDir = isOut ? 'down' : 'up';
+    const netLabel = isOut ? 'Show downstream' : 'Show upstream';
+    const hasNet = (isOut ? this._downstreamOf(key, portId) : this._upstreamOf(key, portId)).edges.size > 0;
     this._openMenu(ox, oy, [
       {
         label: 'Scope', icon: SCOPE_ICON,
@@ -1551,11 +1628,15 @@ export class Rack {
         action: (ev) => this._carryMonitor(this._createMonitor(key, portId, ev.clientX, ev.clientY), { clientX: ev.clientX, clientY: ev.clientY }, 'up'),
       },
       {
-        label: 'Upstream', icon: NET_ICON,
-        onDwell: () => this._isolateSubnet(key, portId),
+        label: netLabel, icon: NET_ICON, disabled: !hasNet,
+        onDwell: () => this._isolateSubnet(key, portId, netDir),
         onLeave: () => this._exitIsolate(),
         latch: true,                                    // a click keeps the highlight past the menu close
-        action: () => this._isolateSubnet(key, portId),
+        action: () => this._isolateSubnet(key, portId, netDir),
+      },
+      {
+        label: 'Browse networks', icon: NET_ICON,       // roam the patch: hover any terminal to see its subnet
+        action: () => this._startBrowseNet(),
       },
     ]);
   }

@@ -138,6 +138,9 @@
     .rack-menu-item { display: flex; align-items: center; }
     .rack-menu-icon { flex: none; width: 15px; height: 15px; margin-right: 7px; line-height: 0; color: inherit; }
     .rack-menu-icon svg { width: 15px; height: 15px; display: block; fill: currentColor; }
+    /* "Browse networks" cursor badge: the net glyph riding just off the arrow tip. */
+    .net-browse-badge { position: fixed; left: 0; top: 0; width: 18px; height: 18px; transform: translate(12px, 9px); color: #2ad4e6; pointer-events: none; z-index: 4000; filter: drop-shadow(0 0 1.6px rgba(0,0,0,0.9)); }
+    .net-browse-badge svg { width: 18px; height: 18px; display: block; }
     .rack-menu-arrow { margin-left: auto; padding-left: 16px; color: var(--ink-dim); }
     .rack-menu-item:hover .rack-menu-arrow { color: var(--accent-ink); }
     .rack-menu-item.disabled { color: var(--ink-dim); opacity: 0.55; cursor: default; }
