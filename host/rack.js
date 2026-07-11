@@ -21,19 +21,17 @@
 
 import { loadPanel, showValue, attachControlInteraction, FACE_H_MM, FACE_TOP_MM, FACE_LEFT_MM } from './panel-loader.js';
 import { Patchbay } from './patchbay.js';
-import { openPieMenu, closePieMenu } from './pie-menu.js';
 
 const PANEL_H_MM = FACE_H_MM;   // modules display only the cropped functional face
 const ROW_GAP_MM = 0;           // vertical gap between rows (0 = flush, faceplates touch)
 const GAP_MM = 4;               // horizontal margin at the right of the case, in mm
 const SVG_NS = 'http://www.w3.org/2000/svg';
-// Pie-wedge icons (match the toolbar buttons where there is one).
+// Terminal-menu icons (shown left of the Scope / Listen / Upstream labels).
 const SCOPE_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.2" stroke-width="1.7"/><path d="M5 12 Q7 8 9 12 T13 12 T17 12 L19 12" stroke-width="1.9"/></g></svg>';
+const NET_ICON = '<svg viewBox="0 0 24 24"><g stroke="currentColor" stroke-linecap="round"><line x1="12" y1="12" x2="20" y2="4.5" stroke-width="2.1"/><line x1="12" y1="12" x2="18.5" y2="21" stroke-width="2.1"/><circle cx="20" cy="4.5" r="3.2" fill="currentColor" stroke="none"/><circle cx="18.5" cy="21" r="3.2" fill="currentColor" stroke="none"/><line x1="3.5" y1="6" x2="12" y2="12" stroke-width="2.9"/><circle cx="3.5" cy="6" r="3.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="3.7" fill="currentColor" stroke="none"/></g></svg>';
 // Help links open the repo docs in the user's browser (see _openExternal).
 const DOCS_README_URL = 'https://github.com/chrisgr99/wCoast/blob/main/README.md';
 const DOCS_GETTING_STARTED_URL = 'https://github.com/chrisgr99/wCoast/blob/main/docs/getting-started.md';
-// "What feeds this" (upstream network) icon — a small node graph.
-const NET_ICON = '<svg viewBox="0 0 24 24"><g stroke="currentColor" stroke-linecap="round"><line x1="12" y1="12" x2="20" y2="4.5" stroke-width="2.1"/><line x1="12" y1="12" x2="18.5" y2="21" stroke-width="2.1"/><circle cx="20" cy="4.5" r="3.2" fill="currentColor" stroke="none"/><circle cx="18.5" cy="21" r="3.2" fill="currentColor" stroke="none"/><line x1="3.5" y1="6" x2="12" y2="12" stroke-width="2.9"/><circle cx="3.5" cy="6" r="3.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="3.7" fill="currentColor" stroke="none"/></g></svg>';
 const EAR_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">'
   + '<g stroke-width="2"><path d="M10 21c-1.2-1.6-2-3.2-2-5.9A6 6 0 0 1 20 15c0 2.5-1.8 3.6-3.5 3.6-1.4 0-2 .9-2 2 0 1.4-1 2.5-2.4 2.5-1.1 0-2.1-.9-2.1-2.1"/>'
   + '<path d="M11.4 14A2.6 2.6 0 0 1 16.2 14.4c0 1.6-1.5 2.1-1.5 3.5"/></g>'
@@ -1391,64 +1389,51 @@ export class Rack {
   // menu, vertically centred on the pointer, so the middle of its left edge sits as
   // close to the pointer as it can without the menu obscuring it. Flips to the left if
   // there's no room on the right; clamped to stay on-screen. (px,py) = pie centre.
-  // A click on a terminal → the terminal pie (scope NE, listen SE). Hovering the SCOPE
-  // wedge pops a live preview scope over the pie, its centre-left edge under the pointer;
-  // hovering LISTEN just plays the tapped signal (no circle) — both are removed when the
-  // menu closes. To KEEP one, grab it off the wedge: PRESS and drag carries it with the
-  // button held (dropped on release), a CLICK carries it following the cursor (dropped on
-  // the next click). Either way it hangs by its centre-left edge, down-and-right of the
-  // pointer, and auto-levels/positions exactly like its preview.
+  // Right-click a terminal → a plain menu: Scope, Listen, Upstream. It's an "active" menu:
+  // stopping the pointer on an item shows that item's PREVIEW (a live scope beside the pointer;
+  // the tapped signal played through a hidden auto-levelled monitor; the upstream subnet
+  // highlighted), torn down when you move off. Clicking an item does what the old pie wedge did:
+  // Scope/Listen carry a real one that follows the cursor and drops on the next click; Upstream
+  // latches the highlight (it survives the menu close). (Left-click still pulls a cable.)
   _onJackContextMenu(e, key, portId) {
     e.preventDefault(); e.stopPropagation();
     const ox = e.clientX, oy = e.clientY;
     let tempScope = null, tempMon = null;
-    openPieMenu({
-      x: ox, y: oy,
-      onClose: () => {   // temporary views never outlive the menu
-        if (tempScope) { this._closeScope(tempScope); tempScope = null; }
-        if (tempMon) { this._closeMonitor(tempMon); tempMon = null; }
+    this._openMenu(ox, oy, [
+      {
+        label: 'Scope', icon: SCOPE_ICON,
+        onDwell: () => {
+          if (tempScope) return;
+          const a = this._dwellAnchor || { x: ox, y: oy };
+          tempScope = this._createScope(key, portId, a.x, a.y, false);
+          tempScope.el.style.zIndex = 3100;             // over the menu
+          tempScope.el.style.pointerEvents = 'none';    // a visual preview; the menu owns the pointer
+          const h = tempScope.el.offsetHeight || 80;
+          tempScope.el.style.left = Math.round(a.x + 3 * (this.pxPerMm || 1)) + 'px';   // 3mm right of the pointer
+          tempScope.el.style.top = Math.round(a.y - h / 2) + 'px';                       // vertically centred on it
+        },
+        onLeave: () => { if (tempScope) { this._closeScope(tempScope); tempScope = null; } },
+        action: (ev) => this._carryScope(this._createScope(key, portId, ev.clientX, ev.clientY), { clientX: ev.clientX, clientY: ev.clientY }, 'up'),
       },
-      segments: [
-        {
-          // Hover: a live preview scope OVER the pie, centre-left edge at the pointer
-          // (pointer-events off so the press still reaches the pie). Grab: carry a
-          // permanent one from the same spot.
-          dir: 'NE', icon: SCOPE_ICON, label: 'scope',
-          onPeekStart: (ctx) => {
-            if (tempScope) return;
-            tempScope = this._createScope(key, portId, ctx.x, ctx.y, false);
-            tempScope.el.style.zIndex = 3100;             // above the pie overlay (z 3000)
-            tempScope.el.style.pointerEvents = 'none';    // a visual preview; the pie owns the pointer
-            const h = tempScope.el.offsetHeight || 80;
-            tempScope.el.style.left = Math.round(ctx.x + 3 * (this.pxPerMm || 1)) + 'px';   // 3mm right so it doesn't cover the pointer (snaps under it on grab)
-            tempScope.el.style.top = Math.round(ctx.y - h / 2) + 'px';                       // vertically centred on the pointer
-          },
-          onPeekEnd: () => { if (tempScope) { this._closeScope(tempScope); tempScope = null; } },
-          grab: (ctx, mode) => this._carryScope(this._createScope(key, portId, ctx.x, ctx.y), { clientX: ctx.x, clientY: ctx.y }, mode),
+      {
+        label: 'Listen', icon: EAR_ICON,
+        onDwell: () => {
+          if (tempMon) return;
+          tempMon = this._createMonitor(key, portId, ox, oy, false);   // audio only
+          tempMon.el.style.display = 'none';                          // heard, not seen
+          this._autoLevelMonitor(tempMon);
         },
-        {
-          // Hover: play the tapped signal with NO circle (a hidden, auto-levelled monitor).
-          // Grab: carry a permanent, visible one from the pointer.
-          dir: 'S', icon: EAR_ICON, label: 'listen',
-          onPeekStart: () => {
-            if (tempMon) return;
-            tempMon = this._createMonitor(key, portId, ox, oy, false);   // audio only
-            tempMon.el.style.display = 'none';                          // heard, not seen
-            this._autoLevelMonitor(tempMon);                            // the preview auto-levels too
-          },
-          onPeekEnd: () => { if (tempMon) { this._closeMonitor(tempMon); tempMon = null; } },
-          grab: (ctx, mode) => this._carryMonitor(this._createMonitor(key, portId, ctx.x, ctx.y), { clientX: ctx.x, clientY: ctx.y }, mode),
-        },
-        // What feeds this (top): hover shows the upstream subnet momentarily; a click
-        // latches it (peeking is cleared on commit so it isn't torn down).
-        { dir: 'N', icon: NET_ICON, label: 'what feeds this',
-          onPeekStart: () => this._isolateSubnet(key, portId),
-          onPeekEnd: () => this._exitIsolate(),
-          commit: () => {} },
-        // (Pulling a cable is now a plain LEFT click/drag on the terminal — see
-        // _onJackPointerDown — so it's no longer a pie wedge.)
-      ],
-    });
+        onLeave: () => { if (tempMon) { this._closeMonitor(tempMon); tempMon = null; } },
+        action: (ev) => this._carryMonitor(this._createMonitor(key, portId, ev.clientX, ev.clientY), { clientX: ev.clientX, clientY: ev.clientY }, 'up'),
+      },
+      {
+        label: 'Upstream', icon: NET_ICON,
+        onDwell: () => this._isolateSubnet(key, portId),
+        onLeave: () => this._exitIsolate(),
+        latch: true,                                    // a click keeps the highlight past the menu close
+        action: () => this._isolateSubnet(key, portId),
+      },
+    ]);
   }
 
   // The audio node + output index to tap for a port: an output taps itself; an
@@ -2648,6 +2633,7 @@ export class Rack {
       const item = document.createElement('div');
       item.className = 'rack-menu-item' + (it.dim ? ' dim' : '');
       const isOn = it.checkFn ? it.checkFn() : !!it.checked;
+      if (it.icon) { const ic = document.createElement('span'); ic.className = 'rack-menu-icon'; ic.innerHTML = it.icon; item.appendChild(ic); }   // left of the label
       const lbl = document.createElement('span');
       lbl.textContent = it.label;
       item.appendChild(lbl);
@@ -2666,18 +2652,22 @@ export class Rack {
         const arrow = document.createElement('span');
         arrow.className = 'rack-menu-arrow'; arrow.textContent = '›';
         item.appendChild(arrow);
-        item.addEventListener('mouseenter', (e) => this._hoverMainItem(item, () => this._openSubmenu(item, it.submenu), e));
+        item.addEventListener('mouseenter', (e) => this._hoverMainItem(item, () => this._openSubmenu(item, it.submenu), null, e));
         item.addEventListener('mouseleave', () => this._leaveMainItem(item));
         item.addEventListener('click', (e) => { e.stopPropagation(); this._openSubmenu(item, it.submenu); });
       } else if (it.disabled) {
         item.classList.add('disabled');
-        item.addEventListener('mouseenter', (e) => this._hoverMainItem(item, () => this._closeSubs(), e));
+        item.addEventListener('mouseenter', (e) => this._hoverMainItem(item, () => this._closeSubs(), null, e));
         item.addEventListener('mouseleave', () => this._leaveMainItem(item));
       } else {
-        // A selection closes the menu, then runs — one pick is the common case.
-        item.addEventListener('click', () => { this._closeMenu(); it.action(); });
-        item.addEventListener('mouseenter', (e) => this._hoverMainItem(item, () => this._closeSubs(), e));
+        // A leaf. A preview item (onDwell/onLeave) shows its preview once the pointer settles on
+        // it and tears it down on leave/close; a plain item just dismisses any open submenu. A
+        // click closes the menu and runs the action; `latch` keeps the preview alive past the
+        // close (the upstream highlight).
+        const onDwell = it.onDwell ? () => { this._closeSubs(); it.onDwell(); } : () => this._closeSubs();
+        item.addEventListener('mouseenter', (e) => this._hoverMainItem(item, onDwell, it.onLeave || null, e));
         item.addEventListener('mouseleave', () => this._leaveMainItem(item));
+        item.addEventListener('click', (e) => { if (it.latch) this._peekLatched = true; this._closeMenu(); if (it.action) it.action(e); });
       }
       (group || menu).appendChild(item);
       // The first connected row is the focus: the menu opens with it under the
@@ -2718,21 +2708,26 @@ export class Rack {
 
   _closeMenu() {
     this._closeSubs();
+    if (this._hoverLeave && !this._peekLatched) this._hoverLeave();   // tear down a live preview (unless a click latched it)
     if (this._menuMoveHandler) { document.removeEventListener('pointermove', this._menuMoveHandler, true); this._menuMoveHandler = null; }
     clearTimeout(this._menuDwellTimer); this._menuDwellTimer = null;
-    this._hoverItem = null; this._hoverSwitch = null; this._dwellAnchor = null;
+    this._hoverItem = null; this._hoverSwitch = null; this._hoverLeave = null; this._dwellAnchor = null; this._peekLatched = false;
     if (this._menuEl) { this._menuEl.remove(); this._menuEl = null; }
   }
 
   // The pointer is over a top-level item: remember it and its action (open its submenu, or
   // close the open one), anchor the dwell at the entry point, and start the countdown — it
   // activates only if the pointer then stays essentially still for DWELL_MS.
-  _hoverMainItem(item, doSwitch, ev) {
-    this._hoverItem = item; this._hoverSwitch = doSwitch;
+  _hoverMainItem(item, doSwitch, onLeave, ev) {
+    this._hoverItem = item; this._hoverSwitch = doSwitch; this._hoverLeave = onLeave;
     if (ev) this._dwellAnchor = { x: ev.clientX, y: ev.clientY };
     this._armDwell();
   }
-  _leaveMainItem(item) { if (this._hoverItem === item) { this._hoverItem = null; this._hoverSwitch = null; } }
+  _leaveMainItem(item) {
+    if (this._hoverItem !== item) return;
+    if (this._hoverLeave) this._hoverLeave();   // tear down the item's preview, if any
+    this._hoverItem = null; this._hoverSwitch = null; this._hoverLeave = null;
+  }
   // (Re)start the "pointer has stopped" countdown; when it elapses the hovered item activates.
   _armDwell() {
     const DWELL_MS = 200;
@@ -2753,6 +2748,20 @@ export class Rack {
       { label: 'Getting Started', action: () => this._openExternal(DOCS_GETTING_STARTED_URL) },
       { label: 'Reference — coming soon', disabled: true },
     ];
+  }
+  // The Engine menu item's glyph: the same reddish push-button as the mixer's master lamp
+  // (and the old panel-pie sound wedge). A flat medium-gray disc when the engine is OFF; the
+  // red `ledLit` dome plus its glossy highlight when ON — so the button reads as PRESSED while
+  // sound is running. Self-contained (its own gradient) so it drops straight into a menu icon.
+  engineButtonIcon(on) {
+    const led = on
+      ? '<defs><radialGradient id="engLed" cx="42%" cy="38%" r="65%">'
+        + '<stop offset="0" stop-color="#ff7a5a"/><stop offset="0.5" stop-color="#ee2a10"/>'
+        + '<stop offset="0.82" stop-color="#d21010"/><stop offset="1" stop-color="#8f0c0c"/></radialGradient></defs>'
+        + '<circle cx="12" cy="12" r="8.6" fill="url(#engLed)" stroke="#3a0808" stroke-width="0.7"/>'
+        + '<ellipse cx="10.4" cy="8.6" rx="3.4" ry="2.1" fill="#ffb4b4" opacity="0.85"/>'
+      : '<circle cx="12" cy="12" r="8.6" fill="#505055" stroke="#77777c" stroke-width="1.1"/>';
+    return '<svg viewBox="0 0 24 24">' + led + '</svg>';
   }
   // Open a URL in the user's default browser: the Electron bridge if present, else a new
   // browser tab.

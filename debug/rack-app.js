@@ -392,8 +392,13 @@ async function boot() {
       } },
     ];
     rack.openMenu(x, y, [
-      // Engine (self-describing: the label is the action it performs) sits at the very top.
-      { label: started ? 'Stop Engine' : 'Start Engine', action: () => setSound(!started) },
+      // Engine sits at the very top. Its push-button glyph shows PRESSED while sound runs, so
+      // the label stays just "Engine". Dwelling the item momentarily enables sound (like the
+      // Listen peek) and restores the latched state on leave — a no-op when already running.
+      { label: 'Engine', icon: rack.engineButtonIcon(started),
+        onDwell: () => rack.soundPeek(true),
+        onLeave: () => rack.soundPeek(rack.isPlaying()),
+        action: () => setSound(!started) },
       { label: 'File', submenu: file },
       { label: 'Edit', submenu: edit },
       { label: 'View', submenu: view },
