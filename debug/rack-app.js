@@ -383,17 +383,20 @@ async function boot() {
       { label: 'Redo', disabled: !rack.canRedo(), action: () => rack.redo() },
       { label: 'Clear connections & controls…', action: () => rack.confirmDeleteAllCables() },
     ];
-    rack.openMenu(x, y, [
-      { label: 'File', submenu: file },
-      { label: 'Edit', submenu: edit },
-      // Engine: the audio transport on/off (the old play/sound toggle), checked while running.
-      { label: 'Engine', checkFn: () => started, action: () => setSound(!started) },
-      // Dark mode: promoted here from the old View submenu.
-      { label: 'Dark mode', checkFn: () => rack.isDark(), action: () => {
+    // View (Dark/Light mode is self-describing: the label names the mode it switches to).
+    const view = [
+      { label: rack.isDark() ? 'Light mode' : 'Dark mode', action: () => {
         const d = !rack.isDark();
         rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
         try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
       } },
+    ];
+    rack.openMenu(x, y, [
+      // Engine (self-describing: the label is the action it performs) sits at the very top.
+      { label: started ? 'Stop Engine' : 'Start Engine', action: () => setSound(!started) },
+      { label: 'File', submenu: file },
+      { label: 'Edit', submenu: edit },
+      { label: 'View', submenu: view },
       { label: 'Help', submenu: rack.helpMenuItems() },
     ]);
   };
