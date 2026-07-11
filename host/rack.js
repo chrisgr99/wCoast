@@ -2029,9 +2029,9 @@ export class Rack {
     };
     const onUp = (e2) => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
+      if (!moved) { sc.dot.style.pointerEvents = ''; this._closeScope(sc); return; }   // a click on the X-dot closes the scope
+      const drop = this._jackFromPoint(e2.clientX, e2.clientY);   // hit-test while the dot is still pe:none, so it finds the jack, not the dot
       sc.dot.style.pointerEvents = '';
-      if (!moved) { this._closeScope(sc); return; }   // a click on the X-dot closes the scope
-      const drop = this._jackFromPoint(e2.clientX, e2.clientY);
       if (!drop) { this._closeScope(sc); return; }   // loop dropped on the panel → delete it (like a cable pulled off a terminal)
       this._scopeTapDisconnect(sc); sc.hi = sc.lo = null; sc.hist.fill(null);
       sc.key = drop.key; sc.portId = drop.portId; this._scopeTapConnect(sc);
@@ -2243,9 +2243,9 @@ export class Rack {
     };
     const onUp = (e2) => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
+      if (!moved) { m.dot.style.pointerEvents = ''; this._closeMonitor(m); return; }   // a click on the X-dot closes the monitor
+      const drop = this._jackFromPoint(e2.clientX, e2.clientY);   // hit-test while the dot is still pe:none, so it finds the jack, not the dot
       m.dot.style.pointerEvents = '';
-      if (!moved) { this._closeMonitor(m); return; }   // a click on the X-dot closes the monitor
-      const drop = this._jackFromPoint(e2.clientX, e2.clientY);
       if (!drop) { this._closeMonitor(m); return; }   // loop dropped on the panel → delete it (like a cable pulled off a terminal)
       this._monTapDisconnect(m);
       m.key = drop.key; m.portId = drop.portId; if (!m.muted) this._monTapConnect(m);
