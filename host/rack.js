@@ -2580,17 +2580,18 @@ export class Rack {
   // labels and optional { checked, dim } for the connect menu's checkmark/dimming.
   _openMenu(x, y, items) {
     this._closeMenu();
-    // Track pointer DIRECTION (a lightly smoothed recent velocity) while the menu is open,
-    // so a diagonal move toward an open submenu doesn't get hijacked by a neighbouring
-    // parent it passes over (see _headingToSubmenu / _enterMainItem).
-    this._menuLast = null; this._menuDir = null;
+    // A main item activates (opens its submenu / closes the open one) only after the pointer
+    // has stayed essentially STILL — within STILL_RADIUS px — for DWELL_MS. Any real drift
+    // restarts the countdown, so while you're moving — down, across, or diagonally toward an
+    // open submenu — no neighbour you pass through activates; the highlight follows, but the
+    // submenu waits until you actually stop. (Both constants are tunable.)
+    this._dwellAnchor = null;
     this._menuMoveHandler = (ev) => {
-      const p = this._menuLast;
-      if (p) {
-        const dx = ev.clientX - p.x, dy = ev.clientY - p.y;
-        if (dx || dy) { const a = 0.5, c = this._menuDir; this._menuDir = c ? { dx: a * dx + (1 - a) * c.dx, dy: a * dy + (1 - a) * c.dy } : { dx, dy }; }
+      const STILL_RADIUS = 4, a = this._dwellAnchor;
+      if (!a || Math.hypot(ev.clientX - a.x, ev.clientY - a.y) > STILL_RADIUS) {
+        this._dwellAnchor = { x: ev.clientX, y: ev.clientY };
+        this._armDwell();                       // real movement → restart the "stayed put" countdown
       }
-      this._menuLast = { x: ev.clientX, y: ev.clientY };
     };
     document.addEventListener('pointermove', this._menuMoveHandler, true);
     const menu = document.createElement('div');
@@ -2665,18 +2666,18 @@ export class Rack {
         const arrow = document.createElement('span');
         arrow.className = 'rack-menu-arrow'; arrow.textContent = '›';
         item.appendChild(arrow);
-        item.addEventListener('mouseenter', () => this._enterMainItem(item, () => this._openSubmenu(item, it.submenu)));
-        item.addEventListener('mouseleave', () => this._clearSubGuard());
-        item.addEventListener('click', (e) => { e.stopPropagation(); this._clearSubGuard(); this._openSubmenu(item, it.submenu); });
+        item.addEventListener('mouseenter', (e) => this._hoverMainItem(item, () => this._openSubmenu(item, it.submenu), e));
+        item.addEventListener('mouseleave', () => this._leaveMainItem(item));
+        item.addEventListener('click', (e) => { e.stopPropagation(); this._openSubmenu(item, it.submenu); });
       } else if (it.disabled) {
         item.classList.add('disabled');
-        item.addEventListener('mouseenter', () => this._enterMainItem(item, () => this._closeSubs()));
-        item.addEventListener('mouseleave', () => this._clearSubGuard());
+        item.addEventListener('mouseenter', (e) => this._hoverMainItem(item, () => this._closeSubs(), e));
+        item.addEventListener('mouseleave', () => this._leaveMainItem(item));
       } else {
         // A selection closes the menu, then runs — one pick is the common case.
         item.addEventListener('click', () => { this._closeMenu(); it.action(); });
-        item.addEventListener('mouseenter', () => this._enterMainItem(item, () => this._closeSubs()));
-        item.addEventListener('mouseleave', () => this._clearSubGuard());
+        item.addEventListener('mouseenter', (e) => this._hoverMainItem(item, () => this._closeSubs(), e));
+        item.addEventListener('mouseleave', () => this._leaveMainItem(item));
       }
       (group || menu).appendChild(item);
       // The first connected row is the focus: the menu opens with it under the
@@ -2717,36 +2718,32 @@ export class Rack {
 
   _closeMenu() {
     this._closeSubs();
-    this._clearSubGuard();
     if (this._menuMoveHandler) { document.removeEventListener('pointermove', this._menuMoveHandler, true); this._menuMoveHandler = null; }
-    this._menuDir = null; this._menuLast = null;
+    clearTimeout(this._menuDwellTimer); this._menuDwellTimer = null;
+    this._hoverItem = null; this._hoverSwitch = null; this._dwellAnchor = null;
     if (this._menuEl) { this._menuEl.remove(); this._menuEl = null; }
   }
 
-  // Entering a top-level menu item: normally switch (open its submenu, or close the open
-  // one). But if a submenu is showing and the pointer is cutting DIAGONALLY toward it (see
-  // _headingToSubmenu), hold the current submenu — a neighbour merely passed over on the
-  // way doesn't steal it. A short fallback timer still lets a lingering pointer switch, so
-  // parking on the neighbour selects it.
-  _enterMainItem(item, doSwitch) {
-    this._clearSubGuard();
-    if (item === this._subParent) return;             // its submenu is already open
-    if (this._openSubs.length && this._headingToSubmenu()) {
-      this._subGuardTimer = setTimeout(() => { this._subGuardTimer = null; if (item.isConnected) doSwitch(); }, 260);
-      return;
-    }
-    doSwitch();
+  // The pointer is over a top-level item: remember it and its action (open its submenu, or
+  // close the open one), anchor the dwell at the entry point, and start the countdown — it
+  // activates only if the pointer then stays essentially still for DWELL_MS.
+  _hoverMainItem(item, doSwitch, ev) {
+    this._hoverItem = item; this._hoverSwitch = doSwitch;
+    if (ev) this._dwellAnchor = { x: ev.clientX, y: ev.clientY };
+    this._armDwell();
   }
-  _clearSubGuard() { if (this._subGuardTimer) { clearTimeout(this._subGuardTimer); this._subGuardTimer = null; } }
-  // True when the pointer's recent motion leans sideways toward the open submenu by more
-  // than 30° off vertical (tan 30° ≈ 0.577): a near-vertical move (navigating the list) is
-  // NOT heading to the submenu and switches normally.
-  _headingToSubmenu() {
-    const d = this._menuDir; if (!d) return false;
-    const { dx, dy } = d;
-    if (!dx && !dy) return false;
-    const toward = this._subSide > 0 ? dx > 0 : dx < 0;
-    return toward && Math.abs(dx) > Math.abs(dy) * 0.5774;
+  _leaveMainItem(item) { if (this._hoverItem === item) { this._hoverItem = null; this._hoverSwitch = null; } }
+  // (Re)start the "pointer has stopped" countdown; when it elapses the hovered item activates.
+  _armDwell() {
+    const DWELL_MS = 200;
+    clearTimeout(this._menuDwellTimer);
+    this._menuDwellTimer = setTimeout(() => { this._menuDwellTimer = null; this._maybeSwitch(); }, DWELL_MS);
+  }
+  // Activate the hovered item once the dwell elapses (the pointer stayed still). A neighbour
+  // merely passed through never dwells, so it's never activated.
+  _maybeSwitch() {
+    const item = this._hoverItem, fn = this._hoverSwitch;
+    if (item && fn && item !== this._subParent) fn();
   }
 
   // The Help submenu items (used by the main menu): doc links opened in the browser.
@@ -2798,7 +2795,6 @@ export class Rack {
     let sl = r.right - 2; if (sl + sw > vw - pad) sl = Math.max(pad, r.left - sw + 2);
     let st = r.top; if (st + sh > vh - pad) st = Math.max(pad, vh - pad - sh);
     sub.style.left = sl + 'px'; sub.style.top = st + 'px'; sub.style.visibility = '';
-    this._subParent = item;                    // whose submenu is showing (so re-entering it is a no-op)
-    this._subSide = (sl > r.left) ? 1 : -1;    // +1 submenu on the right, -1 flipped to the left
+    this._subParent = item;   // whose submenu is showing (so re-entering it is a no-op)
   }
 }
