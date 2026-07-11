@@ -198,7 +198,7 @@
       <line x1="130" y1="79.00" x2="130" y2="75.00" stroke="#b8b8bc" stroke-width="0.55"/>
     </g>
   </g>
-  <text x="130" y="110" font-size="2.706" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">259t frequency · calibration scale</text>
+  <text x="130" y="110" font-size="2.706" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">frequency · calibration scale</text>
   <text x="192" y="15.5" font-size="3.106" font-weight="700" font-style="italic" fill="#b8b8bc" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">radio · button · slider</text>
   <g data-wcoast-param="radioMode">
     <line x1="178.00" y1="28.51" x2="190.00" y2="28.51" stroke="#808085" stroke-width="0.3"/>

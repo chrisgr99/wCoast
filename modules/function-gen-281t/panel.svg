@@ -10,7 +10,7 @@
   <g transform="translate(3.9 7.0994)">
   <rect x="0" y="0" width="99" height="113.5912" rx="2.5" fill="#cfcfcf"/>
   <rect x="0.5" y="0.5" width="98" height="112.5912" rx="2.2" fill="none" stroke="#7d7d7d" stroke-width="0.5"/>
-  <text x="49.5" y="5.5" font-size="4.106" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">QUAD FUNCTION GENERATOR 281t</text>
+  <text x="49.5" y="5.5" font-size="4.106" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">QUAD FUNCTION GENERATOR</text>
   <line x1="3" y1="9" x2="96" y2="9" stroke="#7d7d7d" stroke-width="0.355"/>
   <line x1="3" y1="34" x2="83" y2="34" stroke="#7d7d7d" stroke-width="0.355"/>
   <line x1="3" y1="59" x2="96" y2="59" stroke="#7d7d7d" stroke-width="0.355"/>

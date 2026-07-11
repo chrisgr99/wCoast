@@ -26,7 +26,7 @@ const SWITCH_SPAN = 20;
 // functional FACE — the region between the top and bottom frame rails — is
 // displayed; the mounting-rail rim (screw ears and title strip) is cropped so
 // no vertical space is wasted, and modules can be scaled a little larger. These
-// bounds are the shared convention for every module panel (the 259t frame).
+// bounds are the shared convention for every module panel (the Complex Oscillator frame).
 export const FACE_TOP_MM = 7.0994;
 export const FACE_H_MM = 113.5912;
 // This panel's faceplate art is offset +3.9mm from the viewBox origin (an
