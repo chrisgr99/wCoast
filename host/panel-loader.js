@@ -320,7 +320,23 @@ const KNOB_STEP = 0.04;    // position move per normalised notch, pointer at cen
 const KNOB_DRAG = 6;       // velocity decay per second (coast ~ 1/DRAG seconds)
 const KNOB_MAXV = 8;       // clamp runaway velocity (position units / second)
 
-export function attachControlInteraction(binding, hooks) {
+// A single push button (momentary or on/off) can carry an invisible hit-pad a few mm wider
+// than its lamp, so it's easier to click. Placed as the FIRST child of the lamp's parent so
+// it sits UNDER the lamp (the lamp still owns its own area; the pad only catches the margin)
+// and never becomes the lamp's nextElementSibling (which showStep uses for the gloss).
+function makeHitPad(lamp, growMm) {
+  if (!(growMm > 0.05) || !lamp || !lamp.parentNode) return null;
+  const cx = parseFloat(lamp.getAttribute('cx')), cy = parseFloat(lamp.getAttribute('cy')), r = parseFloat(lamp.getAttribute('r'));
+  if (!isFinite(cx) || !isFinite(cy) || !isFinite(r)) return null;
+  const pad = lamp.ownerDocument.createElementNS(SVG_NS, 'circle');
+  pad.setAttribute('cx', cx); pad.setAttribute('cy', cy);
+  pad.setAttribute('r', String(Math.round((r + growMm) * 1000) / 1000));
+  pad.setAttribute('fill', 'none'); pad.setAttribute('pointer-events', 'all'); pad.setAttribute('class', 'hit-pad');
+  lamp.parentNode.insertBefore(pad, lamp.parentNode.firstChild);
+  return pad;
+}
+
+export function attachControlInteraction(binding, hooks, opts = {}) {
   const el = binding.group;
   if (binding.kind === 'knob') {
     if (!binding.indicator || !binding.pivot) return;
@@ -436,11 +452,14 @@ export function attachControlInteraction(binding, hooks) {
       const lamp = lamps[0][1];
       const on = binding.stepValues.includes('on') ? 'on' : binding.stepValues[0];
       const off = binding.stepValues.find((v) => v !== on);
-      lamp.style.cursor = 'pointer';
-      lamp.addEventListener('pointerdown', (e) => { e.stopPropagation(); lamp.setPointerCapture && lamp.setPointerCapture(e.pointerId); hooks.set(on); });
       const release = () => { if (hooks.get() === on) hooks.set(off); };
-      lamp.addEventListener('pointerup', release);
-      lamp.addEventListener('pointercancel', release);
+      const pad = makeHitPad(lamp, opts.hitGrowMm);
+      for (const tgt of pad ? [lamp, pad] : [lamp]) {
+        tgt.style.cursor = 'pointer';
+        tgt.addEventListener('pointerdown', (e) => { e.stopPropagation(); tgt.setPointerCapture && tgt.setPointerCapture(e.pointerId); hooks.set(on); });
+        tgt.addEventListener('pointerup', release);
+        tgt.addEventListener('pointercancel', release);
+      }
     } else if (lamps.length >= 2) {
       for (const [val, lamp] of lamps) {
         lamp.style.cursor = 'pointer';
@@ -448,13 +467,14 @@ export function attachControlInteraction(binding, hooks) {
       }
     } else if (lamps.length === 1) {
       const lamp = lamps[0][1];
-      lamp.style.cursor = 'pointer';
-      lamp.addEventListener('click', (e) => {
+      const toggle = (e) => {
         e.stopPropagation();
         const cur = hooks.get();
         const other = binding.stepValues.find((v) => v !== cur);
         if (other !== undefined) hooks.set(other);
-      });
+      };
+      const pad = makeHitPad(lamp, opts.hitGrowMm);
+      for (const tgt of pad ? [lamp, pad] : [lamp]) { tgt.style.cursor = 'pointer'; tgt.addEventListener('click', toggle); }
     }
   }
 }

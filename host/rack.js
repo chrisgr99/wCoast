@@ -49,6 +49,10 @@ const JACK_DROP_MARGIN_MM = 2;   // a cable arms/drops within this much of a ter
 // existing cord's departure grabs that cord; a move in a fresher direction starts a new
 // one. Math.SQRT1_2 = cos(45°) — the half-angle of the "grab" cone. Tune to taste.
 const GRAB_MAX_COS = Math.SQRT1_2;
+// Terminals get an invisible hit-pad this many mm beyond their outer edge, so a click or
+// drag is easier to land. 1.3mm is safe against the tightest jack pair (3mm apart → both
+// grow, meeting only past 1.5mm). Push buttons grow adaptively up to the same cap.
+const HIT_GROW_MM = 1.3;
 // Ear-monitor volume knob: scroll with the same momentum feel as a panel knob.
 const MON_VOL_STEP = 0.04, MON_VOL_DRAG = 6, MON_VOL_MAXV = 8;
 // The monitor knob is a dB-LINEAR taper (like the mixer faders): unity at the top, down
@@ -1088,6 +1092,13 @@ export class Rack {
     return port ? port.element : null;
   }
 
+  // The screen rect of the TERMINAL itself (its coloured circle), not the wider invisible
+  // hit-pad — so the scope/monitor connection loop hugs the jack, not the padded click zone.
+  _jackClientRect(jel) {
+    const c = (jel && jel.querySelector && jel.querySelector('circle:not(.hit-pad)')) || jel;
+    return c.getBoundingClientRect();
+  }
+
   // Receive cue while dragging: the valid target under the pointer swells and gains
   // a bold outline in its own family colour ("ready to receive"). Only opposite-
   // direction, unoccupied jacks arm — never the origin or an occupied input.
@@ -1710,7 +1721,7 @@ export class Rack {
     const place = (fx, fy) => {
       frame.style.left = Math.round(fx) + 'px'; frame.style.top = Math.round(fy) + 'px';
       if (!jel) return;
-      const jr = jel.getBoundingClientRect();
+      const jr = this._jackClientRect(jel);   // the terminal itself, NOT its wider hit-pad
       const px = jr.left + jr.width / 2, py = jr.top + jr.height / 2, rr = Math.max(jr.width, jr.height) / 2 + 3;
       ring.setAttribute('cx', r2(px)); ring.setAttribute('cy', r2(py)); ring.setAttribute('r', r2(rr));
       const fr = frame.getBoundingClientRect();
@@ -1952,7 +1963,7 @@ export class Rack {
     const col = this.dark ? '#ffffff' : '#000000';
     const lw = 1.8;
     if (!jel) { sc.ring.setAttribute('r', '0'); sc.line.setAttribute('stroke', 'none'); return; }
-    const jr = jel.getBoundingClientRect();
+    const jr = this._jackClientRect(jel);   // the terminal itself, NOT its wider hit-pad
     const px = jr.left + jr.width / 2, py = jr.top + jr.height / 2;
     const rr = Math.max(jr.width, jr.height) / 2 + 3;
     sc.ring.setAttribute('cx', r2(px)); sc.ring.setAttribute('cy', r2(py)); sc.ring.setAttribute('r', r2(rr));
@@ -2414,6 +2425,43 @@ export class Rack {
     return this.dark ? type.panelUrl.replace(/\.svg$/, '.dark.svg') : type.panelUrl;
   }
 
+  // How far each single push button may grow its hit-pad without touching a neighbour, keyed
+  // by param id (mm). A button (one small lamp, radius < KNOB_MIN_R) grows up to HIT_GROW_MM,
+  // but capped by its nearest neighbour: a fixed control (knob/selector) → the full gap; a jack
+  // → the gap minus the jack's own 1.3mm growth; another button → half the gap (both grow).
+  // Knobs and multi-lamp selectors don't grow; they're obstacles only.
+  _buttonGrowMap(svg) {
+    const KNOB_MIN_R = 3.0, MINSIG = 1.0;
+    const items = [];   // { id, kind:'jack'|'btn'|'fixed', sig:[{cx,cy,r}], body:{cx,cy,r} }
+    for (const g of svg.querySelectorAll('[data-wcoast-port],[data-wcoast-param]')) {
+      const isPort = g.hasAttribute('data-wcoast-port');
+      const id = isPort ? g.getAttribute('data-wcoast-port') : g.getAttribute('data-wcoast-param');
+      const sig = [...g.querySelectorAll('circle')]
+        .map((c) => ({ cx: parseFloat(c.getAttribute('cx')), cy: parseFloat(c.getAttribute('cy')), r: parseFloat(c.getAttribute('r')) }))
+        .filter((c) => isFinite(c.cx) && isFinite(c.cy) && c.r >= MINSIG);
+      if (!sig.length) continue;
+      const bodyR = Math.max(...sig.map((c) => c.r));
+      const kind = isPort ? 'jack' : (bodyR >= KNOB_MIN_R || sig.length > 1) ? 'fixed' : 'btn';
+      items.push({ id, kind, sig, body: sig.reduce((a, b) => (b.r > a.r ? b : a)) });
+    }
+    const obs = [];
+    for (const it of items) for (const c of it.sig) obs.push({ kind: it.kind, id: it.id, ...c });
+    const grow = new Map();
+    for (const it of items) {
+      if (it.kind !== 'btn') continue;
+      let cap = HIT_GROW_MM;
+      const B = it.body;
+      for (const o of obs) {
+        if (o.id === it.id) continue;
+        const gap = Math.hypot(o.cx - B.cx, o.cy - B.cy) - B.r - o.r;
+        const c = o.kind === 'jack' ? gap - HIT_GROW_MM : o.kind === 'btn' ? gap / 2 : gap;
+        if (c < cap) cap = c;
+      }
+      grow.set(it.id, Math.max(0, Math.round(cap * 1000) / 1000));
+    }
+    return grow;
+  }
+
   // Put a freshly loaded panel into a record's element and (re)bind its controls
   // and jacks. Used both when a module is created and when its skin is swapped
   // for a mode change — the audio instance and the record identity persist, so
@@ -2431,6 +2479,7 @@ export class Rack {
     svg.style.display = 'block';
     el.appendChild(svg);
     rec.panel = panel;
+    const btnGrow = this._buttonGrowMap(svg);   // adaptive hit-pad size per single push button
     for (const b of panel.controls.values()) {
       const v = rec.values.get(b.id);
       if (v !== undefined) showValue(b, v);
@@ -2440,7 +2489,7 @@ export class Rack {
         // The master enable and the transport are one state: route the lamp through
         // setSound so toggling it here also flips the pie/toolbar (and vice versa).
         set: (val) => { if (isMasterEnable) this.setSound(val === 'on'); else this._setParam(rec, b.id, val); },
-      });
+      }, { hitGrowMm: btnGrow.get(b.id) || 0 });
       b.group.addEventListener('pointerdown', (e) => e.stopPropagation());
     }
     // Jacks: pointerdown drags a cord (patching). The data-jack-* attributes let
@@ -2452,6 +2501,17 @@ export class Rack {
       port.element.dataset.jackPort = portId;
       port.element.addEventListener('pointerdown', (e) => this._onJackPointerDown(e, rec.key, portId));
       port.element.addEventListener('contextmenu', (e) => this._onJackContextMenu(e, rec.key, portId));
+      // An invisible hit-pad HIT_GROW_MM beyond the outer edge, appended LAST so the outer
+      // circle stays the first-match for the paint/geometry queries. Clicks on it bubble to
+      // the group's handlers above.
+      const outer = port.element.querySelector('circle');
+      if (outer) {
+        const pad = svg.ownerDocument.createElementNS(SVG_NS, 'circle');
+        pad.setAttribute('cx', outer.getAttribute('cx')); pad.setAttribute('cy', outer.getAttribute('cy'));
+        pad.setAttribute('r', r2((parseFloat(outer.getAttribute('r')) || 3) + HIT_GROW_MM));
+        pad.setAttribute('fill', 'none'); pad.setAttribute('pointer-events', 'all'); pad.setAttribute('class', 'hit-pad');
+        port.element.appendChild(pad);
+      }
     }
     // The vertical title up the left edge: right-click it for the delete pie.
     const title = svg.querySelector('.module-title');
