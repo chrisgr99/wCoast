@@ -467,9 +467,9 @@ async function boot() {
 
 const README_URL = 'https://github.com/chrisgr99/wCoast/blob/main/README.md';
 
-// First run only: a small card pointing newcomers at the "?" in any panel's pie
-// menu. "Dismiss" closes for now (it returns next launch); "Don't show this again"
-// remembers the choice in local storage. The README link opens in the browser.
+// First run only: a small card pointing newcomers at the panel menu's Help, the jack
+// menu, and cabling. "Dismiss" closes for now (it returns next launch); "Don't show
+// this again" remembers the choice in local storage. The README link opens the browser.
 function maybeShowIntro() {
   let seen = false;
   try { seen = localStorage.getItem('wcoast.introSeen') === '1'; } catch (_e) { /* no storage */ }
@@ -477,7 +477,7 @@ function maybeShowIntro() {
   const overlay = document.createElement('div'); overlay.className = 'confirm-overlay';
   const box = document.createElement('div'); box.className = 'confirm-box';
   const msg = document.createElement('div'); msg.className = 'confirm-msg';
-  msg.innerHTML = 'Welcome to Wcoast.<br><br>Click any panel to open the main circular (i.e. pie) menu, then move the pointer toward the “?” to access the quick guide.';
+  msg.innerHTML = 'Welcome to wCoast.<br><br>Right-click any panel to open its menu, then choose “Help” for the quick guide, README, and getting-started notes.<br><br>Click a jack to start dragging a cable and make a connection, or right-click a jack for its Scope, Listen, and Upstream options.';
   const linkRow = document.createElement('div'); linkRow.style.marginTop = '10px';
   const link = document.createElement('a');
   link.textContent = 'Read the README'; link.href = README_URL; link.style.color = 'var(--accent)';

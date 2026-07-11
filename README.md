@@ -4,8 +4,6 @@ wCoast is a modular synthesizer for Web Audio. Building on Web Audio makes it
 cross-platform: it plays in any modern browser, and a native desktop application
 will be available as well. It's non-commercial, free to use.
 
-**Try it in your browser:** [chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/)
-
 This is a personal project with two main objectives:
 
 - To provide a general-purpose, open-architecture modular synthesizer platform for
@@ -29,10 +27,13 @@ without a hardware ancestor, drop in as plug-ins.
 Toward the second objective, wCoast tries a number of interface ideas for making
 patches easier to build, follow, and understand:
 
-- **Patching by identity, not cord-tracing.** Click to open a radial "pie" menu
-  right on a faceplate or jack to pull a new cable, inspect a connection, or drop
-  a probe — the work happens in place, so you never struggle to trace the source
-  or destination of a cable across the screen.
+- **Patching by identity, not cord-tracing.** Right-click a jack or a panel to open
+  an *active context menu* — a menu whose items act the moment you rest on one, so
+  you can try before you commit. Stop on Scope and a live oscilloscope appears beside
+  the pointer; stop on Listen and you hear that terminal; stop on Engine and the sound
+  starts for as long as you hover. Click to keep the result — a scope or monitor then
+  follows the pointer to wherever you drop it — or move off to dismiss it. Cables are
+  pulled in place: a left-click on a jack starts one.
 - **Signals automatically colour-coded by destination terminal type/colour**
   (audio, control voltage, trigger/gate), with the ability to highlight everything
   upstream of a terminal — so you can read a patch at a glance.
@@ -68,9 +69,15 @@ Feedback is very welcome — share thoughts, bugs, and ideas in the
 
 ## Running it
 
-For the native macOS build, run `npm install` and then `npm start` (requires Node
-— Homebrew Node at `/opt/homebrew/bin`).
+wCoast runs entirely in your web browser — there's nothing to download or install.
+Open the GitHub Pages build at
+[chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/) and follow the
+getting-started instructions that appear on first run.
 
-In a browser, it also runs at its GitHub Pages build,
-[chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/) — open the page
-and click to start (Chrome or Edge recommended for saving patches).
+## Browser support
+
+wCoast works in any modern browser — Chrome, Edge, Firefox, or Safari. Saving and
+loading patches as files on your computer relies on the browser's File System Access
+feature, which today is available only in Chrome and Edge, so use one of those if you
+want to keep your patches. Everything else works the same in every browser; you just
+can't save to disk yet in Firefox or Safari.
