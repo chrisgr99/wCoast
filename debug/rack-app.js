@@ -118,8 +118,8 @@ function ensureAudio() {
 
 async function boot() {
   ensureAudio();
-  let darkMode = false;
-  try { darkMode = localStorage.getItem('wcoast.dark') === '1'; } catch (_e) { /* no storage */ }
+  let darkMode = true;   // first run defaults to DARK; a saved choice (below) overrides
+  try { const s = localStorage.getItem('wcoast.dark'); if (s !== null) darkMode = s === '1'; } catch (_e) { /* no storage */ }
   // Unsaved-changes state, declared BEFORE the rack: its onChange fires during
   // relayout and the mixer addModule below, calling onEdit -> markDirty, which
   // reads `dirty` — so `dirty` must already be initialized (no temporal dead zone).
