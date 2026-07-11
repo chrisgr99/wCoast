@@ -69,7 +69,7 @@ registry.register({ descriptor: galleryDescriptor, create: galleryCreate });
 
 const MODULE_TYPES = [{
   descriptorId: oscDescriptor.id,
-  name: '259t Complex Oscillator',
+  name: 'Complex Oscillator',
   hp: oscDescriptor.hp || 34,
   panelUrl: 'modules/complex-oscillator-259t/panel.svg',
   descriptor: oscDescriptor,
