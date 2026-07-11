@@ -33,6 +33,12 @@ const LTR = ['A', 'B', 'C', 'D'];
 const CI = { A: 0, B: 1, C: 2, D: 3 };
 
 const PULSE_S = 0.004;        // end-of-cycle pulse width (4 ms)
+// A trigger/gate reads HIGH above GATE_HI and re-arms below GATE_LO — a little hysteresis so a
+// rising input fires once per crossing, not on chatter. GATE_HI is deliberately low so ordinary
+// bipolar AUDIO/CV (an oscillator's square swings well under a hot 0..1 gate) can clock it, not
+// just a full-scale gate. Used for the trigger edge, the sustained hold, and the cycle gate.
+const GATE_HI = 0.05;
+const GATE_LO = 0.0;
 const CV_OCT = 2;             // CV time modulation depth (octaves per unit CV)
 const T_MIN = 0.0005, T_MAX = 20;
 const clampTime = (x) => (x < T_MIN ? T_MIN : x > T_MAX ? T_MAX : x);
@@ -65,7 +71,7 @@ class QuadFn281t extends AudioWorkletProcessor {
     this.aa = opt.antialias !== false;       // reserved; the exponential shape barely aliases
     this.phase = new Float32Array(NCH);      // cycle phase 0..1
     this.active = new Uint8Array(NCH);        // envelope running (one-shot modes)
-    this.prevTrig = new Float32Array(NCH);
+    this.armed = new Uint8Array(NCH).fill(1);   // trigger hysteresis: ready to fire on the next rising crossing
     this.pulseRem = new Int32Array(NCH);      // samples remaining of the end-of-cycle pulse
     this.trigFlag = new Uint8Array(NCH);      // a manual-button press, consumed next sample
     // Per-channel mode: 'transient' | 'sustained' | 'cyclic'.
@@ -123,10 +129,13 @@ class QuadFn281t extends AudioWorkletProcessor {
         } else {
           const trigIn = inputs[ch];
           const tl = (trigIn && trigIn.length) ? trigIn[0][i] : 0;
-          const edge = (tl > 0.5 && this.prevTrig[ch] <= 0.5) || this.trigFlag[ch] === 1;
-          this.prevTrig[ch] = tl; this.trigFlag[ch] = 0;
+          // Hysteresis edge: fire when an ARMED input rises past GATE_HI; re-arm below GATE_LO.
+          let edge = this.trigFlag[ch] === 1;
+          if (this.armed[ch]) { if (tl > GATE_HI) { edge = true; this.armed[ch] = 0; } }
+          else if (tl < GATE_LO) { this.armed[ch] = 1; }
+          this.trigFlag[ch] = 0;
           const cycIn = inputs[4 + ch];
-          const cycGate = cycIn && cycIn.length ? cycIn[0][i] > 0.5 : false;
+          const cycGate = cycIn && cycIn.length ? cycIn[0][i] > GATE_HI : false;
           const mode = this.mode[ch];
           const forceCyc = mode === 'cyclic' || cycGate;
 
@@ -140,7 +149,7 @@ class QuadFn281t extends AudioWorkletProcessor {
             if (edge) { act = 1; ph = 0; }
             if (act) {
               ph += dphi[ch];
-              if (tl > 0.5 && ph > aFrac[ch]) ph = aFrac[ch];   // hold at the peak while gated
+              if (tl > GATE_HI && ph > aFrac[ch]) ph = aFrac[ch];   // hold at the peak while gated
               if (ph >= 1) { act = 0; ph = 0; pulse = true; }
             }
           } else {                              // transient: one-shot attack/decay
