@@ -45,6 +45,10 @@ const STYLE_COLOR = { audio: '#f3c40b', control: '#ff7300', trigger: '#5aa0e6', 
 const domainStyle = (domain) => (domain === 'audio' ? 'audio' : domain === 'trigger' ? 'trigger' : 'control');
 const CABLE_PX = 3.8;   // cord thickness in px at zoom 1 (scales up as you zoom in)
 const JACK_DROP_MARGIN_MM = 2;   // a cable arms/drops within this much of a terminal's edge (a forgiving zone)
+// Grabbing vs. new cable off a populated OUTPUT: a left move within this angle of an
+// existing cord's departure grabs that cord; a move in a fresher direction starts a new
+// one. Math.SQRT1_2 = cos(45°) — the half-angle of the "grab" cone. Tune to taste.
+const GRAB_MAX_COS = Math.SQRT1_2;
 // Ear-monitor volume knob: scroll with the same momentum feel as a panel knob.
 const MON_VOL_STEP = 0.04, MON_VOL_DRAG = 6, MON_VOL_MAXV = 8;
 // The monitor knob is a dB-LINEAR taper (like the mixer faders): unity at the top, down
@@ -201,13 +205,12 @@ export class Rack {
           if (started || Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
           started = true;
           cleanup();
-          const edges = this.patchbay.edgesAtJack(this.mixer.key, portId);
-          if (edges.length) {   // grab the existing cord (drag off to move/delete)
-            const edge = edges[edges.length - 1];
-            this._startRegrab(e, edge, edge.dst.key === this.mixer.key ? 'dst' : 'src');
-          } else {
-            this._startCable(e, this.mixer.key, portId);   // else start a new cord
-          }
+          // Same rule as a module jack: drag along a cord grabs it, a fresh direction (or an
+          // empty jack) pulls a new one. See _grabDecision.
+          const dir = unit(ev.clientX - startX, ev.clientY - startY);
+          const grab = this._grabDecision(this.mixer.key, portId, dir);
+          if (grab) this._startRegrab(e, grab.edge, grab.grabbedEnd);
+          else this._startCable(e, this.mixer.key, portId);
         };
         const onUp = () => { cleanup(); };   // a clean click does nothing
         document.addEventListener('pointermove', onMove);
@@ -685,12 +688,13 @@ export class Rack {
     }, 150);
   }
 
-  // Jack pointerdown (LEFT button only — the pie opens on a RIGHT click). A press that
-  // moves past a small threshold starts a NEW cable dragged from this jack; an existing
-  // cord is instead grabbed to re-route (see _startRegrab). A plain click (press-release,
-  // no move) starts a STICKY cable that follows the cursor until you click a jack to
-  // connect. stopPropagation keeps the press from starting a module drag. `key` is a
-  // rack module or the mixer.
+  // Jack pointerdown (LEFT button only — the menu opens on a RIGHT click). The FIRST move
+  // off the jack decides, by its DIRECTION, whether to grab an existing cord (drag along
+  // its line — _grabDecision) or pull a new one (a fresh direction, or an empty jack). A
+  // plain click (press-release, no move) doesn't commit: it ARMS the same decision, made on
+  // the first move afterwards, then carried STICKY (no button held) until you click a jack.
+  // stopPropagation keeps the press from starting a module drag. `key` is a rack module or
+  // the mixer.
   _onJackPointerDown(e, key, portId) {
     e.stopPropagation();
     if (e.button !== 0) return;
@@ -710,27 +714,48 @@ export class Rack {
       if (Math.hypot(ev.clientX - startX, ev.clientY - startY) >= TH) {
         dragging = true;
         cleanup();
-        // A port already carrying cable(s): grab one and re-route its end here.
-        // The DRAG DIRECTION picks which cord (the one leaving this port most that
-        // way) so a fan-out can be disambiguated. An empty port starts a new cord.
-        const edges = this.patchbay.edgesAtJack(key, portId);
-        if (edges.length) {
-          const dragDir = unit(ev.clientX - startX, ev.clientY - startY);
-          const edge = this._pickByDirection(key, portId, edges, dragDir);
-          const grabbedEnd = (edge.src.key === key && edge.src.portId === portId) ? 'src' : 'dst';
-          this._startRegrab(e, edge, grabbedEnd);
-        } else {
-          this._startCable(e, key, portId);
-        }
+        // The move direction decides: along an existing cord grabs it (re-route its end),
+        // a fresh direction (or an empty jack) pulls a new cord. See _grabDecision.
+        const dir = unit(ev.clientX - startX, ev.clientY - startY);
+        const grab = this._grabDecision(key, portId, dir);
+        if (grab) this._startRegrab(e, grab.edge, grab.grabbedEnd);
+        else this._startCable(e, key, portId);
       }
     };
-    // A clean click (no drag) starts a STICKY cable that follows the cursor (click a jack
-    // to connect, Escape/right-click to cancel). It fires on release, so a press that
-    // became a drag is already a cable and never reaches here. The pie opens on a
-    // right-click instead.
-    const onUp = (ev) => { cleanup(); this._startStickyCable(key, portId, ev.clientX, ev.clientY); };
+    // A clean click (no drag) commits to nothing yet: it ARMS a sticky pick whose new-vs-grab
+    // choice is made by the first move afterwards (_armStickyPick). It fires on release, so a
+    // press that became a drag is already a cable and never reaches here.
+    const onUp = (ev) => { cleanup(); this._armStickyPick(key, portId, ev.clientX, ev.clientY); };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
+  }
+
+  // After a plain click on a jack, wait for the first pointer move and THEN decide, by its
+  // direction, whether to carry an existing cord or a new one — both STICKY (no button held,
+  // dropped by a later click). Before that first move a fresh click, a right-click, or Escape
+  // cancels the armed pick, so a mis-click leaves nothing behind.
+  _armStickyPick(key, portId, cx, cy) {
+    const TH = 6;
+    const cleanup = () => {
+      document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('pointerdown', onCancel, true);
+      document.removeEventListener('contextmenu', onCancel, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+    const onMove = (ev) => {
+      if (Math.hypot(ev.clientX - cx, ev.clientY - cy) < TH) return;
+      cleanup();
+      const dir = unit(ev.clientX - cx, ev.clientY - cy);
+      const grab = this._grabDecision(key, portId, dir);
+      if (grab) this._startStickyRegrab(grab.edge, grab.grabbedEnd, ev.clientX, ev.clientY);
+      else this._startStickyCable(key, portId, ev.clientX, ev.clientY);
+    };
+    const onCancel = () => cleanup();   // a fresh click or right-click before moving abandons the pick
+    const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); cleanup(); } };
+    document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('pointerdown', onCancel, true);
+    document.addEventListener('contextmenu', onCancel, true);
+    document.addEventListener('keydown', onKey, true);
   }
 
   // Start a NEW cable by dragging from a jack. A live straight cord trails the
@@ -901,6 +926,86 @@ export class Rack {
     document.addEventListener('pointerup', onUp);
   }
 
+  // Sticky re-route: the button-up twin of _startRegrab. The grabbed end of an existing cord
+  // FOLLOWS the cursor with no button held (scroll/zoom/roam freely); a later LEFT click drops
+  // it — on a valid jack it moves there, on empty space it disconnects (leaves it broken). The
+  // cord is broken the instant it's picked up, so you audition the patch without it while you
+  // decide. Right-click or Escape ABORTS and restores the original connection (no net change).
+  _startStickyRegrab(edge, grabbedEnd, cx, cy) {
+    const fixed = grabbedEnd === 'src' ? edge.dst : edge.src;
+    const grabbed = grabbedEnd === 'src' ? edge.src : edge.dst;
+    const fixedEp = this._ep(fixed.key, fixed.portId);
+    const fixedPos = this._jackPosMm(fixed.key, fixed.portId);
+    if (!fixedEp || !fixedPos) return;
+    const fixedMeta = fixedEp.meta;
+    const wantDir = fixedMeta.dir === 'out' ? 'in' : 'out';
+    const wmm = CABLE_PX / (this._fit || 1);
+    const savedBow = edge.bow;
+    const origSnap = this._edgeSnapshot(edge);
+
+    this.patchbay.disconnect(edge);   // break immediately: hear the patch WITHOUT it while deciding
+    this._drawCables();
+
+    const tmp = document.createElementNS(SVG_NS, 'path');
+    tmp.setAttribute('class', 'rack-cable rack-cable-temp');
+    tmp.setAttribute('stroke', STYLE_COLOR[domainStyle(fixedMeta.domain)]);
+    tmp.setAttribute('stroke-width', r2(wmm));
+    this._tempCable = tmp;
+    this.cables.appendChild(tmp);
+    this._highlightCandidates(wantDir);
+    document.body.classList.add('grabbing-cable');
+
+    let lastX = cx, lastY = cy;
+    const track = (clientX, clientY) => {
+      lastX = clientX; lastY = clientY;
+      tmp.setAttribute('d', this._cordPath(fixedPos, fixedPos.r, this._clientToMm(clientX, clientY), 0, wmm));
+      this._armTarget(this._jackNear(clientX, clientY), wantDir, null, null);   // origin null: the cord is already off, so its own port re-arms
+    };
+    track(cx, cy);
+    const onMove = (ev) => track(ev.clientX, ev.clientY);
+    const onScroll = () => track(lastX, lastY);
+    const finish = () => {
+      document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('pointerdown', onDrop, true);
+      document.removeEventListener('contextmenu', onCtx, true);
+      document.removeEventListener('keydown', onKey, true);
+      this.container.removeEventListener('scroll', onScroll, true);
+      tmp.remove(); this._tempCable = null;
+      this._disarmTarget(); this._clearHighlights();
+      document.body.classList.remove('grabbing-cable');
+    };
+    const restore = () => {   // put the cord back exactly as it was (abort / dropped-back / target-taken)
+      const e = this._tryConnect({ key: fixed.key, portId: fixed.portId }, grabbed);
+      if (e && savedBow != null) e.bow = savedBow;
+      this._drawCables();
+    };
+    const onDrop = (ev) => {
+      if (ev.button !== 0) return;   // right-click is handled by onCtx; middle is ignored
+      ev.preventDefault(); ev.stopPropagation();
+      const drop = this._jackNear(ev.clientX, ev.clientY);
+      finish();
+      const droppedBack = drop && drop.key === grabbed.key && drop.portId === grabbed.portId;
+      const candidate = drop && this._isCandidate(drop, wantDir);
+      const occupied = candidate && wantDir === 'in' && this.patchbay.inputOccupied(drop.key, drop.portId, null);
+      if (droppedBack || (candidate && occupied)) {
+        restore();                                       // back home, or target taken → no net change, no undo
+      } else if (candidate) {
+        const ne = this._tryConnect({ key: fixed.key, portId: fixed.portId }, drop);   // move to the new port
+        if (ne) { const ns = this._edgeSnapshot(ne); this._pushUR({ undo: () => { this._removeCable(ns); this._restoreCable(origSnap); }, redo: () => { this._removeCable(origSnap); this._restoreCable(ns); } }); }
+      } else {
+        this.onChange();                                 // clicked empty space → leave it broken (a disconnect)
+        this._pushUR({ undo: () => this._restoreCable(origSnap), redo: () => this._removeCable(origSnap) });
+      }
+    };
+    const onCtx = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); restore(); };   // right-click aborts → restore
+    const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); finish(); restore(); } };   // Escape aborts → restore
+    document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('pointerdown', onDrop, true);
+    document.addEventListener('contextmenu', onCtx, true);
+    document.addEventListener('keydown', onKey, true);
+    this.container.addEventListener('scroll', onScroll, true);
+  }
+
   // A jack is a valid drop target if it faces opposite the fixed end. Domain is
   // NOT checked — anything can patch into anything (DESIGN §2).
   _isCandidate(jack, wantDir) {
@@ -951,7 +1056,26 @@ export class Rack {
       const d = dep.x * dragDir.x + dep.y * dragDir.y;
       if (d > bestDot) { bestDot = d; best = edge; }
     }
-    return best;
+    return { edge: best, dot: bestDot };   // dot = cosine of the angle between the move and that cord's departure
+  }
+
+  // Decide what a LEFT drag/move off a jack should do, given the move DIRECTION (a unit
+  // screen vector). Returns { edge, grabbedEnd } to grab an existing cord and carry its
+  // end, or null to start a NEW cord.
+  //   - no cords on the jack        → null (new)
+  //   - an INPUT holds one cord     → grab it to re-route, whatever the direction
+  //   - an OUTPUT can fan out       → grab the best-matching cord only within GRAB_MAX_COS;
+  //                                    a move in a fresh direction returns null (new cord)
+  _grabDecision(key, portId, dir) {
+    const edges = this.patchbay.edgesAtJack(key, portId);
+    if (!edges.length) return null;
+    const ep = this._ep(key, portId);
+    const isInput = ep && ep.meta.dir === 'in';
+    const { edge, dot } = this._pickByDirection(key, portId, edges, dir);
+    if (!edge) return null;
+    if (!isInput && dot < GRAB_MAX_COS) return null;   // output + off-axis → new cable
+    const grabbedEnd = (edge.src.key === key && edge.src.portId === portId) ? 'src' : 'dst';
+    return { edge, grabbedEnd };
   }
 
   // The SVG element of a jack (rack module or mixer), for the receive-cue enlarge.
