@@ -447,7 +447,10 @@ async function boot() {
     }
   } catch (e) { log(`session restore failed: ${e.message}`); }
   if (!resumed) {
+    // Row 0: Complex Oscillator + Quad Function Generator. Row 1: Mixer (pinned, added
+    // above) + Quad Low Pass Gate. Same-row modules pack left-to-right (see _resolveRow).
     await rack.addModule(oscDescriptor.id, 0, 0);
+    await rack.addModule(fnDescriptor.id, 0, 0);
     await rack.addModule(lpgDescriptor.id, 1, 0);
   }
   booted = true;   // from here on, real edits autosave the session
