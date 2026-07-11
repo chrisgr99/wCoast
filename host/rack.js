@@ -256,7 +256,7 @@ export class Rack {
     const out = [];
     for (const sc of this._scopes) {
       if (sc.showCallout === false || !sc.key) continue;
-      out.push({ kind: 'scope', module: sc.key, port: sc.portId, ...at(sc.el), w: sc.canvas.width, gainMul: r2(sc.gainMul), timeMul: r2(sc.timeMul), trigger: !!sc.trigger, frozen: !!sc.frozen });
+      out.push({ kind: 'scope', module: sc.key, port: sc.portId, ...at(sc.el), w: sc.canvas.width, h: sc.canvas.height, gainMul: r2(sc.gainMul), timeMul: r2(sc.timeMul), trigger: !!sc.trigger, frozen: !!sc.frozen });
     }
     for (const m of this._monitors) {
       if (m.showCallout === false || !m.key) continue;
@@ -273,7 +273,8 @@ export class Rack {
       if (p.kind === 'scope') {
         const sc = this._createScope(p.module, p.port, x, y);
         if (!sc) continue;
-        if (p.w) { sc.canvas.width = Math.max(120, Math.min(640, Math.round(p.w))); }
+        if (p.w) { sc.canvas.width = Math.max(60, Math.min(640, Math.round(p.w))); }
+        if (p.h) { sc.canvas.height = Math.max(24, Math.min(400, Math.round(p.h))); }
         if (p.gainMul) sc.gainMul = p.gainMul;
         if (p.timeMul) sc.timeMul = p.timeMul;
         if (p.trigger != null) sc.trigger = !!p.trigger;
@@ -1600,22 +1601,22 @@ export class Rack {
     const netDir = isOut ? 'down' : 'up';
     const netLabel = isOut ? 'Show downstream' : 'Show upstream';
     const hasNet = (isOut ? this._downstreamOf(key, portId) : this._upstreamOf(key, portId)).edges.size > 0;
+    // Scope preview handoff: while the preview is up, a document watcher lets the pointer walk
+    // OFF the menu item and ONTO the floating scope — entering it makes the scope permanent (as
+    // if dragged out and dropped there) and closes the menu. scopeItemEl is the Scope row, so the
+    // watcher can tell "heading right toward the scope" from "wandered back into the menu".
+    let scopeWatch = null, scopeItemEl = null;
+    const dropScopePreview = () => {
+      if (scopeWatch) { document.removeEventListener('pointermove', scopeWatch, true); scopeWatch = null; }
+      if (tempScope) { this._closeScope(tempScope); tempScope = null; }
+    };
+    const keepScopePreview = () => {   // pointer reached the preview → keep it, close the menu
+      if (scopeWatch) { document.removeEventListener('pointermove', scopeWatch, true); scopeWatch = null; }
+      const sc = tempScope; tempScope = null;   // detach so the teardown won't remove it
+      this._promoteScope(sc);
+      this._closeMenu();
+    };
     this._openMenu(ox, oy, [
-      {
-        label: 'Scope', icon: SCOPE_ICON,
-        onDwell: () => {
-          if (tempScope) return;
-          const a = this._dwellAnchor || { x: ox, y: oy };
-          tempScope = this._createScope(key, portId, a.x, a.y, false);
-          tempScope.el.style.zIndex = 3100;             // over the menu
-          tempScope.el.style.pointerEvents = 'none';    // a visual preview; the menu owns the pointer
-          const h = tempScope.el.offsetHeight || 80;
-          tempScope.el.style.left = Math.round(a.x + 3 * (this.pxPerMm || 1)) + 'px';   // 3mm right of the pointer
-          tempScope.el.style.top = Math.round(a.y - h / 2) + 'px';                       // vertically centred on it
-        },
-        onLeave: () => { if (tempScope) { this._closeScope(tempScope); tempScope = null; } },
-        action: (ev) => this._carryScope(this._createScope(key, portId, ev.clientX, ev.clientY), { clientX: ev.clientX, clientY: ev.clientY }, 'up'),
-      },
       {
         label: 'Listen', icon: EAR_ICON,
         onDwell: () => {
@@ -1626,6 +1627,35 @@ export class Rack {
         },
         onLeave: () => { if (tempMon) { this._closeMonitor(tempMon); tempMon = null; } },
         action: (ev) => this._carryMonitor(this._createMonitor(key, portId, ev.clientX, ev.clientY), { clientX: ev.clientX, clientY: ev.clientY }, 'up'),
+      },
+      {
+        label: 'Scope', icon: SCOPE_ICON,
+        onDwell: () => {
+          if (tempScope) return;
+          scopeItemEl = this._hoverItem;                // the Scope row, for the watcher's geometry
+          const a = this._dwellAnchor || { x: ox, y: oy };
+          tempScope = this._createScope(key, portId, a.x, a.y, false);
+          tempScope.el.style.zIndex = 3100;             // over the menu
+          tempScope.el.style.pointerEvents = 'none';    // a visual preview; the menu owns the pointer
+          const h = tempScope.el.offsetHeight || 80;
+          tempScope.el.style.left = Math.round(a.x + 3 * (this.pxPerMm || 1)) + 'px';   // 3mm right of the pointer
+          tempScope.el.style.top = Math.round(a.y - h / 2) + 'px';                       // vertically centred on it
+          scopeWatch = (ev) => {
+            if (!tempScope) return;
+            if (!this._menuEl) { dropScopePreview(); return; }   // menu closed some other way → drop the peek
+            const r = tempScope.el.getBoundingClientRect();
+            if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) { keepScopePreview(); return; }
+            const ir = scopeItemEl ? scopeItemEl.getBoundingClientRect() : { left: 0, right: 0, top: 0, bottom: 0 };
+            const overItem = ev.clientX >= ir.left && ev.clientX <= ir.right && ev.clientY >= ir.top && ev.clientY <= ir.bottom;
+            const bridging = ev.clientX > ir.right && ev.clientY >= r.top - 8 && ev.clientY <= r.bottom + 8;   // in the gap heading toward the scope
+            if (!overItem && !bridging) dropScopePreview();   // wandered off (e.g. to another item) → close
+          };
+          document.addEventListener('pointermove', scopeWatch, true);
+        },
+        // A plain item-leave is handled by the watcher (it may still be heading to the scope); only
+        // a genuine menu teardown tears the preview down here.
+        onLeave: () => { if (this._menuClosing) dropScopePreview(); },
+        action: (ev) => this._carryScope(this._createScope(key, portId, ev.clientX, ev.clientY), { clientX: ev.clientX, clientY: ev.clientY }, 'up'),
       },
       {
         label: netLabel, icon: NET_ICON, disabled: !hasNet,
@@ -1713,12 +1743,10 @@ export class Rack {
     el.style.top = Math.round(y) + 'px';
     const canvas = document.createElement('canvas');
     canvas.className = 'scope-canvas';
-    canvas.width = 240; canvas.height = 74;
-    const close = document.createElement('button');
-    close.className = 'scope-close'; close.textContent = '×'; close.title = 'Close';
+    canvas.width = 120; canvas.height = 37;   // half the former 240×74 initial size
     const resize = document.createElement('div');
-    resize.className = 'scope-resize'; resize.title = 'Drag to resize';
-    el.appendChild(canvas); el.appendChild(resize); el.appendChild(close);
+    resize.className = 'scope-resize'; resize.title = 'Drag corner to resize';
+    el.appendChild(canvas); el.appendChild(resize);
     document.body.appendChild(el);
 
     const an = this.host.ctx.createAnalyser();
@@ -1740,7 +1768,6 @@ export class Rack {
     // target (an SVG hit-ring in a pointer-events:none overlay proved unhittable).
     sc.dot.className = 'scope-dot'; document.body.appendChild(sc.dot);
 
-    close.addEventListener('click', (ev) => { ev.stopPropagation(); this._closeScope(sc); });
     el.addEventListener('pointerdown', (ev) => this._dragScope(ev, sc));
     el.addEventListener('contextmenu', (ev) => this._scopeMenu(ev, sc));
     sc.dot.addEventListener('pointerdown', (ev) => this._regrabScope(ev, sc));
@@ -1752,6 +1779,19 @@ export class Rack {
     this._updateCallout(sc);
     this._startScopeLoop();
     return sc;
+  }
+
+  // Promote a hover-preview scope into a permanent one, in place — as if it had been dragged
+  // out of the terminal and dropped where it's sitting. Restores its interactivity, draws the
+  // connection loop, and enrolls it in the patch.
+  _promoteScope(sc) {
+    if (!sc) return;
+    sc.showCallout = true;
+    sc.el.style.pointerEvents = '';
+    sc.el.style.zIndex = '';
+    if (sc.dot) sc.dot.style.display = '';
+    this._updateCallout(sc);
+    this.onChange();
   }
 
   // Carry an already-live scope (created on a pie grab) so it follows the pointer and
@@ -1889,12 +1929,17 @@ export class Rack {
     }
   }
 
-  // Drag the right edge to set the canvas width (resizing clears it; the loop redraws).
+  // Drag the bottom-right corner to set the canvas width AND height (resizing clears it;
+  // the loop redraws).
   _resizeScope(ev, sc) {
     if (ev.button !== 0) return;
     ev.preventDefault(); ev.stopPropagation();
-    const startX = ev.clientX, startW = sc.canvas.width;
-    const onMove = (e2) => { sc.canvas.width = Math.round(Math.max(120, Math.min(640, startW + (e2.clientX - startX)))); this._updateCallout(sc); };
+    const startX = ev.clientX, startY = ev.clientY, startW = sc.canvas.width, startH = sc.canvas.height;
+    const onMove = (e2) => {
+      sc.canvas.width = Math.round(Math.max(60, Math.min(640, startW + (e2.clientX - startX))));
+      sc.canvas.height = Math.round(Math.max(24, Math.min(400, startH + (e2.clientY - startY))));
+      this._updateCallout(sc);
+    };
     const onUp = () => { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); };
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
   }
@@ -1972,9 +2017,11 @@ export class Rack {
   _regrabScope(ev, sc) {
     if (ev.button !== 0) return;
     ev.preventDefault(); ev.stopPropagation();
+    const sx = ev.clientX, sy = ev.clientY; let moved = false;   // a click (no drag) on the X-dot closes the scope
     sc.regrabbing = true;                  // stop the loop resetting the loop/dot to the old port
     sc.dot.style.pointerEvents = 'none';   // so the drop hit-test finds the jack, not this dot
     const onMove = (e2) => {
+      if (!moved && Math.hypot(e2.clientX - sx, e2.clientY - sy) > 4) moved = true;
       const px = e2.clientX, py = e2.clientY;
       sc.ring.setAttribute('cx', r2(px)); sc.ring.setAttribute('cy', r2(py));
       sc.line.setAttribute('x1', r2(px)); sc.line.setAttribute('y1', r2(py));
@@ -1982,8 +2029,9 @@ export class Rack {
     };
     const onUp = (e2) => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
-      const drop = this._jackFromPoint(e2.clientX, e2.clientY);
       sc.dot.style.pointerEvents = '';
+      if (!moved) { this._closeScope(sc); return; }   // a click on the X-dot closes the scope
+      const drop = this._jackFromPoint(e2.clientX, e2.clientY);
       if (!drop) { this._closeScope(sc); return; }   // loop dropped on the panel → delete it (like a cable pulled off a terminal)
       this._scopeTapDisconnect(sc); sc.hi = sc.lo = null; sc.hist.fill(null);
       sc.key = drop.key; sc.portId = drop.portId; this._scopeTapConnect(sc);
@@ -2057,9 +2105,6 @@ export class Rack {
     el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px';
     el.innerHTML = EAR_ICON;
     el.insertAdjacentHTML('afterbegin', this._monArcSvg());   // volume-ramp wedge + limit ticks, behind the ear icon
-    const close = document.createElement('button');
-    close.className = 'mon-close'; close.textContent = '×'; close.title = 'Remove';
-    el.appendChild(close);
     document.body.appendChild(el);
     const g = this.host.ctx.createGain(); g.connect(this._monitorBus());
     // The monitor doubles as a volume knob: an inward tick sweeps min (lower-left) up
@@ -2079,7 +2124,6 @@ export class Rack {
     this._monTapConnect(m);
     this._drawMonTick(m);
     if (showCallout && !opts.skipAutoLevel) this._autoLevelMonitor(m);   // placed monitor opens at a comfortable level (not the quick hover preview or a restore)
-    close.addEventListener('click', (ev) => { ev.stopPropagation(); this._closeMonitor(m); });
     el.addEventListener('pointerdown', (ev) => this._dragMonitor(ev, m));
     el.addEventListener('wheel', (ev) => this._onMonWheel(m, ev), { passive: false });
     m.dot.addEventListener('pointerdown', (ev) => this._regrabMonitor(ev, m));
@@ -2187,9 +2231,11 @@ export class Rack {
   _regrabMonitor(ev, m) {
     if (ev.button !== 0) return;
     ev.preventDefault(); ev.stopPropagation();
+    const sx = ev.clientX, sy = ev.clientY; let moved = false;   // a click (no drag) on the X-dot closes the monitor
     m.regrabbing = true;
     m.dot.style.pointerEvents = 'none';
     const onMove = (e2) => {
+      if (!moved && Math.hypot(e2.clientX - sx, e2.clientY - sy) > 4) moved = true;
       const px = e2.clientX, py = e2.clientY;
       m.ring.setAttribute('cx', r2(px)); m.ring.setAttribute('cy', r2(py));
       m.line.setAttribute('x1', r2(px)); m.line.setAttribute('y1', r2(py));
@@ -2197,8 +2243,9 @@ export class Rack {
     };
     const onUp = (e2) => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
-      const drop = this._jackFromPoint(e2.clientX, e2.clientY);
       m.dot.style.pointerEvents = '';
+      if (!moved) { this._closeMonitor(m); return; }   // a click on the X-dot closes the monitor
+      const drop = this._jackFromPoint(e2.clientX, e2.clientY);
       if (!drop) { this._closeMonitor(m); return; }   // loop dropped on the panel → delete it (like a cable pulled off a terminal)
       this._monTapDisconnect(m);
       m.key = drop.key; m.portId = drop.portId; if (!m.muted) this._monTapConnect(m);
@@ -2913,7 +2960,9 @@ export class Rack {
 
   _closeMenu() {
     this._closeSubs();
+    this._menuClosing = true;   // lets a preview's onLeave tell a menu teardown from a plain item-leave
     if (this._hoverLeave && !this._peekLatched) this._hoverLeave();   // tear down a live preview (unless a click latched it)
+    this._menuClosing = false;
     if (this._menuMoveHandler) { document.removeEventListener('pointermove', this._menuMoveHandler, true); this._menuMoveHandler = null; }
     clearTimeout(this._menuDwellTimer); this._menuDwellTimer = null;
     this._hoverItem = null; this._hoverSwitch = null; this._hoverLeave = null; this._dwellAnchor = null; this._peekLatched = false;
