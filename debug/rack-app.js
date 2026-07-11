@@ -383,22 +383,18 @@ async function boot() {
       { label: 'Redo', disabled: !rack.canRedo(), action: () => rack.redo() },
       { label: 'Clear connections & controls…', action: () => rack.confirmDeleteAllCables() },
     ];
-    const view = [
+    rack.openMenu(x, y, [
+      { label: 'File', submenu: file },
+      { label: 'Edit', submenu: edit },
+      // Engine: the audio transport on/off (the old play/sound toggle), checked while running.
+      { label: 'Engine', checkFn: () => started, action: () => setSound(!started) },
+      // Dark mode: promoted here from the old View submenu.
       { label: 'Dark mode', checkFn: () => rack.isDark(), action: () => {
         const d = !rack.isDark();
         rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
         try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
       } },
-    ];
-    if (mirror.available()) {
-      view.push({ header: true, label: 'AI Mirror' });
-      view.push({ label: mirror.isEnabled() ? 'Turn mirror off' : 'Turn mirror on', action: async () => { await mirror.setEnabled(!mirror.isEnabled()); updateTrace(); } });
-      view.push({ label: 'Reveal mirror folder', action: () => mirror.reveal() });
-    }
-    rack.openMenu(x, y, [
-      { label: 'File', submenu: file },
-      { label: 'Edit', submenu: edit },
-      { label: 'View', submenu: view },
+      { label: 'Help', submenu: rack.helpMenuItems() },
     ]);
   };
   document.getElementById('hamburger').addEventListener('click', (e) => {
@@ -449,6 +445,9 @@ async function boot() {
   booted = true;   // from here on, real edits autosave the session
   markClean();     // the resumed/starting patch is the clean baseline, not unsaved work
   await mirror.init();   // read enabled state + push the first mirror snapshot
+  // The AI mirror is Electron-only and always on: no toggle UI, no folder-reveal — just
+  // ensure it's enabled so the running patch is always mirrored.
+  if (mirror.available() && !mirror.isEnabled()) { try { await mirror.setEnabled(true); } catch (_e) { /* ignore */ } updateTrace(); }
 
   // Re-fit once after the toolbar has claimed its final height. In Electron the
   // ready-to-show gate means this is already correct; a bare browser settles its

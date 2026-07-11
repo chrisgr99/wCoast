@@ -81,11 +81,10 @@ draw our own cursor rather than move the real one:
 
 ## 5. Item placement (fixed directions)
 
-**Panel pie**
-- **N** (top): app main menu (the hamburger). Opens the existing vertical menu.
-- **S** (bottom): **start/stop sound**. Its wedge is highlighted while the transport
-  runs and unhighlighted when stopped — the current toolbar toggle behaviour.
-- The other positions are empty for now.
+**Panel — a plain menu, not a pie.** A right-click on a faceplate opens the main menu
+as a normal vertical list: **File**, **Edit**, **Engine** (checkable — the audio
+transport on/off), **Dark mode** (checkable), **Help**. (The pie proved to add too
+little here.) Only the terminal keeps a pie.
 
 **Terminal pie**
 - **NE** (upper-right): **scope** — an oscilloscope.
@@ -94,8 +93,9 @@ draw our own cursor rather than move the real one:
   and ducks the normal output; several monitors *add* to the solo mix. Click a circle
   to mute/unmute it, drag to move it, the × to remove.
 - **N** (top): **what feeds this** — isolate the terminal's UPSTREAM (see §9).
-- **NW** (upper-left): **pull a cable** — start a cord from this terminal. Placed away
-  from the lower wedges so it isn't triggered by accident.
+
+Pulling a cable is NOT a wedge — it's a plain **left** click or drag on the terminal
+(§1): a click starts a sticky cord, a drag pulls one directly.
 
 Both viewers follow the click-vs-drag rule (§3): a **click** shows a temporary one
 beside the menu that vanishes on close; **press-and-drag out** drops a permanent one.
@@ -104,8 +104,8 @@ the port + a line to the viewer) — the temporary one is unconnected-looking so
 line doesn't clutter the menu. Drag a permanent viewer's loop (its grab dot) onto
 another port to re-probe it, or onto empty space to **disconnect** it from the port.
 
-**Module pie** (title strip)
-- **NE** (upper-right): **delete**. Left-drag on the strip = move the module.
+**Module title (strip)** — also a plain menu: a right-click on the vertical title
+opens a one-item menu, **Delete <module>**. Left-drag on the strip moves the module.
 
 ## 6. Toolbar retirement
 

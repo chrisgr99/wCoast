@@ -29,45 +29,15 @@ const GAP_MM = 4;               // horizontal margin at the right of the case, i
 const SVG_NS = 'http://www.w3.org/2000/svg';
 // Pie-wedge icons (match the toolbar buttons where there is one).
 const SCOPE_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.2" stroke-width="1.7"/><path d="M5 12 Q7 8 9 12 T13 12 T17 12 L19 12" stroke-width="1.9"/></g></svg>';
-const APPMENU_ICON = '<svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="2.4" rx="1"/><rect x="4" y="11" width="16" height="2.4" rx="1"/><rect x="4" y="16" width="16" height="2.4" rx="1"/></svg>';
-const HELP_ICON = '<svg viewBox="0 0 24 24"><text x="12" y="19" text-anchor="middle" font-size="22" font-weight="700" font-family="-apple-system,system-ui,sans-serif">?</text></svg>';
 // Help links open the repo docs in the user's browser (see _openExternal).
 const DOCS_README_URL = 'https://github.com/chrisgr99/wCoast/blob/main/README.md';
 const DOCS_GETTING_STARTED_URL = 'https://github.com/chrisgr99/wCoast/blob/main/docs/getting-started.md';
-// A drooping orange cable between two terminals (left a touch higher) — the "pull a
-// cable" wedge.
-const CABLE_DROOP_ICON = '<svg style="width:16px;height:16px" viewBox="0 0 24 24">'
-  + '<path d="M4 7.5 C 8.5 20, 15.5 20, 20 12.5" fill="none" stroke="#ff7300" stroke-width="2.7" stroke-linecap="round"/>'
-  + '<circle cx="4" cy="7.5" r="3.5" fill="currentColor"/>'
-  + '<circle cx="20" cy="12.5" r="3.5" fill="currentColor"/></svg>';
+// "What feeds this" (upstream network) icon — a small node graph.
 const NET_ICON = '<svg viewBox="0 0 24 24"><g stroke="currentColor" stroke-linecap="round"><line x1="12" y1="12" x2="20" y2="4.5" stroke-width="2.1"/><line x1="12" y1="12" x2="18.5" y2="21" stroke-width="2.1"/><circle cx="20" cy="4.5" r="3.2" fill="currentColor" stroke="none"/><circle cx="18.5" cy="21" r="3.2" fill="currentColor" stroke="none"/><line x1="3.5" y1="6" x2="12" y2="12" stroke-width="2.9"/><circle cx="3.5" cy="6" r="3.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="3.7" fill="currentColor" stroke="none"/></g></svg>';
-const TRASH_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></g></svg>';
 const EAR_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">'
   + '<g stroke-width="2"><path d="M10 21c-1.2-1.6-2-3.2-2-5.9A6 6 0 0 1 20 15c0 2.5-1.8 3.6-3.5 3.6-1.4 0-2 .9-2 2 0 1.4-1 2.5-2.4 2.5-1.1 0-2.1-.9-2.1-2.1"/>'
   + '<path d="M11.4 14A2.6 2.6 0 0 1 16.2 14.4c0 1.6-1.5 2.1-1.5 3.5"/></g>'
   + '<g stroke-width="1.6"><path d="M7.4 10.4A6 6 0 0 1 11.5 6.7"/><path d="M4.1 9.3A9.5 9.5 0 0 1 10.5 3.3"/></g></g></svg>';
-// The sound/transport button: a big ROUND button in the lower-left, LIT (filled) when
-// sound is on — matching the mixer's master-enable lamp — and a hollow ring when off,
-// with partial arcs radiating up-right to say "this controls the sound".
-function SOUND_BTN_ICON(on) {
-  // The button matches the mixer's master-enable lamp: a gray disc when off, the red
-  // ledLit dome with a glossy highlight when on. Rendered ~1mm larger than the other
-  // wedge icons (18px vs 13px), circle centred low-left so the up-right ink arcs (the
-  // "controls sound" cue) tuck into the free corner.
-  const cx = 10, cy = 14, r = 7;
-  const grad = on ? '<defs><radialGradient id="pieLed" cx="0.5" cy="0.4" r="0.62">'
-    + '<stop offset="0" stop-color="#ff7a5a"/><stop offset="0.5" stop-color="#ee2a10"/>'
-    + '<stop offset="0.82" stop-color="#d21010"/><stop offset="1" stop-color="#8f0c0c"/>'
-    + '</radialGradient></defs>' : '';
-  const body = on
-    ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#pieLed)" stroke="#141414" stroke-width="0.5"/>`
-    : `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#505055" stroke="#141414" stroke-width="0.9"/>`;
-  const gloss = on ? `<ellipse cx="${cx - 1.7}" cy="${cy - 2.7}" rx="2.5" ry="1.6" fill="#ffb4b4" opacity="0.85"/>` : '';
-  const arcs = '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.7">'
-    + '<path d="M15 6 A5 5 0 0 1 20 11"/>'
-    + '<path d="M15 2.5 A8.5 8.5 0 0 1 23.5 11"/></g>';
-  return `<svg style="width:18px;height:18px" viewBox="0 0 24 24">${grad}${arcs}${body}${gloss}</svg>`;
-}
 
 // Cable colour = signal family, matching the port bodies: audio yellow, CV/control
 // orange, trigger blue, 1V/oct pitch green. A cord takes its DESTINATION port's
@@ -717,10 +687,11 @@ export class Rack {
     }, 150);
   }
 
-  // Jack pointerdown. A left press that moves past a small threshold starts a NEW
-  // cable dragged from this jack; an existing cord is instead grabbed by its stub
-  // (see _startRegrab). A plain click (press-release, no move) does nothing.
-  // stopPropagation on the press keeps it from starting a module drag. `key` is a
+  // Jack pointerdown (LEFT button only — the pie opens on a RIGHT click). A press that
+  // moves past a small threshold starts a NEW cable dragged from this jack; an existing
+  // cord is instead grabbed to re-route (see _startRegrab). A plain click (press-release,
+  // no move) starts a STICKY cable that follows the cursor until you click a jack to
+  // connect. stopPropagation keeps the press from starting a module drag. `key` is a
   // rack module or the mixer.
   _onJackPointerDown(e, key, portId) {
     e.stopPropagation();
@@ -755,10 +726,11 @@ export class Rack {
         }
       }
     };
-    // A clean click (no drag) OPENS the terminal pie — same as a right-click. It fires
-    // on release, so a press that becomes a drag is unambiguously a cable and never a
-    // menu. (Pulling a cord by click is now the pie's upper-left "pull a cable" wedge.)
-    const onUp = (ev) => { cleanup(); this._onJackContextMenu(ev, key, portId); };
+    // A clean click (no drag) starts a STICKY cable that follows the cursor (click a jack
+    // to connect, Escape/right-click to cancel). It fires on release, so a press that
+    // became a drag is already a cable and never reaches here. The pie opens on a
+    // right-click instead.
+    const onUp = (ev) => { cleanup(); this._startStickyCable(key, portId, ev.clientX, ev.clientY); };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
   }
@@ -863,38 +835,6 @@ export class Rack {
     this.container.addEventListener('scroll', onScroll, true);
   }
 
-  // A non-committal PREVIEW cord from a terminal to the cursor, shown while hovering the
-  // pie's "pull a cable" wedge — a hint that a real drag will start. Drawn in a top-layer
-  // viewport overlay (ABOVE the pie) so it stays visible right up to the cursor tip
-  // instead of vanishing behind the opaque pie disc.
-  _startCablePreview(key, portId) {
-    this._endCablePreview();
-    const ep = this._ep(key, portId);
-    const rec = this.records.get(key);
-    const port = rec && rec.panel && rec.panel.ports.get(portId);
-    if (!ep || !port || !port.element) return;
-    const jr = port.element.getBoundingClientRect();
-    const svg = document.createElementNS(SVG_NS, 'svg');
-    svg.setAttribute('class', 'cable-preview');
-    svg.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:3100;pointer-events:none;overflow:visible;';
-    const path = document.createElementNS(SVG_NS, 'path');
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', STYLE_COLOR[domainStyle(ep.meta.domain)]);
-    path.setAttribute('stroke-width', String(Math.max(3, CABLE_PX)));
-    path.setAttribute('stroke-linecap', 'round');
-    svg.appendChild(path);
-    document.body.appendChild(svg);
-    this._previewCable = { svg, path, jx: jr.left + jr.width / 2, jy: jr.top + jr.height / 2 };
-  }
-  _updateCablePreview(clientX, clientY) {
-    const p = this._previewCable; if (!p) return;
-    const sag = 8 + Math.abs(clientX - p.jx) * 0.18;                 // a gentle droop
-    const mx = (p.jx + clientX) / 2, my = Math.max(p.jy, clientY) + sag;
-    p.path.setAttribute('d', `M ${r2(p.jx)} ${r2(p.jy)} Q ${r2(mx)} ${r2(my)} ${r2(clientX)} ${r2(clientY)}`);
-  }
-  _endCablePreview() {
-    if (this._previewCable) { this._previewCable.svg.remove(); this._previewCable = null; }
-  }
 
   // Re-route an existing cable: grabbed at one of its ports (grabbedEnd), drag that
   // end to another valid port to move it, or onto nothing to delete. Fixed end stays.
@@ -1505,16 +1445,8 @@ export class Rack {
           onPeekStart: () => this._isolateSubnet(key, portId),
           onPeekEnd: () => this._exitIsolate(),
           commit: () => {} },
-        // Pull a cable (upper-left — away from the lower wedges so it isn't triggered by
-        // accident): entering shows a PREVIEW cord from the terminal to the cursor. Pull it
-        // OUT past the pie's edge (any direction but back to centre) and it becomes a real
-        // sticky cord that follows the cursor (click a jack to connect, Escape/right-click
-        // to cancel). Back to the centre cancels.
-        { dir: 'NW', icon: CABLE_DROOP_ICON, label: 'pull a cable', capture: true,
-          onPeekStart: (ctx) => { this._startCablePreview(key, portId); this._updateCablePreview(ctx.x, ctx.y); },
-          onPeekMove: (ctx) => this._updateCablePreview(ctx.x, ctx.y),
-          onPeekEnd: () => this._endCablePreview(),
-          commit: (ctx) => { this._endCablePreview(); this._startStickyCable(key, portId, ctx.x, ctx.y); } },
+        // (Pulling a cable is now a plain LEFT click/drag on the terminal — see
+        // _onJackPointerDown — so it's no longer a pie wedge.)
       ],
     });
   }
@@ -2566,11 +2498,9 @@ export class Rack {
       rec.el.classList.remove('dragging');
       ghost.style.display = 'none';
       if (moved) { this._moveModule(rec, dropRow, dropX); return; }
-      if (this._isolateNet) { this._exitIsolate(); return; }   // a left click on empty faceplate leaves isolate mode
-      // A clean left click opens the pie (same as a right-click): the title strip's
-      // delete pie, otherwise the panel pie.
-      if (ev.target && ev.target.closest && ev.target.closest('.module-title')) this._onTitleContextMenu(ev, rec);
-      else this._onModuleContextMenu(ev, rec);
+      if (this._isolateNet) { this._exitIsolate(); }   // a left click on empty faceplate leaves isolate mode
+      // The panel and title pies open on a RIGHT click now (see the contextmenu
+      // bindings); a clean left click does nothing else.
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
@@ -2625,63 +2555,44 @@ export class Rack {
     return x;
   }
 
-  // The panel pie: global actions only. Start/stop (bottom) toggles the transport
-  // when activated; the app menu (upper-left) opens. Delete lives on the module's
-  // vertical title (see _onTitleContextMenu).
+  // Right-click a panel → the main menu, a plain list (File / Edit / Engine / Dark mode /
+  // Help). It's no longer a pie. Delete lives on the module's vertical title (see
+  // _onTitleContextMenu). rack-app fills the items via onAppMenu.
   _onModuleContextMenu(e, rec) {
     e.preventDefault();
     e.stopPropagation();
-    if (e.target.closest && e.target.closest('[data-wcoast-param]')) return;   // no pie over a knob or any control
-    // The sound wedge mirrors the mixer's master-enable: read it straight from the mixer
-    // record each time the pie opens, so the LED always matches the mixer's button.
-    const mixEnable = this.records.get('mixer');
-    const pre = mixEnable ? mixEnable.values.get('masterMute') === 'on' : this.isPlaying();
-    // Sound (S): hover auditions the patch momentarily; a click latches sound on/off
-    // (unified with the mixer master enable). The button LED lights whenever sound is
-    // actually playing — the latched on-state AND during a hover-peek (sound plays then
-    // too), so its illumination always tracks the audio. `plain`: the wedge itself never
-    // tints (black pie background); only the LED shows state.
-    const soundSeg = {
-      dir: 'S', icon: SOUND_BTN_ICON(pre), label: pre ? 'sound on' : 'sound off', plain: true,
-      // Hover previews the TOGGLE (the opposite of the latched state): the LED and the
-      // audio both show what clicking would do — light+play when off, dim+silence when on.
-      onPeekStart: () => { this.soundPeek(!pre); if (soundSeg.iconEl) soundSeg.iconEl.innerHTML = SOUND_BTN_ICON(!pre); },
-      onPeekEnd: () => { this.soundPeek(pre); if (soundSeg.iconEl) soundSeg.iconEl.innerHTML = SOUND_BTN_ICON(pre); },
-      commit: () => this.setSound(!this.isPlaying()),
-    };
-    openPieMenu({
-      x: e.clientX, y: e.clientY,
-      segments: [
-        // App menu (N, top) and help "?" (NE, upper-right) are CLICK-only: a click opens
-        // the menu (a normal sticky pop-up) at the pointer and closes the pie. Hovering
-        // just highlights the wedge — there's no preview to lose to a slow or stray slide.
-        { dir: 'N', icon: APPMENU_ICON, label: 'menu',
-          commit: (ctx) => this.onAppMenu(ctx.x, ctx.y) },
-        { dir: 'NE', icon: HELP_ICON, label: 'help',
-          commit: (ctx) => this._openHelpMenu(ctx.x, ctx.y) },
-        soundSeg,
-      ],
-    });
+    if (e.target.closest && e.target.closest('[data-wcoast-param]')) return;   // no menu over a knob or any control
+    this.onAppMenu(e.clientX, e.clientY);
   }
 
-  // Right-click a module's vertical title (its left edge) → delete. It only fires on
-  // cross-out (a deliberate drag past the rim), so a stray hover can't remove it. The
-  // pinned mixer can't be deleted, so no pie.
+  // Right-click a module's vertical title (its left edge) → a small menu with its one
+  // action, Delete. The pinned mixer can't be deleted, so no menu.
   _onTitleContextMenu(e, rec) {
     e.preventDefault();
     e.stopPropagation();
     if (rec.pinned) return;
-    openPieMenu({
-      x: e.clientX, y: e.clientY,
-      // Delete has no peek — it only fires on a deliberate click, never on hover.
-      segments: [{ dir: 'NE', icon: TRASH_ICON, label: `delete ${rec.name}`, commit: () => this._deleteModuleWithUndo(rec) }],
-    });
+    this._openMenu(e.clientX, e.clientY, [
+      { label: `Delete ${rec.name}`, action: () => this._deleteModuleWithUndo(rec) },
+    ]);
   }
 
   // items: { label, action } clickable rows, plus optional { header:true } group
   // labels and optional { checked, dim } for the connect menu's checkmark/dimming.
   _openMenu(x, y, items) {
     this._closeMenu();
+    // Track pointer DIRECTION (a lightly smoothed recent velocity) while the menu is open,
+    // so a diagonal move toward an open submenu doesn't get hijacked by a neighbouring
+    // parent it passes over (see _headingToSubmenu / _enterMainItem).
+    this._menuLast = null; this._menuDir = null;
+    this._menuMoveHandler = (ev) => {
+      const p = this._menuLast;
+      if (p) {
+        const dx = ev.clientX - p.x, dy = ev.clientY - p.y;
+        if (dx || dy) { const a = 0.5, c = this._menuDir; this._menuDir = c ? { dx: a * dx + (1 - a) * c.dx, dy: a * dy + (1 - a) * c.dy } : { dx, dy }; }
+      }
+      this._menuLast = { x: ev.clientX, y: ev.clientY };
+    };
+    document.addEventListener('pointermove', this._menuMoveHandler, true);
     const menu = document.createElement('div');
     menu.className = 'rack-menu' + (this.isDark() ? ' theme-dark' : '');   // border: dark line in light mode, light line in dark
     let focusEl = null;
@@ -2736,15 +2647,17 @@ export class Rack {
       const item = document.createElement('div');
       item.className = 'rack-menu-item' + (it.dim ? ' dim' : '');
       const isOn = it.checkFn ? it.checkFn() : !!it.checked;
+      const lbl = document.createElement('span');
+      lbl.textContent = it.label;
+      item.appendChild(lbl);
+      // A checkable item (Engine, Dark mode, a connection): the tick sits at the RIGHT
+      // edge, so the label isn't indented and lines up with the submenu labels.
       if (it.checkFn || it.checked !== undefined) {
         const ck = document.createElement('span');
         ck.className = 'rack-menu-check';
         ck.textContent = isOn ? '✓' : '';
         item.appendChild(ck);
       }
-      const lbl = document.createElement('span');
-      lbl.textContent = it.label;
-      item.appendChild(lbl);
       if (it.submenu) {
         // A heading with a submenu (File/Edit/View): a right arrow, and hovering (or
         // clicking) it opens its submenu to the side, Electron-style.
@@ -2752,15 +2665,18 @@ export class Rack {
         const arrow = document.createElement('span');
         arrow.className = 'rack-menu-arrow'; arrow.textContent = '›';
         item.appendChild(arrow);
-        item.addEventListener('mouseenter', () => this._openSubmenu(item, it.submenu));
-        item.addEventListener('click', (e) => { e.stopPropagation(); this._openSubmenu(item, it.submenu); });
+        item.addEventListener('mouseenter', () => this._enterMainItem(item, () => this._openSubmenu(item, it.submenu)));
+        item.addEventListener('mouseleave', () => this._clearSubGuard());
+        item.addEventListener('click', (e) => { e.stopPropagation(); this._clearSubGuard(); this._openSubmenu(item, it.submenu); });
       } else if (it.disabled) {
         item.classList.add('disabled');
-        item.addEventListener('mouseenter', () => this._closeSubs());
+        item.addEventListener('mouseenter', () => this._enterMainItem(item, () => this._closeSubs()));
+        item.addEventListener('mouseleave', () => this._clearSubGuard());
       } else {
         // A selection closes the menu, then runs — one pick is the common case.
         item.addEventListener('click', () => { this._closeMenu(); it.action(); });
-        item.addEventListener('mouseenter', () => this._closeSubs());
+        item.addEventListener('mouseenter', () => this._enterMainItem(item, () => this._closeSubs()));
+        item.addEventListener('mouseleave', () => this._clearSubGuard());
       }
       (group || menu).appendChild(item);
       // The first connected row is the focus: the menu opens with it under the
@@ -2801,16 +2717,45 @@ export class Rack {
 
   _closeMenu() {
     this._closeSubs();
+    this._clearSubGuard();
+    if (this._menuMoveHandler) { document.removeEventListener('pointermove', this._menuMoveHandler, true); this._menuMoveHandler = null; }
+    this._menuDir = null; this._menuLast = null;
     if (this._menuEl) { this._menuEl.remove(); this._menuEl = null; }
   }
 
-  // The help "?" menu: links to the docs, opened in the user's browser.
-  _openHelpMenu(x, y) {
-    this._openMenu(x, y, [
+  // Entering a top-level menu item: normally switch (open its submenu, or close the open
+  // one). But if a submenu is showing and the pointer is cutting DIAGONALLY toward it (see
+  // _headingToSubmenu), hold the current submenu — a neighbour merely passed over on the
+  // way doesn't steal it. A short fallback timer still lets a lingering pointer switch, so
+  // parking on the neighbour selects it.
+  _enterMainItem(item, doSwitch) {
+    this._clearSubGuard();
+    if (item === this._subParent) return;             // its submenu is already open
+    if (this._openSubs.length && this._headingToSubmenu()) {
+      this._subGuardTimer = setTimeout(() => { this._subGuardTimer = null; if (item.isConnected) doSwitch(); }, 260);
+      return;
+    }
+    doSwitch();
+  }
+  _clearSubGuard() { if (this._subGuardTimer) { clearTimeout(this._subGuardTimer); this._subGuardTimer = null; } }
+  // True when the pointer's recent motion leans sideways toward the open submenu by more
+  // than 30° off vertical (tan 30° ≈ 0.577): a near-vertical move (navigating the list) is
+  // NOT heading to the submenu and switches normally.
+  _headingToSubmenu() {
+    const d = this._menuDir; if (!d) return false;
+    const { dx, dy } = d;
+    if (!dx && !dy) return false;
+    const toward = this._subSide > 0 ? dx > 0 : dx < 0;
+    return toward && Math.abs(dx) > Math.abs(dy) * 0.5774;
+  }
+
+  // The Help submenu items (used by the main menu): doc links opened in the browser.
+  helpMenuItems() {
+    return [
       { label: 'README', action: () => this._openExternal(DOCS_README_URL) },
       { label: 'Getting Started', action: () => this._openExternal(DOCS_GETTING_STARTED_URL) },
       { label: 'Reference — coming soon', disabled: true },
-    ]);
+    ];
   }
   // Open a URL in the user's default browser: the Electron bridge if present, else a new
   // browser tab.
@@ -2818,7 +2763,7 @@ export class Rack {
     if (window.wcoast && window.wcoast.openExternal) window.wcoast.openExternal(url);
     else window.open(url, '_blank', 'noopener');
   }
-  _closeSubs() { for (const s of this._openSubs) s.remove(); this._openSubs = []; }
+  _closeSubs() { for (const s of this._openSubs) s.remove(); this._openSubs = []; this._subParent = null; }
 
   // Build (but don't place) a submenu of leaf items — check marks, disabled state, and
   // a click that runs the item and closes the whole menu.
@@ -2830,8 +2775,8 @@ export class Rack {
       const item = document.createElement('div');
       item.className = 'rack-menu-item';
       const on = it.checkFn ? it.checkFn() : !!it.checked;
-      if (it.checkFn || it.checked !== undefined) { const ck = document.createElement('span'); ck.className = 'rack-menu-check'; ck.textContent = on ? '✓' : ''; item.appendChild(ck); }
       const lbl = document.createElement('span'); lbl.textContent = it.label; item.appendChild(lbl);
+      if (it.checkFn || it.checked !== undefined) { const ck = document.createElement('span'); ck.className = 'rack-menu-check'; ck.textContent = on ? '✓' : ''; item.appendChild(ck); }
       if (it.disabled) item.classList.add('disabled');
       else item.addEventListener('click', () => { this._closeMenu(); it.action(); });
       sub.appendChild(item);
@@ -2853,5 +2798,7 @@ export class Rack {
     let sl = r.right - 2; if (sl + sw > vw - pad) sl = Math.max(pad, r.left - sw + 2);
     let st = r.top; if (st + sh > vh - pad) st = Math.max(pad, vh - pad - sh);
     sub.style.left = sl + 'px'; sub.style.top = st + 'px'; sub.style.visibility = '';
+    this._subParent = item;                    // whose submenu is showing (so re-entering it is a no-op)
+    this._subSide = (sl > r.left) ? 1 : -1;    // +1 submenu on the right, -1 flipped to the left
   }
 }
