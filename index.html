@@ -56,19 +56,55 @@
 
     /* floating signal scopes + their callouts */
     .scope { position: fixed; z-index: 1250; background: #0d0f0c; border: 1px solid #8a8d92; border-radius: 6px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.5); padding: 3px; cursor: default; }
+      box-shadow: 0 6px 18px rgba(0,0,0,0.5); padding: 0; cursor: default; }
     .scope-canvas { display: block; border-radius: 3px; }
+    /* A small clickable nub at the bottom-centre of the display opens the values panel. */
+    /* Values panel below the display: spin boxes for the two scales. */
+    .scope-values { display: none; position: absolute; left: 50%; transform: translateX(-50%); background: #0a0c09; color: #ffffff; border: 1px solid #8a8d92; border-radius: 4px; padding: 2px 7px; font-size: 13px; font-weight: 400; line-height: 1; white-space: nowrap; align-items: center; gap: 4px; z-index: 2; user-select: none; -webkit-user-select: none; }
+    .scope-values.show { display: flex; }
+    .scope-spin { display: inline-flex; align-items: center; gap: 3px; }
+    .scope-arrows { display: inline-flex; flex-direction: column; line-height: 0.7; }
+    .scope-arrows button { background: none; border: none; color: #ff9d3a; cursor: pointer; padding: 0; margin: 0; display: block; font-size: 0.72em; }
+    .scope-arrows button:hover { color: #ffd089; }
+    .scope-splabel { color: #ff9d3a; font-weight: 700; }
+    .scope-val { display: inline-block; }
+    .scope-half { display: inline-flex; align-items: center; gap: 3px; }
+    .scope-half-l .scope-val { text-align: right; } .scope-half-r .scope-val { text-align: left; }
+    .scope-vdiv { color: #6a6d70; }
+    .scope-tip { position: fixed; display: none; z-index: 4001; background: #0a0c09; color: #ffffff; border: 1px solid #8a8d92; border-radius: 4px; padding: 2px 7px; font: 400 11px/1 sans-serif; white-space: nowrap; pointer-events: none; user-select: none; -webkit-user-select: none; }
+    .scope-tip.show { display: block; }
+    .scope-playpause { position: absolute; left: 1px; bottom: 1px; width: 13px; height: 13px; opacity: 0; transition: opacity 0.1s; cursor: default; }
+    .scope:hover .scope-playpause { opacity: 0.85; }
+    .scope-playpause:hover { opacity: 1; }
+    .scope-playpause svg { width: 100%; height: 100%; display: block; }
+    .scope-trigbtn { position: absolute; left: 1px; top: 1px; width: 13px; height: 13px; opacity: 0; transition: opacity 0.1s; cursor: default; display: flex; align-items: center; justify-content: center; color: #6a6d70; font: 700 11px/1 sans-serif;  user-select: none; -webkit-user-select: none; }
+    .scope-trigbtn.on { color: #ff9d3a; }
+    .scope:hover .scope-trigbtn { opacity: 0.85; }
+    .scope-trigbtn:hover { opacity: 1; }
+    .scope-autobtn { position: absolute; left: 17px; bottom: 1px; width: 13px; height: 13px; opacity: 0; transition: opacity 0.1s; cursor: default; display: flex; align-items: center; justify-content: center; color: #ff9d3a; font: 700 11px/1 sans-serif;  user-select: none; -webkit-user-select: none; }
+    .scope:hover .scope-autobtn { opacity: 0.85; }
+    .scope-autobtn:hover { opacity: 1; }
+    .scope-autobtn.pressed { color: #ffd089; transform: scale(0.8); }
+    .scope-gridbtn { position: absolute; left: 33px; bottom: 1px; width: 13px; height: 13px; opacity: 0; transition: opacity 0.1s; cursor: default; display: flex; align-items: center; justify-content: center; color: #ff9d3a; font: 700 11px/1 sans-serif; user-select: none; -webkit-user-select: none; }
+    .scope:hover .scope-gridbtn { opacity: 0.85; }
+    .scope-gridbtn:hover { opacity: 1; }
+    .scope-gridbtn.pressed { color: #ffd089; transform: scale(0.8); }
+    .scope-closebtn { position: absolute; right: 1px; top: 1px; width: 13px; height: 13px; opacity: 0; transition: opacity 0.1s; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #8a8d92; font: 700 15px/1 sans-serif; user-select: none; -webkit-user-select: none; }
+    .scope:hover .scope-closebtn { opacity: 0.85; }
+    .scope-closebtn:hover { opacity: 1; color: #ff5a5a; }
+    .scope-triglevel { position: absolute; left: 0; width: 100%; height: 1.5px; margin-top: -0.75px; background: rgba(255,157,58,0.9); pointer-events: none; z-index: 2; }
     .scope-preview { pointer-events: none; opacity: 0.8; border-style: dashed; cursor: default; }
-    .scope-resize { position: absolute; right: 1px; bottom: 1px; width: 13px; height: 13px; cursor: nwse-resize;
-      background: linear-gradient(135deg, transparent 0 46%, #8a8d92 46% 56%, transparent 56% 70%, #8a8d92 70% 80%, transparent 80%); }
-    .scope-dot { position: fixed; z-index: 1246; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 1px solid rgba(0,0,0,0.55); transform: translate(-50%,-50%); cursor: pointer; }
-    .scope-dot::after { content: '\00d7'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #000; font: 700 12px/1 sans-serif; }
+    .scope-dot { position: fixed; z-index: 1246; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 1px solid rgba(0,0,0,0.55); transform: translate(-50%,-50%); cursor: grab; }
+    .scope-movedot { width: 21px; height: 6px; border-radius: 3px 3px 0 0; cursor: move; }
     .scope-callouts { position: fixed; inset: 0; pointer-events: none; z-index: 1240; overflow: visible; }
     .mon { position: fixed; z-index: 1250; width: 34px; height: 34px; border-radius: 50%; background: #0d0f0c; border: 1px solid #8a8d92;
       box-shadow: 0 4px 12px rgba(0,0,0,0.5); cursor: default; display: flex; align-items: center; justify-content: center; color: #cfe8d4; }
     .mon svg:not(.mon-arc) { width: 15px; height: 15px; display: block; }
     .mon-tick { position: absolute; left: 50%; top: 2.5px; width: 2px; height: 6px; margin-left: -1px; background: #dfeee3; border-radius: 1px; transform-origin: 50% 14.5px; pointer-events: none; }
     .mon-arc { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+    .mon-close { position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 50%; background: #0d0f0c; border: 1px solid #8a8d92; color: #8a8d92; font: 700 11px/1 sans-serif; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.1s; cursor: pointer; z-index: 1; }
+    .mon:hover .mon-close { opacity: 0.9; }
+    .mon-close:hover { opacity: 1; color: #ff5a5a; border-color: #ff5a5a; }
     .mon-muted { border-color: #e22a2a; box-shadow: inset 0 0 0 2px #e22a2a, 0 4px 12px rgba(0,0,0,0.5); }   /* muted: red ring, thickened inward */
     .mon-muted::after { content: ''; position: absolute; left: 3px; right: 3px; top: calc(50% - 1.5px); height: 3px; background: #e22a2a; border-radius: 1px; transform: rotate(-45deg); pointer-events: none; }   /* red diagonal, upper-right to lower-left, as thick as the ring */
 
