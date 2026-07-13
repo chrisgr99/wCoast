@@ -52,6 +52,7 @@ const SCOPE_VDIV = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 
 const SCOPE_TDIV = [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5];      // seconds / division (full 1-2-5)
 const SCOPE_DIV_PX = 12;   // a division is this many CSS px on the face
 const SCOPE_RING_SEC = 4;  // seconds of raw samples kept so a slow sweep can still fill the window
+const SCOPE_EDGE_CURSOR = { l: 'ew-resize', r: 'ew-resize', t: 'ns-resize', b: 'ns-resize', tl: 'nwse-resize', br: 'nwse-resize', tr: 'nesw-resize', bl: 'nesw-resize' };
 const SCOPE_VALUES_DWELL_MS = 500;   // the pointer must LINGER this long over a scope before its values panel shows (a mere pass-through doesn't)
 const SCOPE_VALUES_HIDE_MS = 3000;   // how long the panel lingers after the pointer leaves
 const SCOPE_ROLL_FPS = 60;      // roll history is one peak per animation frame — used to label the slow time base
@@ -66,6 +67,8 @@ const SCOPE_GRID_ZERO = 'rgba(205,215,205,0.98)';
 // Transport button glyphs (shown = the ACTION a click performs). Running → pause bars; frozen → play triangle.
 const SCOPE_PAUSE_ICON = `<svg viewBox="0 0 12 12"><rect x="3" y="2.4" width="2.2" height="7.2" fill="${SCOPE_CTRL}"/><rect x="6.8" y="2.4" width="2.2" height="7.2" fill="${SCOPE_CTRL}"/></svg>`;
 const SCOPE_PLAY_ICON = `<svg viewBox="0 0 12 12"><path d="M3.2 2.2 L10 6 L3.2 9.8 Z" fill="${SCOPE_CTRL}"/></svg>`;
+// Frequency button: two cycles of a sine wave (measures cycles-per-second + period).
+const SCOPE_FREQ_ICON = `<svg viewBox="0 0 15 12"><path d="M1 6 Q2.75 1 4.5 6 T8 6 T11.5 6 T15 6" fill="none" stroke="${SCOPE_CTRL}" stroke-width="1.3" stroke-linecap="round"/></svg>`;
 const JACK_DROP_MARGIN_MM = 2;   // a cable arms/drops within this much of a terminal's edge (a forgiving zone)
 // Grabbing vs. new cable off a populated OUTPUT: a left move within this angle of an
 // existing cord's departure grabs that cord; a move in a fresher direction starts a new
@@ -2033,8 +2036,12 @@ export class Rack {
     el.addEventListener('contextmenu', (ev) => this._scopeMenu(ev, sc));
     // Drag ANY edge of the face to resize; drag the INTERIOR to move the whole scope (like a
     // monitor). Controls stop propagation / sit outside, so they keep priority where they are.
-    el.addEventListener('pointerdown', (ev) => { this._hideScopeValues(sc); const e = this._scopeEdgeAt(sc, ev); if (e) this._resizeScopeEdge(ev, sc, e); else this._moveScope(ev, sc); });
-    el.addEventListener('pointermove', (ev) => { if (sc._resizing) return; const e = this._scopeEdgeAt(sc, ev); el.style.cursor = e ? ((e === 'l' || e === 'r') ? 'ew-resize' : 'ns-resize') : 'move'; });
+    el.addEventListener('pointerdown', (ev) => { this._exitFreqMode(sc); this._hideScopeValues(sc); const e = this._scopeEdgeAt(sc, ev); if (e) this._resizeScopeEdge(ev, sc, e); else this._moveScope(ev, sc); });
+    el.addEventListener('pointermove', (ev) => {
+      if (sc._resizing) return;
+      if (ev.target !== sc.canvas) { el.style.cursor = ''; return; }   // over the settings panel/buttons → no resize/move affordance
+      const e = this._scopeEdgeAt(sc, ev); el.style.cursor = e ? SCOPE_EDGE_CURSOR[e] : 'move';
+    });
     // Scroll over the face to PAN the trace: vertical scroll shifts it up/down, horizontal scroll
     // shifts it left/right, and cmd+vertical shifts left/right too (for mice with no h-scroll).
     sc.canvas.addEventListener('wheel', (ev) => this._scopePanWheel(ev, sc), { passive: false });
@@ -2136,6 +2143,7 @@ export class Rack {
           else if (this.host.ctx.state === 'running' && --sc.autosetBudget <= 0) sc.autosetPending = false;
         }
         this._drawScope(sc); if (!sc.regrabbing) this._updateCallout(sc);
+        if (sc.freqMode && sc.valuesEl && sc.valuesEl.classList.contains('show')) this._refreshScopeValues(sc);   // live CPS/period
       }
       for (const m of this._monitors) if (!m.regrabbing) this._updateCallout(m);
       this._scopeRaf = requestAnimationFrame(tick);
@@ -2351,9 +2359,11 @@ export class Rack {
     this._refreshScopeValues(sc);        // now equalise the two number widths so the arrows don't overlap them
     clearTimeout(sc.valuesTimer); sc.valuesTimer = null;
   }
-  // Start the countdown to hide the panel (after the pointer leaves the scope + panel).
+  // Start the countdown to hide the panel (after the pointer leaves the scope + panel). The
+  // frequency readout is the exception — it stays PINNED so you can watch it while setting a
+  // frequency on some panel knob elsewhere; only clicking a scope control or its face dismisses it.
   _hideScopeValuesSoon(sc) {
-    const el = sc.valuesEl; if (!el) return;
+    const el = sc.valuesEl; if (!el || sc.freqMode) return;
     clearTimeout(sc.valuesTimer);
     sc.valuesTimer = setTimeout(() => el.classList.remove('show'), SCOPE_VALUES_HIDE_MS);
   }
@@ -2396,6 +2406,16 @@ export class Rack {
     const right = document.createElement('span'); right.className = 'scope-half scope-half-r';
     right.appendChild(label('V')); right.appendChild(arrowsFor('v')); right.appendChild(valEl('v'));   // V = vertical
     panel.appendChild(left); panel.appendChild(divEl); panel.appendChild(right);
+    // Frequency readout: replaces the scale halves while the wave (CPS) button is active —
+    // cycles-per-second on the left, the period on the right, same mirrored layout.
+    const freq = document.createElement('span'); freq.className = 'scope-freq';
+    const fCps = document.createElement('span'); fCps.className = 'scope-val';
+    const fDiv = document.createElement('span'); fDiv.className = 'scope-vdiv'; fDiv.textContent = '│';
+    const fPer = document.createElement('span'); fPer.className = 'scope-val';
+    freq.appendChild(fCps); freq.appendChild(fDiv); freq.appendChild(fPer);
+    freq.style.display = 'none';
+    panel.appendChild(freq);
+    sc._valHalves = { left, div: divEl, right }; sc.freqEls = { wrap: freq, cps: fCps, per: fPer };
     panel.addEventListener('pointerdown', (e) => e.stopPropagation());   // never starts a face gesture
     // Scroll over the H/V group to step that scale, accumulated so a trackpad flick is gentle.
     this._attachValueWheel(left, sc, 't');
@@ -2404,16 +2424,16 @@ export class Rack {
     // Lower-left transport button: pause/resume the trace. Only visible on hover over the scope.
     const play = document.createElement('div'); play.className = 'scope-playpause';
     play.addEventListener('pointerdown', (e) => e.stopPropagation());
-    play.addEventListener('click', (e) => { e.stopPropagation(); sc.frozen = !sc.frozen; this._updateScopePlayPause(sc); });
+    play.addEventListener('click', (e) => { e.stopPropagation(); this._exitFreqMode(sc); sc.frozen = !sc.frozen; this._updateScopePlayPause(sc); });
     // Upper-left trigger button: T (triggered) / F (free running). Only visible on hover.
     const trig = document.createElement('div'); trig.className = 'scope-trigbtn';
     trig.addEventListener('pointerdown', (e) => e.stopPropagation());
-    trig.addEventListener('click', (e) => { e.stopPropagation(); sc.trigger = !sc.trigger; this._updateScopeTrigBtn(sc); });
+    trig.addEventListener('click', (e) => { e.stopPropagation(); this._exitFreqMode(sc); sc.trigger = !sc.trigger; this._updateScopeTrigBtn(sc); });
     trig.addEventListener('wheel', (e) => this._trigWheel(e, sc), { passive: false });   // scroll = trigger level
     // Autoset button (a momentary "A" just right of the transport button): re-frames on press,
     // showing a pressed state while held.
     const auto = document.createElement('div'); auto.className = 'scope-autobtn'; auto.textContent = 'A';
-    auto.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); auto.setPointerCapture && auto.setPointerCapture(e.pointerId); auto.classList.add('pressed'); this._scopeAutoset(sc); });
+    auto.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); auto.setPointerCapture && auto.setPointerCapture(e.pointerId); auto.classList.add('pressed'); this._exitFreqMode(sc); this._scopeAutoset(sc); });
     const autoUp = () => auto.classList.remove('pressed');
     auto.addEventListener('pointerup', autoUp); auto.addEventListener('pointercancel', autoUp);
     // Grid button (a momentary "G" right of "A"): toggles the grid on/off.
@@ -2421,6 +2441,11 @@ export class Rack {
     grid.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); grid.setPointerCapture && grid.setPointerCapture(e.pointerId); grid.classList.add('pressed'); sc.gridOn = !sc.gridOn; });
     const gridUp = () => grid.classList.remove('pressed');
     grid.addEventListener('pointerup', gridUp); grid.addEventListener('pointercancel', gridUp);
+    // Frequency button (the two-cycle sine wave, right of "G"): put the readout box into frequency
+    // mode — live cycles-per-second and period — until another control or the face is clicked.
+    const fbtn = document.createElement('div'); fbtn.className = 'scope-freqbtn'; fbtn.innerHTML = SCOPE_FREQ_ICON;
+    fbtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    fbtn.addEventListener('click', (e) => { e.stopPropagation(); sc.freqMode = !sc.freqMode; fbtn.classList.toggle('on', sc.freqMode); this._showScopeValues(sc); });
     // Close button (upper-right ×): remove the scope. Only visible on hover.
     const close = document.createElement('div'); close.className = 'scope-closebtn'; close.textContent = '×';
     close.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -2435,9 +2460,10 @@ export class Rack {
     this._attachScopeTip(trig, 'triggered mode · scroll = level');
     this._attachScopeTip(auto, 'auto scale');
     this._attachScopeTip(grid, 'grid');
+    this._attachScopeTip(fbtn, 'frequency (CPS + period)');
     this._attachScopeTip(close, 'close');
-    sc.el.appendChild(panel); sc.el.appendChild(play); sc.el.appendChild(trig); sc.el.appendChild(auto); sc.el.appendChild(grid); sc.el.appendChild(close); sc.el.appendChild(trigLine);
-    sc.valuesEl = panel; sc.playBtn = play; sc.trigBtn = trig;
+    sc.el.appendChild(panel); sc.el.appendChild(play); sc.el.appendChild(trig); sc.el.appendChild(auto); sc.el.appendChild(grid); sc.el.appendChild(fbtn); sc.el.appendChild(close); sc.el.appendChild(trigLine);
+    sc.valuesEl = panel; sc.playBtn = play; sc.trigBtn = trig; sc.freqBtn = fbtn;
     this._updateScopePlayPause(sc); this._updateScopeTrigBtn(sc);
     this._placeScopeValues(sc);
     this._refreshScopeValues(sc);
@@ -2452,8 +2478,19 @@ export class Rack {
   }
   // The bottom values panel is manual only: clicking the affordance pins it open (both scales),
   // and it updates live while pinned. Transient feedback during a change is the pointer HUD.
+  // In frequency mode it instead shows the live cycles-per-second and period readout.
   _refreshScopeValues(sc) {
     const vt = sc.valEls && sc.valEls.t, vv = sc.valEls && sc.valEls.v; if (!vt || !vv) return;
+    const half = sc._valHalves, fq = sc.freqEls;
+    if (sc.freqMode && half && fq) {
+      half.left.style.display = 'none'; half.div.style.display = 'none'; half.right.style.display = 'none';
+      fq.wrap.style.display = 'flex';
+      const m = this._measureScopeFreq(sc);
+      fq.cps.textContent = m ? this._fmtCps(m.hz) : '—';       // em dash on no measurable pitch
+      fq.per.textContent = m ? this._fmtPeriod(m.periodSec) : '—';
+      return;
+    }
+    if (half && fq) { fq.wrap.style.display = 'none'; half.left.style.display = ''; half.div.style.display = ''; half.right.style.display = ''; }
     vt.style.width = ''; vv.style.width = '';
     vt.textContent = this._scopeAxisText(sc, 't');
     vv.textContent = this._scopeAxisText(sc, 'v');
@@ -2461,6 +2498,61 @@ export class Rack {
     // centred — while the panel is still only as wide as the current values need.
     const w = Math.max(vt.scrollWidth, vv.scrollWidth);
     vt.style.width = w + 'px'; vv.style.width = w + 'px';
+  }
+  // Leave frequency mode and restore the scale readout (a click on any other control or the face).
+  _exitFreqMode(sc) {
+    if (!sc.freqMode) return;
+    sc.freqMode = false;
+    if (sc.freqBtn) sc.freqBtn.classList.remove('on');
+    this._refreshScopeValues(sc);
+  }
+  // Dismiss EVERY pinned frequency readout at once and hide its panel — used when a click lands on a
+  // panel background (you're done watching the frequency), since the pointer is nowhere near the scope.
+  _exitAllFreqMode() {
+    if (!this._scopes) return;
+    for (const sc of this._scopes) if (sc.freqMode) { this._exitFreqMode(sc); this._hideScopeValues(sc); }
+  }
+  _fmtCps(hz) {
+    const v = hz >= 1000 ? Math.round(hz) : hz >= 100 ? Math.round(hz * 10) / 10 : Math.round(hz * 100) / 100;
+    return `${v} CPS`;
+  }
+  _fmtPeriod(sec) {
+    return sec >= 1 ? `${Math.round(sec * 100) / 100} s`
+      : sec >= 1e-3 ? `${Math.round(sec * 1e5) / 100} ms`
+      : `${Math.round(sec * 1e7) / 10} µs`;
+  }
+  // Measure the signal's fundamental over the scope's sample RING (a window of the last ~1.5s, longer
+  // than the analyser alone so slow clock/LFO rates still show two cycles). Cross at the amplitude
+  // MIDPOINT, not the mean: a low-duty pulse's mean hugs its baseline, so a mean threshold never gets
+  // crossed and it reads nothing. Count RISING edges only — exactly one per period and evenly spaced —
+  // so a narrow pulse measures the same as a sine (counting every crossing would bunch a pulse's rise
+  // and fall together and misread it). Hysteresis (arm below, fire above) rejects noise wiggle.
+  // Throttled to ~10Hz since it sweeps the whole window. Returns { hz, periodSec } or null.
+  _measureScopeFreq(sc) {
+    const R = sc.ringBuf, RL = R.length, filled = sc.ringFilled;
+    if (filled < 8) return null;
+    const now = (typeof performance !== 'undefined') ? performance.now() : 0;
+    if (sc._freqT != null && (now - sc._freqT) < 100) return sc._freqCache || null;   // reuse the recent reading
+    sc._freqT = now;
+    const sr = (this.host.ctx && this.host.ctx.sampleRate) || 48000;
+    const N = Math.min(filled, Math.round(sr * 1.5));         // most recent ~1.5s: slow enough for clocks, responsive enough to watch
+    const base = ((sc.ringPos - N) % RL + RL) % RL;
+    let lo = Infinity, hi = -Infinity;
+    for (let j = 0; j < N; j++) { const v = R[(base + j) % RL]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    const span = hi - lo;
+    if (span < 1e-3) { sc._freqCache = null; return null; }   // silence / DC — no amplitude to cross
+    const mid = (lo + hi) / 2, band = span * 0.1;
+    let armed = false, rises = 0, firstRise = -1, lastRise = -1;
+    for (let j = 0; j < N; j++) {
+      const d = R[(base + j) % RL] - mid;
+      if (d < -band) armed = true;
+      else if (d > band && armed) { rises++; if (firstRise < 0) firstRise = j; lastRise = j; armed = false; }
+    }
+    if (rises < 2 || lastRise <= firstRise) { sc._freqCache = null; return null; }   // need two rising edges (one period)
+    const periodSec = ((lastRise - firstRise) / sr) / (rises - 1);
+    const res = (periodSec > 0) ? { hz: 1 / periodSec, periodSec } : null;
+    sc._freqCache = res;
+    return res;
   }
   // The transport button shows the ACTION: pause bars while running, play triangle while frozen.
   // The trigger button is hidden while frozen (triggering is moot on a held trace).
@@ -2509,18 +2601,24 @@ export class Rack {
   }
   // Which edge (if any) the pointer is within the grab margin of — 'l'/'r'/'t'/'b', else null.
   // The stretch of the edge under the move-tab is excluded (no resize there).
+  // Which resize spot (if any) the pointer is on: 'l'/'r'/'t'/'b' edges, or a corner 'tl'/'tr'/'bl'/'br'
+  // (a little roomier, resizing both dimensions). The area BELOW the face is excluded — that's the
+  // settings panel, which isn't resizable — so its top border never reads as the scope's bottom edge.
   _scopeEdgeAt(sc, ev) {
-    const r = sc.canvas.getBoundingClientRect(), M = 7;
+    const r = sc.canvas.getBoundingClientRect(), M = 7, CM = 11;
     const x = ev.clientX - r.left, y = ev.clientY - r.top;
-    if (x < -M || x > r.width + M || y < -M || y > r.height + M) return null;
-    const dL = Math.abs(x), dR = Math.abs(r.width - x), dT = Math.abs(y), dB = Math.abs(r.height - y);
-    const m = Math.min(dL, dR, dT, dB);
-    if (m > M) return null;                       // interior → not a resize spot (it drags to move)
-    return m === dL ? 'l' : m === dR ? 'r' : m === dT ? 't' : 'b';
+    if (x < -M || x > r.width + M || y < -M || y > r.height) return null;   // no bottom overhang (settings panel)
+    const nL = x <= M, nR = x >= r.width - M, nT = y <= M, nB = y >= r.height - M;
+    const cL = x <= CM, cR = x >= r.width - CM, cT = y <= CM, cB = y >= r.height - CM;
+    if (cT && cL) return 'tl';
+    if (cT && cR) return 'tr';
+    if (cB && cL) return 'bl';
+    if (cB && cR) return 'br';
+    return nL ? 'l' : nR ? 'r' : nT ? 't' : nB ? 'b' : null;   // interior → null (it drags to move)
   }
 
-  // Drag an edge to resize that dimension; the OPPOSITE edge stays put (dragging the left or top
-  // edge also shifts the scope's origin). Resizing clears the canvas; the loop redraws.
+  // Drag an edge (one dimension) or a corner (both) to resize; the OPPOSITE edge stays put, so
+  // dragging a left/top edge also shifts the scope's origin. Resizing clears the canvas; the loop redraws.
   _resizeScopeEdge(ev, sc, edge) {
     if (ev.button !== 0) return;
     ev.preventDefault(); ev.stopPropagation();
@@ -2528,13 +2626,14 @@ export class Rack {
     const startLeft = parseFloat(sc.el.style.left) || 0, startTop = parseFloat(sc.el.style.top) || 0;
     const cW = (w) => Math.round(Math.max(60, Math.min(640, w)));
     const cH = (h) => Math.round(Math.max(24, Math.min(400, h)));
+    const hasL = edge.includes('l'), hasR = edge.includes('r'), hasT = edge.includes('t'), hasB = edge.includes('b');
     sc._resizing = true;
     const onMove = (e2) => {
       const dx = e2.clientX - startX, dy = e2.clientY - startY;
-      if (edge === 'r') sc.cssW = cW(startW + dx);
-      else if (edge === 'l') { const w = cW(startW - dx); sc.el.style.left = Math.round(startLeft + (startW - w)) + 'px'; sc.cssW = w; }
-      else if (edge === 'b') sc.cssH = cH(startH + dy);
-      else if (edge === 't') { const h = cH(startH - dy); sc.el.style.top = Math.round(startTop + (startH - h)) + 'px'; sc.cssH = h; }
+      if (hasR) sc.cssW = cW(startW + dx);
+      else if (hasL) { const w = cW(startW - dx); sc.el.style.left = Math.round(startLeft + (startW - w)) + 'px'; sc.cssW = w; }
+      if (hasB) sc.cssH = cH(startH + dy);
+      else if (hasT) { const h = cH(startH - dy); sc.el.style.top = Math.round(startTop + (startH - h)) + 'px'; sc.cssH = h; }
       this._sizeScopeCanvas(sc);    // re-scale the backing store to the new logical size
       this._placeScopeValues(sc);   // keep the values panel placed as the display resizes
       this._updateCallout(sc);
@@ -3647,6 +3746,7 @@ export class Rack {
   // ---- drag (left button, from the faceplate background) ----
   _startDrag(e, rec) {
     if (e.button !== 0) return;
+    this._exitAllFreqMode();   // a click on a panel background also dismisses any pinned frequency readout
     e.preventDefault();
     const s = this.pxPerMm;
     const startX = e.clientX, startY = e.clientY;
