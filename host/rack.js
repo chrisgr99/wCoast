@@ -1663,7 +1663,7 @@ export class Rack {
     };
     this._openMenu(ox, oy, [
       {
-        label: 'Listen', icon: EAR_ICON,
+        label: 'Monitor', icon: EAR_ICON,
         onDwell: () => {
           if (tempMon) return;
           tempMon = this._createMonitor(key, portId, ox, oy, false);   // audio only
@@ -1889,6 +1889,9 @@ export class Rack {
   }
 
   _scopeTapConnect(sc) {
+    // Resume the (no-autoplay) context so the analyser actually receives samples — the modules only
+    // process while it's running. Read-only: the engine still gates the speakers, so no sound.
+    if (this.host.ctx.resume) this.host.ctx.resume();
     const tap = this._probeTap(sc.key, sc.portId);
     if (tap && tap.node) { try { tap.node.connect(sc.analyser, tap.index || 0); sc.tap = tap; } catch (_e) { sc.tap = null; } }
     sc.ringPos = 0; sc.ringFilled = 0; sc.lastCapTime = null; sc.vOffset = 0;   // fresh source → discard stale samples, re-centre on 0
@@ -1898,16 +1901,26 @@ export class Rack {
     sc.tap = null;
   }
 
+  // Drives scopes AND keeps every viewer's callout (ring/line/dot) pinned to its terminal each
+  // frame, so a monitor's loop tracks layout/zoom/focus changes instead of only snapping on
+  // interaction. Runs while any scope OR monitor exists.
   _startScopeLoop() {
     if (this._scopeRaf) return;
     const tick = () => {
-      if (!this._scopes.size) { this._scopeRaf = null; return; }
+      if (!this._scopes.size && !this._monitors.size) { this._scopeRaf = null; return; }
       for (const sc of this._scopes) {
         // One-shot autoset: frame the signal once it's present (or give up after the budget),
         // then hold — the trace is free to grow and shrink so its dynamics stay readable.
-        if (sc.autosetPending) { if (this._autosetScope(sc) || --sc.autosetBudget <= 0) sc.autosetPending = false; }
+        if (sc.autosetPending) {
+          // Frame the signal the moment it's present. Only spend the give-up budget while the
+          // context is RUNNING (else a scope created before sound-on would exhaust it on silence
+          // and never auto-scale once sound starts).
+          if (this._autosetScope(sc)) sc.autosetPending = false;
+          else if (this.host.ctx.state === 'running' && --sc.autosetBudget <= 0) sc.autosetPending = false;
+        }
         this._drawScope(sc); if (!sc.regrabbing) this._updateCallout(sc);
       }
+      for (const m of this._monitors) if (!m.regrabbing) this._updateCallout(m);
       this._scopeRaf = requestAnimationFrame(tick);
     };
     this._scopeRaf = requestAnimationFrame(tick);
@@ -2051,6 +2064,14 @@ export class Rack {
     for (let i = 0; i < n; i++) { const v = buf[i]; if (v < lo) lo = v; if (v > hi) hi = v; sum += v; }
     const peak = Math.max(Math.abs(hi), Math.abs(lo));
     if (peak < 1e-4) return false;   // silence — keep waiting
+    // The analyser's window (~340ms) fills only after the tap connects: until then its FRONT is
+    // still zeros while only the tail carries signal. Framing on that half-filled window mis-reads
+    // the period (the zero front adds no crossings ⇒ a far-too-slow time base) and locks it in. So
+    // wait until the signal has filled the whole window — the front carries signal too — which is
+    // exactly the full-buffer state that pressing Autoset (A) sees, so the two frame identically.
+    let fLo = Infinity, fHi = -Infinity; const fN = n >> 2;   // first quarter of the window
+    for (let i = 0; i < fN; i++) { const v = buf[i]; if (v < fLo) fLo = v; if (v > fHi) fHi = v; }
+    if (Math.max(Math.abs(fHi), Math.abs(fLo)) < 0.25 * peak) return false;   // window not yet full — keep waiting
     const mid = (lo + hi) / 2, halfSpan = Math.max(1e-4, (hi - lo) / 2);
     // Centre the display on the signal's midpoint — a unipolar envelope (0..1) or any DC-offset
     // signal then sits in the middle of the face rather than pushed to one half.
@@ -2479,9 +2500,12 @@ export class Rack {
       lim.threshold.value = -1; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.003; lim.release.value = 0.12;
       this._monBus.connect(monMaster); monMaster.connect(modeGate); modeGate.connect(engineGate);
       engineGate.connect(makeup); makeup.connect(lim); lim.connect(ctx.destination);
+      // Preview injection: the momentary "Listen" hover joins here, AFTER the mode/engine gates, so a
+      // terminal can always be auditioned regardless of the Monitor enable or the engine. A fixed
+      // level (like the default monitor fader) keeps it comparable to a placed monitor.
+      const preview = ctx.createGain(); preview.gain.value = MON_LEVEL_DEFAULT;
+      this._monPreviewGain = preview; preview.connect(makeup);
     }
-    // Independent of the master mute: a terminal can be auditioned even with the main
-    // output muted.
     if (this.host.ctx.resume) this.host.ctx.resume();
     return this._monBus;
   }
@@ -2617,7 +2641,10 @@ export class Rack {
     el.innerHTML = EAR_ICON;
     el.insertAdjacentHTML('afterbegin', this._monArcSvg());   // volume-ramp wedge + limit ticks, behind the ear icon
     document.body.appendChild(el);
-    const g = this.host.ctx.createGain(); g.connect(this._monitorBus());
+    // A momentary hover-preview (showCallout === false) injects AFTER the mode/engine gates so it
+    // always auditions; a placed monitor sums into the gated monitor bus.
+    const g = this.host.ctx.createGain(); this._monitorBus();
+    g.connect(showCallout === false ? this._monPreviewGain : this._monBus);
     // The monitor doubles as a volume knob: an inward tick sweeps min (lower-left) up
     // over the top to max (lower-right); the scroll wheel turns it with knob momentum.
     const tick = document.createElement('div'); tick.className = 'mon-tick'; el.appendChild(tick);
@@ -2646,7 +2673,8 @@ export class Rack {
     this._monitors.add(m);
     if (showCallout) this.onChange();   // a placed monitor is part of the patch (not the temporary peek)
     this._updateCallout(m);
-    this._enableMonitorBus(true);   // enabling a monitor turns the monitor bus on
+    if (showCallout) this._enableMonitorBus(true);   // PLACING a monitor turns the bus on; a hover preview must not
+    this._startScopeLoop();         // keep this monitor's callout pinned each frame (fixes the startup/focus displacement)
     return m;
   }
 
@@ -2775,7 +2803,7 @@ export class Rack {
     m.el.remove(); m.ring.remove(); m.line.remove(); m.dot.remove();
     this._monitors.delete(m);
     if (m.showCallout !== false) this.onChange();   // removing a placed monitor changes the patch
-    if (this._monitors.size === 0) this._enableMonitorBus(false);   // last monitor gone → monitor bus off
+    if (m.showCallout !== false && this._monitors.size === 0) this._enableMonitorBus(false);   // last PLACED monitor gone → bus off (a preview never touches it)
   }
 
   // Click the circle (no drag) → mute/unmute (pull its tap from the mix); a drag
