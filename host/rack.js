@@ -58,6 +58,8 @@ const SCOPE_CTRL = '#ff9d3a';
 // Grid line brightness. Fine = every division; coarse = the decade lines (a power of 10 in the
 // axis units, i.e. every 2/5/10 divisions for a 1-2-5 scale). The G button toggles the grid.
 const SCOPE_GRID_FINE = 0.5, SCOPE_GRID_COARSE = 0.9;
+// The zero-amplitude reference line: brighter than the grid so the signal's position about zero reads clearly.
+const SCOPE_GRID_ZERO = 'rgba(205,215,205,0.98)';
 // Transport button glyphs (shown = the ACTION a click performs). Running → pause bars; frozen → play triangle.
 const SCOPE_PAUSE_ICON = `<svg viewBox="0 0 12 12"><rect x="3" y="2.4" width="2.2" height="7.2" fill="${SCOPE_CTRL}"/><rect x="6.8" y="2.4" width="2.2" height="7.2" fill="${SCOPE_CTRL}"/></svg>`;
 const SCOPE_PLAY_ICON = `<svg viewBox="0 0 12 12"><path d="M3.2 2.2 L10 6 L3.2 9.8 Z" fill="${SCOPE_CTRL}"/></svg>`;
@@ -290,7 +292,7 @@ export class Rack {
     const out = [];
     for (const sc of this._scopes) {
       if (sc.showCallout === false || !sc.key) continue;
-      out.push({ kind: 'scope', module: sc.key, port: sc.portId, ...at(sc.el), w: sc.cssW, h: sc.cssH, vIdx: sc.vIdx, tIdx: sc.tIdx, grid: sc.gridOn ? 1 : 0, trigger: !!sc.trigger, trigLevel: r2(sc.trigLevel || 0), frozen: !!sc.frozen });
+      out.push({ kind: 'scope', module: sc.key, port: sc.portId, ...at(sc.el), w: sc.cssW, h: sc.cssH, vIdx: sc.vIdx, tIdx: sc.tIdx, vOffset: r2(sc.vOffset || 0), hOffset: r2(sc.hOffset || 0), grid: sc.gridOn ? 1 : 0, trigger: !!sc.trigger, trigLevel: r2(sc.trigLevel || 0), frozen: !!sc.frozen });
     }
     for (const m of this._monitors) {
       if (m.showCallout === false || !m.key) continue;
@@ -313,6 +315,8 @@ export class Rack {
         // A saved scale skips autoset; an older patch (no vIdx) autosets on first signal.
         if (p.vIdx != null) { sc.vIdx = Math.max(0, Math.min(SCOPE_VDIV.length - 1, p.vIdx | 0)); sc.autosetPending = false; }
         if (p.tIdx != null) { sc.tIdx = Math.max(0, Math.min(SCOPE_TDIV.length - 1, p.tIdx | 0)); }
+        if (p.vOffset != null) sc.vOffset = p.vOffset;   // restore the panned trace position
+        if (p.hOffset != null) sc.hOffset = p.hOffset;
         if (p.grid != null) sc.gridOn = !!p.grid;
         if (p.trigger != null) sc.trigger = !!p.trigger;
         if (p.trigLevel != null) sc.trigLevel = p.trigLevel;
@@ -1650,16 +1654,23 @@ export class Rack {
     // OFF the menu item and ONTO the floating scope — entering it makes the scope permanent (as
     // if dragged out and dropped there) and closes the menu. scopeItemEl is the Scope row, so the
     // watcher can tell "heading right toward the scope" from "wandered back into the menu".
-    let scopeWatch = null, scopeItemEl = null;
+    let scopeWatch = null, scopeItemEl = null, scopeClick = null, scopeCommitted = false;
     const dropScopePreview = () => {
       if (scopeWatch) { document.removeEventListener('pointermove', scopeWatch, true); scopeWatch = null; }
+      if (scopeClick) { document.removeEventListener('pointerdown', scopeClick, true); scopeClick = null; }
       if (tempScope) { this._closeScope(tempScope); tempScope = null; }
     };
-    const keepScopePreview = () => {   // pointer reached the preview → keep it, close the menu
+    // A CLICK is what commits the scope — either on the Scope item or on the peeked preview's face.
+    // It makes the preview permanent (or creates one) and carries it so the next click drops it where
+    // you want. Merely peeking and moving away creates nothing.
+    const takeScope = (ev, carryMode) => {
+      if (scopeCommitted) return; scopeCommitted = true;
+      let sc = tempScope; tempScope = null;
       if (scopeWatch) { document.removeEventListener('pointermove', scopeWatch, true); scopeWatch = null; }
-      const sc = tempScope; tempScope = null;   // detach so the teardown won't remove it
-      this._promoteScope(sc);
+      if (scopeClick) { document.removeEventListener('pointerdown', scopeClick, true); scopeClick = null; }
+      if (sc) this._promoteScope(sc); else sc = this._createScope(key, portId, ev.clientX, ev.clientY, true);
       this._closeMenu();
+      this._carryScope(sc, { clientX: ev.clientX, clientY: ev.clientY }, carryMode || 'up');
     };
     this._openMenu(ox, oy, [
       {
@@ -1689,18 +1700,27 @@ export class Rack {
             if (!tempScope) return;
             if (!this._menuEl) { dropScopePreview(); return; }   // menu closed some other way → drop the peek
             const r = tempScope.el.getBoundingClientRect();
-            if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) { keepScopePreview(); return; }
+            const overScope = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+            if (overScope) return;   // hovering the preview keeps it up — a CLICK on it is what commits it
             const ir = scopeItemEl ? scopeItemEl.getBoundingClientRect() : { left: 0, right: 0, top: 0, bottom: 0 };
             const overItem = ev.clientX >= ir.left && ev.clientX <= ir.right && ev.clientY >= ir.top && ev.clientY <= ir.bottom;
             const bridging = ev.clientX > ir.right && ev.clientY >= r.top - 8 && ev.clientY <= r.bottom + 8;   // in the gap heading toward the scope
-            if (!overItem && !bridging) dropScopePreview();   // wandered off (e.g. to another item) → close
+            if (!overItem && !bridging) dropScopePreview();   // moved away from BOTH the item and the peek → close
+          };
+          scopeClick = (ev) => {   // click on the peeked face → commit and carry it to reposition
+            if (!tempScope || ev.button !== 0) return;
+            const r = tempScope.el.getBoundingClientRect();
+            if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
+              ev.preventDefault(); ev.stopPropagation(); takeScope(ev, 'auto');   // held-button: drag drops on release, click keeps carrying
+            }
           };
           document.addEventListener('pointermove', scopeWatch, true);
+          document.addEventListener('pointerdown', scopeClick, true);
         },
         // A plain item-leave is handled by the watcher (it may still be heading to the scope); only
         // a genuine menu teardown tears the preview down here.
         onLeave: () => { if (this._menuClosing) dropScopePreview(); },
-        action: (ev) => this._carryScope(this._createScope(key, portId, ev.clientX, ev.clientY), { clientX: ev.clientX, clientY: ev.clientY }, 'up'),
+        action: (ev) => takeScope(ev),
       },
       {
         label: netLabel, icon: NET_ICON, disabled: !hasNet,
@@ -1802,13 +1822,13 @@ export class Rack {
       ringBuf: new Float32Array(Math.round(SCOPE_RING_SEC * sr0)), ringPos: 0, ringFilled: 0, lastCapTime: null,
       hi: null, lo: null, fastVotes: 0, tap: null,
       cssW: 120, cssH: 37, dpr: 1,   // logical CSS size; backing store is scaled to the display DPR
-      vIdx: 7, tIdx: 6, vOffset: 0, autosetPending: true, autosetBudget: 180,   // 0.2 /div, 10 ms/div, centred on 0 until autoset frames it
+      vIdx: 7, tIdx: 6, vOffset: 0, hOffset: 0, autosetPending: true, autosetBudget: 180,   // 0.2 /div, 10 ms/div, centred on 0 until autoset frames it; hOffset = horizontal trace pan (px)
       valuesEl: null, playBtn: null, trigBtn: null, valEls: {}, valuesTimer: null,
       gridOn: true,   // the G button toggles the grid on/off
       trigger: true, trigLevel: 0, frozen: false, forceMode: 'auto',
       armed: false, recFrames: 0, prevPeak: null, showCallout,
       ring: document.createElementNS(SVG_NS, 'circle'), line: document.createElementNS(SVG_NS, 'line'),
-      dot: document.createElement('div'), moveDot: document.createElement('div'),
+      dot: document.createElement('div'),
     };
     this._sizeScopeCanvas(sc);
     this._scopeTapConnect(sc);
@@ -1818,20 +1838,18 @@ export class Rack {
     // The grab handle is a white dot where the line meets the loop — a reliable HTML
     // target (an SVG hit-ring in a pointer-events:none overlay proved unhittable).
     sc.dot.className = 'scope-dot'; document.body.appendChild(sc.dot);
-    // The move handle is a matching white dot sitting on the scope's edge, centred where the
-    // connecting line meets it — drag it to reposition the scope.
-    sc.moveDot.className = 'scope-dot scope-movedot'; document.body.appendChild(sc.moveDot);
 
     el.addEventListener('pointerenter', () => this._showScopeValues(sc));        // panel appears on hover
     el.addEventListener('pointerleave', () => { this._hideScopeValuesSoon(sc); el.style.cursor = ''; });   // lingers 5s; clear resize cursor
     el.addEventListener('contextmenu', (ev) => this._scopeMenu(ev, sc));
-    // Resize by dragging ANY edge of the face; the interior is inert. Controls and the move-tab
-    // (both stop propagation / sit outside) keep priority where they are, so a corner with a control
-    // just isn't a resize spot — which is fine.
-    el.addEventListener('pointerdown', (ev) => { const e = this._scopeEdgeAt(sc, ev); if (e) this._resizeScopeEdge(ev, sc, e); });
-    el.addEventListener('pointermove', (ev) => { if (sc._resizing) return; const e = this._scopeEdgeAt(sc, ev); el.style.cursor = e ? ((e === 'l' || e === 'r') ? 'ew-resize' : 'ns-resize') : ''; });
+    // Drag ANY edge of the face to resize; drag the INTERIOR to move the whole scope (like a
+    // monitor). Controls stop propagation / sit outside, so they keep priority where they are.
+    el.addEventListener('pointerdown', (ev) => { const e = this._scopeEdgeAt(sc, ev); if (e) this._resizeScopeEdge(ev, sc, e); else this._moveScope(ev, sc); });
+    el.addEventListener('pointermove', (ev) => { if (sc._resizing) return; const e = this._scopeEdgeAt(sc, ev); el.style.cursor = e ? ((e === 'l' || e === 'r') ? 'ew-resize' : 'ns-resize') : 'move'; });
+    // Scroll over the face to PAN the trace: vertical scroll shifts it up/down, horizontal scroll
+    // shifts it left/right, and cmd+vertical shifts left/right too (for mice with no h-scroll).
+    sc.canvas.addEventListener('wheel', (ev) => this._scopePanWheel(ev, sc), { passive: false });
     sc.dot.addEventListener('pointerdown', (ev) => this._regrabScope(ev, sc));
-    sc.moveDot.addEventListener('pointerdown', (ev) => this._moveScope(ev, sc));
     this._buildScopeValues(sc);   // the values panel (hover-shown)
 
     sc.trigger = true; this._scopeAutoset(sc);   // a new scope auto-scales and triggers → a useful view at once
@@ -1856,36 +1874,46 @@ export class Rack {
     this.onChange();
   }
 
-  // Carry an already-live scope (created on a pie grab) so it follows the pointer and
-  // drops. It hangs by the middle of its LEFT edge, so it trails down-and-right of the
-  // pointer (matching how the hover preview popped up). mode 'down' drops on the next
-  // RELEASE (dragged out holding a button); mode 'up' drops on the next CLICK. Escape
-  // cancels — the scope is removed.
+  // Carry an already-live scope so it follows the pointer and drops. It hangs by the middle of its
+  // LEFT edge, so it trails down-and-right of the pointer (matching how the hover preview popped up).
+  //   'up'   — drops on the next CLICK (committed from a release, e.g. clicking the menu item).
+  //   'down' — drops on the next RELEASE (dragged out holding a button).
+  //   'auto' — committed with the button held: if you DRAG it into place it drops on release;
+  //            if you merely clicked (no drag) it keeps following and drops on the next click.
+  // Escape (or clicking back on the origin terminal) cancels — the scope is removed.
   _carryScope(sc, e, mode) {
     const h = sc.el.offsetHeight || 80;
     const place = (px, py) => { sc.el.style.left = Math.round(px) + 'px'; sc.el.style.top = Math.round(py - h / 2) + 'px'; this._updateCallout(sc); };
     place(e.clientX, e.clientY);
-    const onMove = (ev) => place(ev.clientX, ev.clientY);
+    const downX = e.clientX, downY = e.clientY; let dragged = false;
+    const onMove = (ev) => { if (!dragged && Math.hypot(ev.clientX - downX, ev.clientY - downY) > 4) dragged = true; place(ev.clientX, ev.clientY); };
     const finish = () => {
       document.removeEventListener('pointermove', onMove, true);
       document.removeEventListener('pointerup', onUp, true);
       document.removeEventListener('pointerdown', onClick, true);
       document.removeEventListener('keydown', onKey, true);
     };
-    const onUp = () => finish();
-    // Clicking back on the terminal it came from cancels the creation (deletes it) —
-    // the same "changed my mind" escape a cable drag has when dropped back on its port.
-    const onClick = (ev) => {
-      ev.preventDefault(); ev.stopPropagation();
+    // Dropping back on the terminal it came from cancels the creation (deletes it) — the same
+    // "changed my mind" escape a cable drag has when dropped back on its port.
+    const cancelIfOrigin = (ev) => {
       const drop = this._jackNear(ev.clientX, ev.clientY);
-      if (drop && drop.key === sc.key && drop.portId === sc.portId) { this._closeScope(sc); finish(); return; }
-      finish();
+      if (drop && drop.key === sc.key && drop.portId === sc.portId) { this._closeScope(sc); return true; }
+      return false;
     };
+    const onUp = (ev) => {
+      if (mode === 'auto' && !dragged) {   // a click, not a drag → keep carrying, drop on the NEXT click
+        document.removeEventListener('pointerup', onUp, true);
+        document.addEventListener('pointerdown', onClick, true);
+        return;
+      }
+      cancelIfOrigin(ev); finish();        // dragged into place ('auto') or 'down' mode → drop here
+    };
+    const onClick = (ev) => { ev.preventDefault(); ev.stopPropagation(); cancelIfOrigin(ev); finish(); };
     const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); this._closeScope(sc); finish(); } };
     document.addEventListener('pointermove', onMove, true);
     document.addEventListener('keydown', onKey, true);
     if (mode === 'up') document.addEventListener('pointerdown', onClick, true);
-    else document.addEventListener('pointerup', onUp, true);
+    else document.addEventListener('pointerup', onUp, true);   // 'down' and 'auto' watch the release
   }
 
   _scopeTapConnect(sc) {
@@ -1894,7 +1922,7 @@ export class Rack {
     if (this.host.ctx.resume) this.host.ctx.resume();
     const tap = this._probeTap(sc.key, sc.portId);
     if (tap && tap.node) { try { tap.node.connect(sc.analyser, tap.index || 0); sc.tap = tap; } catch (_e) { sc.tap = null; } }
-    sc.ringPos = 0; sc.ringFilled = 0; sc.lastCapTime = null; sc.vOffset = 0;   // fresh source → discard stale samples, re-centre on 0
+    sc.ringPos = 0; sc.ringFilled = 0; sc.lastCapTime = null; sc.vOffset = 0; sc.hOffset = 0;   // fresh source → discard stale samples, re-centre on 0
   }
   _scopeTapDisconnect(sc) {
     if (sc.tap && sc.tap.node) { try { sc.tap.node.disconnect(sc.analyser, sc.tap.index || 0); } catch (_e) { /* already gone */ } }
@@ -1992,19 +2020,26 @@ export class Rack {
         for (let i = start; i > lo2; i--) { if (at(i - 1) < L && at(i) >= L) { start = i; break; } }
       }
       const step = Math.max(1, Math.round(0.5 / pxPerSamp));       // decimate to ~2 pts/px
+      // Horizontal pan: the trigger sample sits at x = off (0 = left edge). Draw around it, i<0
+      // reaching back into earlier ring samples so the left fills when the trace is shoved right.
+      const off = sc.hOffset || 0;
+      let iMin = Math.floor((0 - off) / pxPerSamp) - 1, iMax = Math.ceil((W - off) / pxPerSamp) + 1;
+      if (iMin < -start) iMin = -start;
+      if (iMax > filled - 1 - start) iMax = filled - 1 - start;
       let first = true;
-      for (let i = 0; i < need && start + i < filled; i += step) {
-        const x = i * pxPerSamp; if (x > W) break;
+      for (let i = iMin; i <= iMax; i += step) {
+        const x = i * pxPerSamp + off;
         const y = yOf(at(start + i)); if (first) { g.moveTo(x, y); first = false; } else g.lineTo(x, y);
       }
     } else {
       if (!sc.frozen) { const peak = Math.abs(hi) >= Math.abs(lo) ? hi : lo; sc.hist[sc.histIdx] = peak; sc.histIdx = (sc.histIdx + 1) % sc.hist.length; }
       const L = sc.hist.length, pxPerFrame = SCOPE_DIV_PX / (SCOPE_TDIV[sc.tIdx] * SCOPE_ROLL_FPS);
       const show = Math.max(2, Math.min(L, Math.ceil(W / pxPerFrame) + 1));
+      const off = sc.hOffset || 0;
       let started = false;
       for (let i = 0; i < show; i++) {
-        const v = sc.hist[((sc.histIdx - show + i) % L + L) % L]; if (v == null) continue;
-        const px = W - (show - i) * pxPerFrame; if (px < 0) continue;   // newest frame at the right edge
+        const v = sc.hist[((sc.histIdx - show + i) % L + L) % L]; if (v == null) { started = false; continue; }
+        const px = W - (show - i) * pxPerFrame + off; if (px < 0 || px > W) { started = false; continue; }   // newest frame at the right edge
         const y = yOf(v); if (!started) { g.moveTo(px, y); started = true; } else g.lineTo(px, y);
       }
     }
@@ -2051,6 +2086,14 @@ export class Rack {
         const yr = Math.round(y) + 0.5; g.beginPath(); g.moveTo(0, yr); g.lineTo(W, yr); g.stroke();
       }
     }
+    // Zero reference: the amplitude line at value 0, drawn BRIGHTER than the rest of the grid so the
+    // user can see how the signal sits about zero. It tracks the vertical offset (via yOf), unlike
+    // the centre-fixed graticule above, so it stays true to zero as the trace is panned.
+    const yz = yOf(0);
+    if (yz >= -0.5 && yz <= H + 0.5) {
+      g.strokeStyle = SCOPE_GRID_ZERO; g.lineWidth = 1;
+      const yr = Math.round(yz) + 0.5; g.beginPath(); g.moveTo(0, yr); g.lineTo(W, yr); g.stroke();
+    }
   }
 
   // Read a short window and frame the signal into the 1-2-5 scales with headroom: the peak-to-peak
@@ -2073,6 +2116,7 @@ export class Rack {
     for (let i = 0; i < fN; i++) { const v = buf[i]; if (v < fLo) fLo = v; if (v > fHi) fHi = v; }
     if (Math.max(Math.abs(fHi), Math.abs(fLo)) < 0.25 * peak) return false;   // window not yet full — keep waiting
     const mid = (lo + hi) / 2, halfSpan = Math.max(1e-4, (hi - lo) / 2);
+    sc.hOffset = 0;   // reframing re-centres the trace horizontally too
     // Centre the display on the signal's midpoint — a unipolar envelope (0..1) or any DC-offset
     // signal then sits in the middle of the face rather than pushed to one half.
     sc.vOffset = mid;
@@ -2276,13 +2320,8 @@ export class Rack {
     if (x < -M || x > r.width + M || y < -M || y > r.height + M) return null;
     const dL = Math.abs(x), dR = Math.abs(r.width - x), dT = Math.abs(y), dB = Math.abs(r.height - y);
     const m = Math.min(dL, dR, dT, dB);
-    if (m > M) return null;                       // interior → not a resize spot
-    const e = m === dL ? 'l' : m === dR ? 'r' : m === dT ? 't' : 'b';
-    if (e === sc._moveEdge) {                     // skip the piece of the edge occupied by the move-tab
-      const along = (e === 'l' || e === 'r') ? ev.clientY : ev.clientX;
-      if (Math.abs(along - (sc._moveAlong || 0)) <= 15) return null;   // ~half the 21px tab + a touch
-    }
-    return e;
+    if (m > M) return null;                       // interior → not a resize spot (it drags to move)
+    return m === dL ? 'l' : m === dR ? 'r' : m === dT ? 't' : 'b';
   }
 
   // Drag an edge to resize that dimension; the OPPOSITE edge stays put (dragging the left or top
@@ -2312,11 +2351,11 @@ export class Rack {
   _updateCallout(sc) {
     // Click-shown (temporary) viewers show no connection loop or line — the callout
     // running behind the menu reads as clutter. Only dragged-out ones are "connected".
-    if (sc.showCallout === false) { sc.ring.setAttribute('r', '0'); sc.line.setAttribute('stroke', 'none'); if (sc.dot) sc.dot.style.display = 'none'; if (sc.moveDot) sc.moveDot.style.display = 'none'; sc._moveEdge = null; return; }
+    if (sc.showCallout === false) { sc.ring.setAttribute('r', '0'); sc.line.setAttribute('stroke', 'none'); if (sc.dot) sc.dot.style.display = 'none'; return; }
     const jel = this._jackElement(sc.key, sc.portId);
     const col = this.dark ? '#ffffff' : '#000000';
     const lw = 1.8;
-    if (!jel) { sc.ring.setAttribute('r', '0'); sc.line.setAttribute('stroke', 'none'); if (sc.moveDot) sc.moveDot.style.display = 'none'; return; }
+    if (!jel) { sc.ring.setAttribute('r', '0'); sc.line.setAttribute('stroke', 'none'); return; }
     const jr = this._jackClientRect(jel);   // the terminal itself, NOT its wider hit-pad
     const px = jr.left + jr.width / 2, py = jr.top + jr.height / 2;
     const rr = Math.max(jr.width, jr.height) / 2 + 3;
@@ -2329,28 +2368,17 @@ export class Rack {
     // the left-centre regardless — this only steers the drawn line.
     const sr = sc.el.getBoundingClientRect();
     const midX = sr.left + sr.width / 2, midY = sr.top + sr.height / 2;
-    // Each side's mid-point plus the rotation that makes the move-dot's dome face OUTWARD from it
-    // (canonical dome points up = 0°).
-    const sides = [[sr.left, midY, -90], [sr.right, midY, 90], [midX, sr.top, 0], [midX, sr.bottom, 180]];
-    let cx = sr.left, cy = midY, mdeg = -90, bd = Infinity;
-    for (const [sx, sy, deg] of sides) { const d = (sx - px) * (sx - px) + (sy - py) * (sy - py); if (d < bd) { bd = d; cx = sx; cy = sy; mdeg = deg; } }
+    // The line ends at the mid-point of whichever scope side faces the terminal, re-picked as the
+    // scope moves.
+    const sides = [[sr.left, midY], [sr.right, midY], [midX, sr.top], [midX, sr.bottom]];
+    let cx = sr.left, cy = midY, bd = Infinity;
+    for (const [sx, sy] of sides) { const d = (sx - px) * (sx - px) + (sy - py) * (sy - py); if (d < bd) { bd = d; cx = sx; cy = sy; } }
     const u = unit(cx - px, cy - py);
     const jx = px + u.x * rr, jy = py + u.y * rr;   // where the line meets the loop
     sc.line.setAttribute('x1', r2(jx)); sc.line.setAttribute('y1', r2(jy));
     sc.line.setAttribute('x2', r2(cx)); sc.line.setAttribute('y2', r2(cy));
     sc.line.setAttribute('stroke', col); sc.line.setAttribute('stroke-width', lw);
     if (sc.dot) { sc.dot.style.left = r2(jx) + 'px'; sc.dot.style.top = r2(jy) + 'px'; }
-    // Move handle: a squashed dome whose flat side sits on the scope edge at (cx, cy) and whose
-    // rounded face points outward (rotated per the chosen side).
-    if (sc.moveDot) {
-      sc.moveDot.style.display = '';
-      sc.moveDot.style.left = r2(cx) + 'px'; sc.moveDot.style.top = r2(cy) + 'px';
-      sc.moveDot.style.transformOrigin = '50% 100%';                       // pivot at the flat side's centre
-      sc.moveDot.style.transform = `translate(-50%, -100%) rotate(${mdeg}deg)`;
-    }
-    // Remember where the move-tab sits so the edge-resize band skips that stretch of the edge.
-    sc._moveEdge = mdeg === -90 ? 'l' : mdeg === 90 ? 'r' : mdeg === 0 ? 't' : 'b';
-    sc._moveAlong = (sc._moveEdge === 'l' || sc._moveEdge === 'r') ? cy : cx;
   }
 
   // Scroll over the H/V number group to step that scale. Clicking or scrolling the scope FACE
@@ -2393,10 +2421,37 @@ export class Rack {
     if (ev.button !== 0) return;
     ev.preventDefault(); ev.stopPropagation();
     const r = sc.el.getBoundingClientRect();
-    const ox = ev.clientX - r.left, oy = ev.clientY - r.top;
-    const onMove = (e2) => { sc.el.style.left = Math.round(e2.clientX - ox) + 'px'; sc.el.style.top = Math.round(e2.clientY - oy) + 'px'; this._updateCallout(sc); };
+    const ox = ev.clientX - r.left, oy = ev.clientY - r.top, sx = ev.clientX, sy = ev.clientY;
+    let moved = false;
+    const onMove = (e2) => {
+      if (!moved && Math.hypot(e2.clientX - sx, e2.clientY - sy) < 4) return;   // ignore a click's micro-jitter
+      moved = true;
+      sc.el.style.left = Math.round(e2.clientX - ox) + 'px'; sc.el.style.top = Math.round(e2.clientY - oy) + 'px'; this._updateCallout(sc);
+    };
     const onUp = () => { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); };
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
+  }
+
+  // Pan the trace with the wheel over the face: vertical scroll shifts it up/down, horizontal
+  // scroll shifts it left/right, and cmd+vertical shifts left/right too (for mice with no
+  // horizontal wheel). Scale is still set only from the H/V numbers, which swallow their own scroll.
+  _scopePanWheel(ev, sc) {
+    ev.preventDefault(); ev.stopPropagation();
+    const scale = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
+    const dy = ev.deltaY * scale, dx = ev.deltaX * scale;
+    if (ev.metaKey) this._panScopeH(sc, dy);                       // cmd + vertical → horizontal
+    else if (Math.abs(dx) > Math.abs(dy)) this._panScopeH(sc, dx); // native horizontal scroll
+    else this._panScopeV(sc, dy);                                  // vertical scroll
+  }
+  // Vertical pan: scroll up moves the trace up, ~20% of the visible window per wheel notch.
+  _panScopeV(sc, d) {
+    const halfV = SCOPE_VDIV[sc.vIdx] * (sc.cssH / SCOPE_DIV_PX) / 2;   // half the window, in signal units
+    sc.vOffset = (sc.vOffset || 0) + (d / 100) * 0.2 * (2 * halfV);
+  }
+  // Horizontal pan: positive delta shifts the trace right; clamp to ~one width each way.
+  _panScopeH(sc, d) {
+    const lim = sc.cssW;
+    sc.hOffset = Math.max(-lim, Math.min(lim, (sc.hOffset || 0) + d * 0.35));
   }
 
   // Right-click a scope: trigger mode, display override, reset scaling. (Freeze is a
@@ -2429,7 +2484,7 @@ export class Rack {
   _regrabScope(ev, sc) {
     if (ev.button !== 0) return;
     ev.preventDefault(); ev.stopPropagation();
-    const sx = ev.clientX, sy = ev.clientY; let moved = false;   // the dot is the re-probe handle; closing is the × button
+    const sx = ev.clientX, sy = ev.clientY; let moved = false;   // the dot: DRAG to re-probe, plain CLICK to close
     sc.regrabbing = true;                  // stop the loop resetting the loop/dot to the old port
     sc.dot.style.pointerEvents = 'none';   // so the drop hit-test finds the jack, not this dot
     const onMove = (e2) => {
@@ -2441,7 +2496,7 @@ export class Rack {
     };
     const onUp = (e2) => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
-      if (!moved) { sc.dot.style.pointerEvents = ''; sc.regrabbing = false; return; }   // a plain click on the dot does nothing (use the × to close)
+      if (!moved) { sc.dot.style.pointerEvents = ''; sc.regrabbing = false; this._closeScope(sc); return; }   // a plain click on the dot closes the scope
       const drop = this._jackFromPoint(e2.clientX, e2.clientY);   // hit-test while the dot is still pe:none, so it finds the jack, not the dot
       sc.dot.style.pointerEvents = '';
       if (!drop) { this._closeScope(sc); return; }   // loop dropped on the panel → delete it (like a cable pulled off a terminal)
@@ -2458,7 +2513,7 @@ export class Rack {
   _closeScope(sc) {
     this._scopeTapDisconnect(sc);
     if (this._scopeTip) this._scopeTip.classList.remove('show');   // the button vanishes before its pointerleave → hide the stuck tooltip
-    sc.el.remove(); sc.ring.remove(); sc.line.remove(); sc.dot.remove(); sc.moveDot.remove();
+    sc.el.remove(); sc.ring.remove(); sc.line.remove(); sc.dot.remove();
     this._scopes.delete(sc);
     if (sc.showCallout !== false) this.onChange();   // removing a placed scope changes the patch
     if (!this._scopes.size && this._scopeRaf) { cancelAnimationFrame(this._scopeRaf); this._scopeRaf = null; }
