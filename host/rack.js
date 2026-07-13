@@ -340,6 +340,7 @@ export class Rack {
   // Connect two jacks by { key, portId }; returns the edge (for restoring bow).
   connectPatch(from, to) { return this._tryConnect(from, to); }
   redrawCables() { this._drawCables(); }
+  reconcileLinks() { this._reconcileLinks(); }   // public: patch-io calls this after restoring wiring
   // Open the shared pop-up menu at (x, y) — reused by the toolbar hamburger.
   openMenu(x, y, items) { this._openMenu(x, y, items); }
 
@@ -485,7 +486,10 @@ export class Rack {
   // into the black hole, and departs radially toward the belly P. uA/uB are those
   // departure directions — also used to pick which fan-out cord a drag grabs.
   _cordGeom(e) {
-    const a = this._jackPosMm(e.src.key, e.src.portId);
+    // A LINK cord (a "mult": input sharing another input's feed) hangs off the TARGET input it was
+    // chained onto, not the far source it secretly carries — so it draws as the short cord you ran.
+    const srcRef = e.link || e.src;
+    const a = this._jackPosMm(srcRef.key, srcRef.portId);
     const b = this._jackPosMm(e.dst.key, e.dst.portId);
     if (!a || !b) return null;
     const w = CABLE_PX / (this._fit || 1);
@@ -813,7 +817,8 @@ export class Rack {
         // a fresh direction (or an empty jack) pulls a new cord. See _grabDecision.
         const dir = unit(ev.clientX - startX, ev.clientY - startY);
         const grab = this._grabDecision(key, portId, dir);
-        if (grab) this._startRegrab(e, grab.edge, grab.grabbedEnd);
+        if (grab && grab.edge.link) this._startLinkRegrab(e, grab.edge, grab.linkEnd, false);
+        else if (grab) this._startRegrab(e, grab.edge, grab.grabbedEnd);
         else this._startCable(e, key, portId);
       }
     };
@@ -842,7 +847,8 @@ export class Rack {
       cleanup();
       const dir = unit(ev.clientX - cx, ev.clientY - cy);
       const grab = this._grabDecision(key, portId, dir);
-      if (grab) this._startStickyRegrab(grab.edge, grab.grabbedEnd, ev.clientX, ev.clientY);
+      if (grab && grab.edge.link) this._startLinkRegrab(null, grab.edge, grab.linkEnd, true, ev.clientX, ev.clientY);
+      else if (grab) this._startStickyRegrab(grab.edge, grab.grabbedEnd, ev.clientX, ev.clientY);
       else this._startStickyCable(key, portId, ev.clientX, ev.clientY);
     };
     const onCancel = () => cleanup();   // a fresh click or right-click before moving abandons the pick
@@ -872,13 +878,15 @@ export class Rack {
     tmp.setAttribute('stroke-width', r2(wmm));
     this._tempCable = tmp;
     this.cables.appendChild(tmp);
-    this._highlightCandidates(meta.dir === 'out' ? 'in' : 'out');
+    // Dragging FROM an input can also drop on another FED input to MULT it (share its signal).
+    const originIsInput = meta.dir === 'in';
+    this._highlightCandidates(meta.dir === 'out' ? 'in' : 'out', null, originIsInput);
 
     const wantDir = meta.dir === 'out' ? 'in' : 'out';
     const onMove = (ev) => {
       const m = this._clientToMm(ev.clientX, ev.clientY);
       tmp.setAttribute('d', this._cordPath(a, a.r, m, 0, wmm));
-      this._armTarget(this._jackNear(ev.clientX, ev.clientY), wantDir, null, { key, portId });
+      this._armTarget(this._jackNear(ev.clientX, ev.clientY), wantDir, null, { key, portId }, originIsInput);
     };
     const onUp = (ev) => {
       document.removeEventListener('pointermove', onMove);
@@ -915,14 +923,15 @@ export class Rack {
     tmp.setAttribute('stroke-width', r2(wmm));
     this._tempCable = tmp;
     this.cables.appendChild(tmp);
-    this._highlightCandidates(meta.dir === 'out' ? 'in' : 'out');
+    const originIsInput = meta.dir === 'in';   // an input origin can also MULT onto another fed input
+    this._highlightCandidates(meta.dir === 'out' ? 'in' : 'out', null, originIsInput);
     document.body.classList.add('grabbing-cable');
     const wantDir = meta.dir === 'out' ? 'in' : 'out';
     let lastX = cx, lastY = cy;
     const track = (clientX, clientY) => {
       lastX = clientX; lastY = clientY;
       tmp.setAttribute('d', this._cordPath(a, a.r, this._clientToMm(clientX, clientY), 0, wmm));
-      this._armTarget(this._jackNear(clientX, clientY), wantDir, null, { key, portId });
+      this._armTarget(this._jackNear(clientX, clientY), wantDir, null, { key, portId }, originIsInput);
     };
     track(cx, cy);
     const onMove = (ev) => track(ev.clientX, ev.clientY);
@@ -1013,7 +1022,7 @@ export class Rack {
         const ne = this._tryConnect({ key: fixed.key, portId: fixed.portId }, drop);   // reconnect to the new port (a move)
         if (ne) { const ns = this._edgeSnapshot(ne); this._pushUR({ undo: () => { this._removeCable(ns); this._restoreCable(origSnap); }, redo: () => { this._removeCable(origSnap); this._restoreCable(ns); } }); }
       } else {
-        this.onChange();                                 // dropped on nothing → leave it broken
+        this._reconcileLinks(); this._drawCables(); this.onChange();   // dropped on nothing → broken; links on the freed input fall away
         this._pushUR({ undo: () => this._restoreCable(origSnap), redo: () => this._removeCable(origSnap) });   // pull-off removal
       }
     };
@@ -1088,7 +1097,7 @@ export class Rack {
         const ne = this._tryConnect({ key: fixed.key, portId: fixed.portId }, drop);   // move to the new port
         if (ne) { const ns = this._edgeSnapshot(ne); this._pushUR({ undo: () => { this._removeCable(ns); this._restoreCable(origSnap); }, redo: () => { this._removeCable(origSnap); this._restoreCable(ns); } }); }
       } else {
-        this.onChange();                                 // clicked empty space → leave it broken (a disconnect)
+        this._reconcileLinks(); this._drawCables(); this.onChange();   // clicked empty space → disconnect; dependent links fall away
         this._pushUR({ undo: () => this._restoreCable(origSnap), redo: () => this._removeCable(origSnap) });
       }
     };
@@ -1099,6 +1108,88 @@ export class Rack {
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', onKey, true);
     this.container.addEventListener('scroll', onScroll, true);
+  }
+
+  // Grab a LINK (mult) cord and pull it: it hangs from the ANCHOR input it taps (link.to), and the
+  // shared-input end follows the cursor. Drop it on another empty input to re-target the share, back
+  // on nothing to remove it (dependents fall away). `sticky` picks the no-button-held twin. The
+  // cord is broken immediately so you hear the patch without it while you decide.
+  _startLinkRegrab(e, edge, linkEnd, sticky, cx, cy) {
+    const anchor = { key: edge.link.key, portId: edge.link.portId };   // the tapped input (A)
+    const dstRef = { key: edge.dst.key, portId: edge.dst.portId };     // the sharing input (B)
+    const grabAnchor = linkEnd === 'anchor';   // grabbed the A end (re-tap) vs the B end (re-share)
+    const fixedRef = grabAnchor ? dstRef : anchor;                     // the end that stays put
+    const fixedPos = this._jackPosMm(fixedRef.key, fixedRef.portId);
+    if (!fixedPos) return;
+    const wmm = CABLE_PX / (this._fit || 1);
+    const origSnap = this._edgeSnapshot(edge);
+    this.patchbay.disconnect(edge);
+    this._reconcileLinks(); this._drawCables();
+
+    const tmp = document.createElementNS(SVG_NS, 'path');
+    tmp.setAttribute('class', 'rack-cable rack-cable-temp');
+    tmp.setAttribute('stroke', STYLE_COLOR[edge.style] || STYLE_COLOR.control);
+    tmp.setAttribute('stroke-width', r2(wmm));
+    this._tempCable = tmp; this.cables.appendChild(tmp);
+    // Re-tap targets a FED input (a new signal to share); re-share targets an EMPTY input.
+    if (grabAnchor) this._highlightFedInputs(dstRef.key, dstRef.portId); else this._highlightCandidates('in');
+    if (sticky) document.body.classList.add('grabbing-cable');
+
+    const armAt = (clientX, clientY) => {
+      tmp.setAttribute('d', this._cordPath(fixedPos, fixedPos.r, this._clientToMm(clientX, clientY), 0, wmm));
+      if (grabAnchor) this._armTarget(this._jackNear(clientX, clientY), 'out', null, dstRef, true);   // linkMode arms fed inputs
+      else this._armTarget(this._jackNear(clientX, clientY), 'in', null, anchor);
+    };
+    const teardown = () => {
+      tmp.remove(); this._tempCable = null; this._disarmTarget(); this._clearHighlights();
+      if (sticky) document.body.classList.remove('grabbing-cable');
+    };
+    const pushMove = (ne) => { const ns = this._edgeSnapshot(ne); this._pushUR({ undo: () => { this._removeCable(ns); this._restoreCable(origSnap); }, redo: () => { this._removeCable(origSnap); this._restoreCable(ns); } }); };
+    const remove = () => {
+      this._reconcileLinks(); this._drawCables(); this.onChange();   // dropped on nothing → removed (dependents fall away)
+      this._pushUR({ undo: () => this._restoreCable(origSnap), redo: () => this._removeCable(origSnap) });
+    };
+    const commit = (drop) => {
+      if (grabAnchor) {
+        // re-tap: drop on another FED input; the sharing input B stays
+        const fed = drop && this._isLinkTarget(drop) && !(drop.key === dstRef.key && drop.portId === dstRef.portId);
+        if (fed) { const ne = this._tryConnect(drop, dstRef); if (ne) pushMove(ne); else this._restoreCable(origSnap); }
+        else remove();
+      } else {
+        // re-share: drop on an EMPTY input; the tapped input A stays
+        const empty = drop && this._isCandidate(drop, 'in') && !this.patchbay.inputOccupied(drop.key, drop.portId, null)
+          && !(drop.key === anchor.key && drop.portId === anchor.portId);
+        if (empty) { const ne = this._tryConnect(anchor, drop); if (ne) pushMove(ne); else this._restoreCable(origSnap); }
+        else remove();
+      }
+    };
+
+    if (sticky) {
+      let lastX = cx, lastY = cy;
+      const track = (x, y) => { lastX = x; lastY = y; armAt(x, y); };
+      track(cx, cy);
+      const onMove = (ev) => track(ev.clientX, ev.clientY);
+      const onScroll = () => track(lastX, lastY);
+      const finish = () => {
+        document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerdown', onDrop, true);
+        document.removeEventListener('contextmenu', onCtx, true); document.removeEventListener('keydown', onKey, true);
+        this.container.removeEventListener('scroll', onScroll, true); teardown();
+      };
+      const onDrop = (ev) => { if (ev.button !== 0) return; ev.preventDefault(); ev.stopPropagation(); const drop = this._jackNear(ev.clientX, ev.clientY); finish(); commit(drop); };
+      const onCtx = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); this._restoreCable(origSnap); };
+      const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); finish(); this._restoreCable(origSnap); } };
+      document.addEventListener('pointermove', onMove, true); document.addEventListener('pointerdown', onDrop, true);
+      document.addEventListener('contextmenu', onCtx, true); document.addEventListener('keydown', onKey, true);
+      this.container.addEventListener('scroll', onScroll, true);
+    } else {
+      if (e) this._gripCursor();
+      const onMove = (ev) => armAt(ev.clientX, ev.clientY);
+      const onUp = (ev) => {
+        document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
+        const drop = this._jackNear(ev.clientX, ev.clientY); teardown(); commit(drop);
+      };
+      document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
+    }
   }
 
   // A jack is a valid drop target if it faces opposite the fixed end. Domain is
@@ -1113,19 +1204,50 @@ export class Rack {
   // carrying a cable is NOT a valid target, so it's left at normal size — a subtle
   // cue that you can't drop there. (exceptEdge: for a regrab, the moving cable's
   // own edge doesn't count its current input as occupied.)
-  _highlightCandidates(wantDir, exceptEdge) {
+  // An input that already carries a signal — a valid MULT target (drag from an empty input onto it
+  // to share its feed).
+  _isLinkTarget(jack) {
+    const ep = this._ep(jack.key, jack.portId);
+    return !!ep && ep.meta.dir === 'in' && !!this._incomingEdge(jack.key, jack.portId);
+  }
+
+  // Swell every FED input (a re-tap target while re-anchoring a link), skipping one port.
+  _highlightFedInputs(exceptKey, exceptPort) {
     this._clearHighlights();
     this._highlights = [];
-    const delta = 2 / (this.pxPerMm || 1);   // 2 screen px expressed in panel mm
+    const delta = 2 / (this.pxPerMm || 1);
     for (const rec of this.records.values()) {
       for (const [portId, port] of rec.panel.ports) {
-        if (port.meta.dir !== wantDir) continue;
-        if (wantDir === 'in' && this.patchbay.inputOccupied(rec.key, portId, exceptEdge)) continue;
-        const ring = port.element.querySelector('circle');   // the outer coloured ring
+        if (port.meta.dir !== 'in' || !this._incomingEdge(rec.key, portId)) continue;
+        if (rec.key === exceptKey && portId === exceptPort) continue;
+        const ring = port.element.querySelector('circle');
         if (!ring) continue;
         const orig = ring.getAttribute('stroke-width');
         ring.setAttribute('stroke-width', r2((parseFloat(orig) || 0) + delta));
         this._highlights.push({ ring, orig });
+      }
+    }
+  }
+
+  _highlightCandidates(wantDir, exceptEdge, linkMode) {
+    this._clearHighlights();
+    this._highlights = [];
+    const delta = 2 / (this.pxPerMm || 1);   // 2 screen px expressed in panel mm
+    const swell = (rec, portId, port) => {
+      const ring = port.element.querySelector('circle');   // the outer coloured ring
+      if (!ring) return;
+      const orig = ring.getAttribute('stroke-width');
+      ring.setAttribute('stroke-width', r2((parseFloat(orig) || 0) + delta));
+      this._highlights.push({ ring, orig });
+    };
+    for (const rec of this.records.values()) {
+      for (const [portId, port] of rec.panel.ports) {
+        if (port.meta.dir === wantDir) {
+          if (wantDir === 'in' && this.patchbay.inputOccupied(rec.key, portId, exceptEdge)) continue;
+          swell(rec, portId, port);
+        } else if (linkMode && port.meta.dir === 'in' && this._incomingEdge(rec.key, portId)) {
+          swell(rec, portId, port);   // a FED input is a mult target
+        }
       }
     }
   }
@@ -1147,7 +1269,10 @@ export class Rack {
     for (const edge of edges) {
       const g = this._cordGeom(edge);
       if (!g) continue;
-      const dep = (edge.src.key === key && edge.src.portId === portId) ? g.uA : g.uB;
+      // pA is the src side for a normal cord, the ANCHOR side for a link (see _cordGeom); pB is the dst.
+      const atStart = edge.link ? (edge.link.key === key && edge.link.portId === portId)
+                                : (edge.src.key === key && edge.src.portId === portId);
+      const dep = atStart ? g.uA : g.uB;
       const d = dep.x * dragDir.x + dep.y * dragDir.y;
       if (d > bestDot) { bestDot = d; best = edge; }
     }
@@ -1162,13 +1287,23 @@ export class Rack {
   //   - an OUTPUT can fan out       → grab the best-matching cord only within GRAB_MAX_COS;
   //                                    a move in a fresh direction returns null (new cord)
   _grabDecision(key, portId, dir) {
-    const edges = this.patchbay.edgesAtJack(key, portId);
+    // A LINK cord is drawn from the input it TAPS (its ANCHOR) to the sharing input — never touching
+    // its hidden source jack. So drop links at their source, but ADD links whose anchor is this jack
+    // (they end here visually and must be grabbable here, chosen by drag direction against any main
+    // cable also landing on this input).
+    const main = this.patchbay.edgesAtJack(key, portId).filter((e) => !(e.link && e.src.key === key && e.src.portId === portId));
+    const anchored = this.patchbay.list().filter((e) => e.link && e.link.key === key && e.link.portId === portId);
+    const edges = [...main, ...anchored];
     if (!edges.length) return null;
     const ep = this._ep(key, portId);
     const isInput = ep && ep.meta.dir === 'in';
     const { edge, dot } = this._pickByDirection(key, portId, edges, dir);
     if (!edge) return null;
     if (!isInput && dot < GRAB_MAX_COS) return null;   // output + off-axis → new cable
+    if (edge.link) {   // a link: which drawn end did we grab — the anchor (tap) or the shared input?
+      const atAnchor = edge.link.key === key && edge.link.portId === portId;
+      return { edge, grabbedEnd: 'dst', linkEnd: atAnchor ? 'anchor' : 'dst' };
+    }
     const grabbedEnd = (edge.src.key === key && edge.src.portId === portId) ? 'src' : 'dst';
     return { edge, grabbedEnd };
   }
@@ -1191,10 +1326,11 @@ export class Rack {
   // Receive cue while dragging: the valid target under the pointer swells and gains
   // a bold outline in its own family colour ("ready to receive"). Only opposite-
   // direction, unoccupied jacks arm — never the origin or an occupied input.
-  _armTarget(target, wantDir, exceptEdge, origin) {
+  _armTarget(target, wantDir, exceptEdge, origin, linkMode) {
     const onSelf = target && origin && target.key === origin.key && target.portId === origin.portId;
-    const ok = target && !onSelf && this._isCandidate(target, wantDir)
+    let ok = target && !onSelf && this._isCandidate(target, wantDir)
       && !(wantDir === 'in' && this.patchbay.inputOccupied(target.key, target.portId, exceptEdge));
+    if (!ok && linkMode && target && !onSelf && this._isLinkTarget(target)) ok = true;   // fed input → mult target
     const tag = ok ? target.key + '|' + target.portId : null;
     if (tag === this._armedTag) return;
     this._disarmTarget();
@@ -3016,14 +3152,23 @@ export class Rack {
 
   // Orient the two jacks into (output -> input) and make the edge. Either end
   // may be a module or the toolbar mixer.
+  // The edge feeding an input (or null). Every edge — real or link — records the ROOT source
+  // output as its src, so this edge's src IS the actual signal, even when it's itself a link.
+  _incomingEdge(key, portId) {
+    return this.patchbay.list().find((e) => e.dst.key === key && e.dst.portId === portId) || null;
+  }
+
   _tryConnect(jackA, jackB) {
     const A = this._ep(jackA.key, jackA.portId);
     const B = this._ep(jackB.key, jackB.portId);
     if (!A || !B) return;
+    // INPUT-to-INPUT → a LINK (mult): the empty input picks up the fed input's signal. Exactly one
+    // end must already carry a signal (the target); the other (empty) end becomes the shared input.
+    if (A.meta.dir === 'in' && B.meta.dir === 'in') return this._tryLink(A, B);
     let src, dst;
     if (A.meta.dir === 'out' && B.meta.dir === 'in') { src = A; dst = B; }
     else if (A.meta.dir === 'in' && B.meta.dir === 'out') { src = B; dst = A; }
-    else return;   // output-to-output or input-to-input: not a valid cord
+    else return;   // output-to-output: not a valid cord
 
     // An input takes one cable: patchbay.connect rejects a drop onto an occupied
     // input (moving a cord is done by grabbing its stub, not by dropping over it).
@@ -3033,8 +3178,61 @@ export class Rack {
       { key: dst.key, instance: dst.instance, descriptorId: dst.descriptorId, portId: dst.portId },
       initialDepth,
     );
-    if (res.ok) { this._drawCables(); this.onChange(); return res.edge; }
+    if (res.ok) { this._reconcileLinks(); this._drawCables(); this.onChange(); return res.edge; }
     return null;
+  }
+
+  // Create a LINK between two inputs — the empty one shares the fed one's signal. Under the hood
+  // it's a normal fan-out from the shared SOURCE to the empty input, tagged so it draws off (and
+  // lives and dies with) the target input.
+  _tryLink(A, B) {
+    const aFed = !!this._incomingEdge(A.key, A.portId);
+    const bFed = !!this._incomingEdge(B.key, B.portId);
+    if (aFed === bFed) return null;             // both fed, or both empty → no single signal to share
+    const target = aFed ? A : B;                // the already-fed input we chain onto
+    const input = aFed ? B : A;                 // the empty input that will share its signal
+    const feed = this._incomingEdge(target.key, target.portId);
+    const src = this._ep(feed.src.key, feed.src.portId);
+    if (!src) return null;
+    const edge = this._connectResolved(src, input);
+    if (!edge) return null;
+    edge.link = { key: target.key, portId: target.portId };   // draws off / depends on the target input
+    edge.style = feed.style;                                    // and looks like the target's own cable
+    this._reconcileLinks(); this._drawCables(); this.onChange();
+    return edge;
+  }
+
+  // Wire src-output → dst-input in the patchbay (the raw connect links reuse), returning the edge.
+  _connectResolved(src, dst) {
+    const initialDepth = (dst.meta.via && dst.rec) ? dst.rec.values.get(dst.meta.via) : undefined;
+    const res = this.patchbay.connect(
+      { key: src.key, instance: src.instance, descriptorId: src.descriptorId, portId: src.portId },
+      { key: dst.key, instance: dst.instance, descriptorId: dst.descriptorId, portId: dst.portId },
+      initialDepth,
+    );
+    return res.ok ? res.edge : null;
+  }
+
+  // Keep every LINK true to its target: prune links whose target lost its feed (which cascades down
+  // the chain), and re-point a link's hidden fan-out when its target's SOURCE changes. Idempotent,
+  // looping until stable so a whole chain (C→B→A) settles in one call.
+  _reconcileLinks() {
+    let changed = true, guard = 0;
+    while (changed && guard++ < 64) {
+      changed = false;
+      for (const e of this.patchbay.list()) {
+        if (!e.link) continue;
+        const feed = this._incomingEdge(e.link.key, e.link.portId);
+        if (!feed) { this.patchbay.disconnect(e); changed = true; continue; }   // target unfed → link gone (cascades)
+        if (feed.src.key !== e.src.key || feed.src.portId !== e.src.portId) {
+          const src = this._ep(feed.src.key, feed.src.portId), dst = this._ep(e.dst.key, e.dst.portId);
+          const link = e.link, bow = e.bow;
+          this.patchbay.disconnect(e);
+          if (src && dst) { const ne = this._connectResolved(src, dst); if (ne) { ne.link = link; ne.style = feed.style; if (bow != null) ne.bow = bow; } }
+          changed = true;
+        } else if (e.style !== feed.style) { e.style = feed.style; changed = true; }
+      }
+    }
   }
 
   _onPinch(e) {
@@ -3247,6 +3445,7 @@ export class Rack {
     if (this._hoverRec === rec) this._hoverRec = null;
     if (this._netOrigin && this._netOrigin.split(':')[0] === rec.key) this._netOrigin = null;
     this.patchbay.disconnectModule(rec.key);   // pull its cords before the nodes go
+    this._reconcileLinks();                     // links onto inputs this module fed now fall away
     const row = this.rows[rec.row];
     const i = row.indexOf(rec);
     if (i >= 0) row.splice(i, 1);
@@ -3269,19 +3468,24 @@ export class Rack {
   async redo() { const e = this._redoStack.pop(); if (!e) return; await e.redo(); this._undoStack.push(e); }
 
   _edgeSnapshot(e) {
-    return { src: { key: e.src.key, portId: e.src.portId }, dst: { key: e.dst.key, portId: e.dst.portId }, bow: e.bow };
+    return { src: { key: e.src.key, portId: e.src.portId }, dst: { key: e.dst.key, portId: e.dst.portId }, bow: e.bow, link: e.link ? { key: e.link.key, portId: e.link.portId } : null };
   }
   // Reconnect a snapshotted cable. Its depth follows the destination knob (untouched
-  // by undo/redo); the bow is carried back.
+  // by undo/redo); the bow is carried back. A link snap re-tags the edge and reconciles.
   _restoreCable(snap) {
     const e = this._tryConnect(snap.src, snap.dst);
-    if (e && snap.bow != null) { e.bow = snap.bow; this._drawCables(); }
+    if (e) {
+      if (snap.link) { e.link = { ...snap.link }; this._reconcileLinks(); }
+      if (snap.bow != null) e.bow = snap.bow;
+      this._drawCables();
+    }
     return e;
   }
-  // Remove the live cable matching a snapshot's endpoints.
+  // Remove the live cable matching a snapshot's endpoints (then let any links depending on the
+  // freed input fall away).
   _removeCable(snap) {
     const e = this.patchbay.list().find((x) => x.src.key === snap.src.key && x.src.portId === snap.src.portId && x.dst.key === snap.dst.key && x.dst.portId === snap.dst.portId);
-    if (e) { this.patchbay.disconnect(e); this._drawCables(); this.onChange(); }
+    if (e) { this.patchbay.disconnect(e); this._reconcileLinks(); this._drawCables(); this.onChange(); }
   }
   _disconnectAll() {
     for (const e of [...this.patchbay.list()]) this.patchbay.disconnect(e);
@@ -3296,7 +3500,9 @@ export class Rack {
   async _reAddModule(snap) {
     const re = await this.addModule(snap.descriptorId, snap.row, snap.x, { key: snap.key });
     if (re) for (const [id, v] of snap.params) this._setParam(re, id, v);
-    for (const c of snap.cables) this._restoreCable(c);
+    // Real cables before links, so a link's target input is already fed when it restores.
+    for (const c of [...snap.cables].sort((a, b) => (a.link ? 1 : 0) - (b.link ? 1 : 0))) this._restoreCable(c);
+    this._reconcileLinks(); this._drawCables();
     return re;
   }
 

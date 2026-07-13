@@ -47,6 +47,8 @@ export function serialize(rack, mixer) {
       to: { module: e.dst.key, port: e.dst.portId },
     };
     if (e.bow) w.bow = { along: e.bow.along, perp: e.bow.perp };
+    // A LINK (mult) records the input it taps, so it round-trips as the short cord you drew.
+    if (e.link) w.link = { module: e.link.key, port: e.link.portId };
     return w;
   });
 
@@ -98,7 +100,10 @@ export async function restore(obj, rack, mixer) {
       { key: toKey, portId: w.to.port },
     );
     if (edge && w.bow) edge.bow = w.bow;
+    // Re-tag a link with its (remapped) anchor input; reconciled after all wiring exists.
+    if (edge && w.link && idToKey.has(w.link.module)) edge.link = { key: idToKey.get(w.link.module), portId: w.link.port };
   }
+  if (rack.reconcileLinks) rack.reconcileLinks();   // fix link styles/sources now that every cord exists
   rack.redrawCables();
 
   // Probes last: modules and wiring exist now, so an input probe finds its feeding cord.
