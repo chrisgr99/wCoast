@@ -86,6 +86,9 @@ const MON_MAKEUP = 10;
 // Default monitor-master level (the mixer fader while the output radio is on Monitor). Matches the
 // main master default so the fader sits at a comparable spot and the loudness lines up.
 const MON_LEVEL_DEFAULT = 0.29;
+// The live-ring pulse is scaled logarithmically (like a VU): signal RMS in dB, this floor mapped
+// to no glow and 0 dBFS to full glow.
+const MON_PULSE_FLOOR_DB = -48;
 // Flow animation (on every cable, always): black dashes crawl each cord source->dest
 // to show direction. Dash LENGTH (in cable-widths) encodes the DESTINATION family —
 // audio shortest, CV/pitch medium, trigger longest — a shape cue on top of colour.
@@ -2513,6 +2516,52 @@ export class Rack {
     if (mix && mix.setSolo) mix.setSolo(!masterOn);   // soloDuck ducks the main output when master is disabled
     if (this._monModeGate) this._monModeGate.gain.setTargetAtTime(monitorOn ? 1 : 0, this.host.ctx.currentTime, 0.008);
     this._setChannelsGrayed(!masterOn);
+    this._refreshMonHighlights();
+  }
+
+  // A monitor is "live" — green ring, pulsing — while the monitor bus is enabled and it isn't muted.
+  // Toggle the class here; the pulse loop drives the glow.
+  _refreshMonHighlights() {
+    const rec = this._mixerRec();
+    const on = !!(rec && rec.values.get('monitorEnable') === 'on');
+    let any = false;
+    for (const m of this._monitors) {
+      const live = on && !m.muted;
+      m.el.classList.toggle('mon-live', live);
+      if (!live) { m.el.style.boxShadow = ''; m.pulse = 0; }   // hand the ring back to CSS (muted red, or none)
+      else any = true;
+    }
+    if (any) this._startMonPulse(); // else the loop stops itself when nothing is live
+  }
+
+  // Log-scaled (VU-style) level of a monitor's SOURCE signal, 0..1.
+  _monSignalLevel(m) {
+    if (!m.pulseAn || !m.tap) return 0;
+    m.pulseAn.getFloatTimeDomainData(m.pulseBuf);
+    let s = 0; for (let i = 0; i < m.pulseBuf.length; i++) s += m.pulseBuf[i] * m.pulseBuf[i];
+    const rms = Math.sqrt(s / m.pulseBuf.length);
+    if (rms <= 0) return 0;
+    const db = 20 * Math.log10(rms);
+    return Math.max(0, Math.min(1, (db - MON_PULSE_FLOOR_DB) / -MON_PULSE_FLOOR_DB));
+  }
+
+  _startMonPulse() {
+    if (this._monPulseRaf) return;
+    const tick = () => {
+      let any = false;
+      for (const m of this._monitors) {
+        if (!m.el.classList.contains('mon-live')) continue;
+        any = true;
+        const target = this._monSignalLevel(m);
+        m.pulse = (m.pulse || 0) * 0.6 + target * 0.4;   // smooth the breathe
+        const g = m.pulse;
+        const blur = (3 + g * 11).toFixed(1), spread = (g * 3).toFixed(1), alpha = (0.2 + g * 0.6).toFixed(2);
+        m.el.style.boxShadow = `inset 0 0 0 2px #3ad16b, 0 0 ${blur}px ${spread}px rgba(58,209,107,${alpha}), 0 4px 12px rgba(0,0,0,0.5)`;
+      }
+      if (any) this._monPulseRaf = requestAnimationFrame(tick);
+      else this._monPulseRaf = null;
+    };
+    this._monPulseRaf = requestAnimationFrame(tick);
   }
 
   // RMS level (0..~1) of the monitor bus, for its VU meter (scaled to match the master meter).
@@ -2541,11 +2590,21 @@ export class Rack {
   _monTapConnect(m) {
     m.gain.gain.value = this._monGainMul(m.vol != null ? m.vol : MON_VOL_DEFAULT);   // per-monitor level; the monitor master (fader) scales the whole bus
     const tap = this._probeTap(m.key, m.portId);
-    if (tap && tap.node) { try { tap.node.connect(m.gain, tap.index || 0); m.tap = tap; } catch (_e) { m.tap = null; } }
+    if (tap && tap.node) {
+      try { tap.node.connect(m.gain, tap.index || 0); m.tap = tap; } catch (_e) { m.tap = null; }
+      // A read-only analyser on the SOURCE, so the live-ring can pulse with the terminal's signal.
+      if (m.tap) {
+        if (!m.pulseAn) { m.pulseAn = this.host.ctx.createAnalyser(); m.pulseAn.fftSize = 256; m.pulseAn.smoothingTimeConstant = 0; m.pulseBuf = new Float32Array(m.pulseAn.fftSize); }
+        try { tap.node.connect(m.pulseAn, tap.index || 0); } catch (_e) { /* fan-out only */ }
+      }
+    }
     return m.tap;
   }
   _monTapDisconnect(m) {
-    if (m.tap && m.tap.node) { try { m.tap.node.disconnect(m.gain, m.tap.index || 0); } catch (_e) { /* gone */ } }
+    if (m.tap && m.tap.node) {
+      try { m.tap.node.disconnect(m.gain, m.tap.index || 0); } catch (_e) { /* gone */ }
+      try { if (m.pulseAn) m.tap.node.disconnect(m.pulseAn, m.tap.index || 0); } catch (_e) { /* gone */ }
+    }
     m.tap = null;
   }
 
@@ -2744,6 +2803,7 @@ export class Rack {
     m.el.classList.toggle('mon-muted', m.muted);
     if (m.muted) this._monTapDisconnect(m); else this._monTapConnect(m);
     if (!m.muted) this._enableMonitorBus(true);   // un-muting a monitor turns the monitor bus on
+    this._refreshMonHighlights();                 // muted → drop the green ring (unmute already refreshes via enable)
   }
 
   // Carry a freshly-placed monitor circle out to be dropped (see _carryScope): the
