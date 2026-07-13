@@ -52,6 +52,8 @@ const SCOPE_VDIV = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 
 const SCOPE_TDIV = [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5];      // seconds / division (full 1-2-5)
 const SCOPE_DIV_PX = 12;   // a division is this many CSS px on the face
 const SCOPE_RING_SEC = 4;  // seconds of raw samples kept so a slow sweep can still fill the window
+const SCOPE_VALUES_DWELL_MS = 500;   // the pointer must LINGER this long over a scope before its values panel shows (a mere pass-through doesn't)
+const SCOPE_VALUES_HIDE_MS = 3000;   // how long the panel lingers after the pointer leaves
 const SCOPE_ROLL_FPS = 60;      // roll history is one peak per animation frame — used to label the slow time base
 const SCOPE_TRACE = '#ffffff';  // trace 1 colour (white); the bright-orange second trace is phase 3
 // The scope's little controls (transport + trigger) are orange for visibility on the dark face.
@@ -1872,7 +1874,7 @@ export class Rack {
       hi: null, lo: null, fastVotes: 0, tap: null,
       cssW: 120, cssH: 37, dpr: 1,   // logical CSS size; backing store is scaled to the display DPR
       vIdx: 7, tIdx: 6, vOffset: 0, hOffset: 0, autosetPending: true, autosetBudget: 180,   // 0.2 /div, 10 ms/div, centred on 0 until autoset frames it; hOffset = horizontal trace pan (px)
-      valuesEl: null, playBtn: null, trigBtn: null, valEls: {}, valuesTimer: null,
+      valuesEl: null, playBtn: null, trigBtn: null, valEls: {}, valuesTimer: null, dwellTimer: null,
       gridOn: true,   // the G button toggles the grid on/off
       trigger: true, trigLevel: 0, frozen: false, forceMode: 'auto',
       armed: false, recFrames: 0, prevPeak: null, showCallout,
@@ -1888,12 +1890,14 @@ export class Rack {
     // target (an SVG hit-ring in a pointer-events:none overlay proved unhittable).
     sc.dot.className = 'scope-dot'; document.body.appendChild(sc.dot);
 
-    el.addEventListener('pointerenter', () => this._showScopeValues(sc));        // panel appears on hover
-    el.addEventListener('pointerleave', () => { this._hideScopeValuesSoon(sc); el.style.cursor = ''; });   // lingers 5s; clear resize cursor
+    // Only a genuine HOVER (a short dwell) reveals the panel — a pointer merely crossing the scope
+    // on its way elsewhere shouldn't summon it.
+    el.addEventListener('pointerenter', () => { clearTimeout(sc.dwellTimer); sc.dwellTimer = setTimeout(() => this._showScopeValues(sc), SCOPE_VALUES_DWELL_MS); });
+    el.addEventListener('pointerleave', () => { clearTimeout(sc.dwellTimer); sc.dwellTimer = null; this._hideScopeValuesSoon(sc); el.style.cursor = ''; });
     el.addEventListener('contextmenu', (ev) => this._scopeMenu(ev, sc));
     // Drag ANY edge of the face to resize; drag the INTERIOR to move the whole scope (like a
     // monitor). Controls stop propagation / sit outside, so they keep priority where they are.
-    el.addEventListener('pointerdown', (ev) => { const e = this._scopeEdgeAt(sc, ev); if (e) this._resizeScopeEdge(ev, sc, e); else this._moveScope(ev, sc); });
+    el.addEventListener('pointerdown', (ev) => { this._hideScopeValues(sc); const e = this._scopeEdgeAt(sc, ev); if (e) this._resizeScopeEdge(ev, sc, e); else this._moveScope(ev, sc); });
     el.addEventListener('pointermove', (ev) => { if (sc._resizing) return; const e = this._scopeEdgeAt(sc, ev); el.style.cursor = e ? ((e === 'l' || e === 'r') ? 'ew-resize' : 'ns-resize') : 'move'; });
     // Scroll over the face to PAN the trace: vertical scroll shifts it up/down, horizontal scroll
     // shifts it left/right, and cmd+vertical shifts left/right too (for mice with no h-scroll).
@@ -2211,11 +2215,17 @@ export class Rack {
     this._refreshScopeValues(sc);        // now equalise the two number widths so the arrows don't overlap them
     clearTimeout(sc.valuesTimer); sc.valuesTimer = null;
   }
-  // Start the 5s countdown to hide the panel (after the pointer leaves the scope + panel).
+  // Start the countdown to hide the panel (after the pointer leaves the scope + panel).
   _hideScopeValuesSoon(sc) {
     const el = sc.valuesEl; if (!el) return;
     clearTimeout(sc.valuesTimer);
-    sc.valuesTimer = setTimeout(() => el.classList.remove('show'), 5000);
+    sc.valuesTimer = setTimeout(() => el.classList.remove('show'), SCOPE_VALUES_HIDE_MS);
+  }
+  // Hide the panel at once — a click on the scope face dismisses it (and cancels any pending dwell).
+  _hideScopeValues(sc) {
+    clearTimeout(sc.dwellTimer); sc.dwellTimer = null;
+    clearTimeout(sc.valuesTimer); sc.valuesTimer = null;
+    if (sc.valuesEl) sc.valuesEl.classList.remove('show');
   }
 
   // One axis's value, e.g. "0.1 /div" or "2 ms/div".
