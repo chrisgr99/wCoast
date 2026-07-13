@@ -17,6 +17,13 @@
 
 'use strict';
 
+// Output makeup gain (linear). Our internal signals run quiet — the Complex Oscillator trims
+// itself to about ±0.4 (~-8 dBFS) — and two cascaded faders (channel + master) attenuate further,
+// so without makeup the system can't reach a useful loudness. This lifts the post-fader signal
+// ~+20 dB into a brick-wall limiter, so a normal patch is loud with headroom and the limiter
+// catches peaks instead of clipping. The master fader still sets level below this.
+const OUT_MAKEUP = 10;
+
 export function create(ctx, services) {
   const { descriptor } = services;
   const CH = descriptor.channels;
@@ -34,13 +41,20 @@ export function create(ctx, services) {
   // auditioning a single terminal, without disturbing the user's master-enable state.
   const soloDuck = ctx.createGain();
   masterMute.connect(soloDuck);
-  soloDuck.connect(ctx.destination);
+  // Output makeup + brick-wall limiter (see OUT_MAKEUP): lift the quiet post-fader signal up so the
+  // system is actually loud, and catch peaks safely instead of clipping. Everything upstream (mute,
+  // solo, master fader) still shapes the signal before it reaches here.
+  const makeup = ctx.createGain();
+  makeup.gain.value = OUT_MAKEUP;
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -1; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = 0.003; limiter.release.value = 0.12;
+  soloDuck.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);
   function setSolo(on) { soloDuck.gain.setTargetAtTime(on ? 0 : 1, ctx.currentTime, 0.008); }
 
-  // Stereo VU tap: split the post-mute output into L/R analysers for the meters.
-  // (A pure read — it doesn't alter the signal reaching the destination.)
+  // Stereo VU tap: read the FINAL (post-makeup, post-limiter) output so the meters reflect what you
+  // actually hear. (A pure read — it doesn't alter the signal reaching the destination.)
   const splitter = ctx.createChannelSplitter(2);
-  masterMute.connect(splitter);
+  limiter.connect(splitter);
   const meterL = ctx.createAnalyser(); meterL.fftSize = 256;
   const meterR = ctx.createAnalyser(); meterR.fftSize = 256;
   splitter.connect(meterL, 0);
@@ -108,7 +122,7 @@ export function create(ctx, services) {
     ap.setTargetAtTime(value, t, 0.02);
   }
   function dispose() {
-    try { master.disconnect(); } catch (_e) { /* gone */ }
+    try { master.disconnect(); masterMute.disconnect(); soloDuck.disconnect(); makeup.disconnect(); limiter.disconnect(); } catch (_e) { /* gone */ }
     for (const c of channels) { try { c.level.disconnect(); c.mute.disconnect(); c.pan.disconnect(); if (c.panScale) c.panScale.disconnect(); } catch (_e) { /* gone */ } }
   }
 

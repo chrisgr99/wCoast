@@ -94,8 +94,11 @@ export function resolveToRoot(el, x, y) {
 // descriptor's curve (so an exp knob turns evenly while its Hz value tapers).
 
 // A volume/gain fader taper: the throw is dB-LINEAR (equal travel = equal dB), unity at
-// the top and ~GAIN_FLOOR_DB near the bottom, so it matches how the ear hears level.
-const GAIN_FLOOR_DB = -60;
+// the top and ~GAIN_FLOOR_DB near the bottom, so it matches how the ear hears level. The
+// range is deliberately moderate so a useful default sits around the middle of the throw
+// (mixer channels default to ~60% travel) with clear headroom above — not pinned near the
+// top. Use Mute for true silence.
+const GAIN_FLOOR_DB = -36;
 
 export function valueToPosition(meta, value) {
   if (meta.curve === 'gainDb') {
@@ -387,6 +390,33 @@ export function attachControlInteraction(binding, hooks, opts = {}) {
     // the crop translate), then normalise against top..bot. stopPropagation keeps
     // a fader grab from starting a rack module drag.
     if (!binding.handle || binding.top == null || binding.bot == null) return;
+    // Widen the scroll/drag hit area to a full-travel column the WIDTH OF THE HANDLE. The track
+    // alone is narrower than the handle, so as the handle scrolls out from under the pointer the
+    // wheel would otherwise stop firing. An invisible rect (inserted behind everything) keeps the
+    // whole handle-wide column live from bottom to top. The handle's getBBox is empty until the
+    // panel is laid out, so size the rect on the next frame(s), retrying until it's valid.
+    const pad = el.ownerDocument.createElementNS(SVG_NS, 'rect');
+    pad.setAttribute('fill', 'none'); pad.setAttribute('pointer-events', 'all'); pad.setAttribute('class', 'hit-pad');
+    el.insertBefore(pad, el.firstChild);
+    // Size it once the handle can actually be measured (getBBox is empty while the panel is hidden
+    // behind the startup card, so a fixed frame count can miss). Idempotent, re-run on the first
+    // hover/scroll — the handle is always hittable, so the pointer reaches the group before the
+    // widened column is needed.
+    let padSized = false;
+    const sizePad = () => {
+      if (padSized) return;
+      let hb = null; try { hb = binding.handle.getBBox(); } catch (_e) { /* not rendered */ }
+      if (!hb || !(hb.width > 0)) return;
+      const y0 = Math.min(+binding.top, +binding.bot) - hb.height / 2;
+      const y1 = Math.max(+binding.top, +binding.bot) + hb.height / 2;
+      pad.setAttribute('x', round2(hb.x)); pad.setAttribute('y', round2(y0));
+      pad.setAttribute('width', round2(hb.width)); pad.setAttribute('height', round2(y1 - y0));
+      padSized = true;
+    };
+    el.addEventListener('pointerenter', sizePad);
+    el.addEventListener('pointermove', sizePad);
+    el.addEventListener('wheel', sizePad, { passive: true });
+    requestAnimationFrame(sizePad);   // common case: panel already visible
     const posFromEvent = (e) => {
       const ctm = el.getScreenCTM && el.getScreenCTM();
       if (!ctm) return null;

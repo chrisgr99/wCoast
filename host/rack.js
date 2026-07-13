@@ -2426,6 +2426,7 @@ export class Rack {
 
   _closeScope(sc) {
     this._scopeTapDisconnect(sc);
+    if (this._scopeTip) this._scopeTip.classList.remove('show');   // the button vanishes before its pointerleave → hide the stuck tooltip
     sc.el.remove(); sc.ring.remove(); sc.line.remove(); sc.dot.remove(); sc.moveDot.remove();
     this._scopes.delete(sc);
     if (sc.showCallout !== false) this.onChange();   // removing a placed scope changes the patch
@@ -2868,6 +2869,13 @@ export class Rack {
         set: (val) => { if (isMasterEnable) this.setSound(val === 'on'); else this._setParam(rec, b.id, val); },
       }, { hitGrowMm: btnGrow.get(b.id) || 0 });
       b.group.addEventListener('pointerdown', (e) => e.stopPropagation());
+      if (b.kind === 'knob') {                      // double-click a knob → back to its default
+        b.group.addEventListener('dblclick', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          const def = this._paramDefault(rec, b.id);
+          if (def !== undefined) this._setParam(rec, b.id, def);
+        });
+      }
     }
     // Jacks: pointerdown drags a cord (patching). The data-jack-* attributes let
     // a dropped cord hit-test the jack it lands on. stopPropagation (in the
@@ -3088,6 +3096,27 @@ export class Rack {
     }
     return false;
   }
+  // The descriptor default for one control (used by the double-click reset).
+  _paramDefault(rec, id) {
+    const type = this.moduleTypes.find((t) => t.descriptorId === rec.descriptorId);
+    const p = type && type.descriptor.params.find((q) => q.id === id);
+    return p ? p.default : undefined;
+  }
+  // Reset ONE module's controls to their descriptor defaults (undoable), leaving every cable
+  // connected. Used by the title menu's "Reset" item.
+  _resetModuleWithUndo(rec) {
+    const type = this.moduleTypes.find((t) => t.descriptorId === rec.descriptorId);
+    if (!type) return;
+    const before = new Map(rec.values);
+    for (const p of type.descriptor.params) if (rec.values.get(p.id) !== p.default) this._setParam(rec, p.id, p.default);
+    if (this.onControlsReset) this.onControlsReset();   // resync toolbar mirrors (mixer master)
+    const after = new Map(rec.values);
+    let changed = false; for (const [id, v] of after) if (before.get(id) !== v) { changed = true; break; }
+    if (!changed) return;
+    const key = rec.key;
+    const apply = (vals) => { const r = this.records.get(key); if (!r) return; for (const [id, v] of vals) this._setParam(r, id, v); if (this.onControlsReset) this.onControlsReset(); };
+    this._pushUR({ undo: () => apply(before), redo: () => apply(after) });
+  }
 
   // Fresh-start the patch in one undoable step: pull EVERY cable AND reset every
   // (non-pinned) knob/switch to its default. Guarded by confirmDeleteAllCables().
@@ -3239,15 +3268,16 @@ export class Rack {
     this.onAppMenu(e.clientX, e.clientY);
   }
 
-  // Right-click a module's vertical title (its left edge) → a small menu with its one
-  // action, Delete. The pinned mixer can't be deleted, so no menu.
+  // Right-click a module's vertical title (its left edge) → a small menu: reset its controls
+  // (cables untouched) and, for a non-pinned module, delete it.
   _onTitleContextMenu(e, rec) {
     e.preventDefault();
     e.stopPropagation();
-    if (rec.pinned) return;
-    this._openMenu(e.clientX, e.clientY, [
-      { label: `Delete ${rec.name}`, action: () => this._deleteModuleWithUndo(rec) },
-    ]);
+    const items = [
+      { label: `Reset ${rec.name}`, action: () => this._resetModuleWithUndo(rec) },
+    ];
+    if (!rec.pinned) items.push({ label: `Delete ${rec.name}`, action: () => this._deleteModuleWithUndo(rec) });
+    this._openMenu(e.clientX, e.clientY, items);
   }
 
   // items: { label, action } clickable rows, plus optional { header:true } group

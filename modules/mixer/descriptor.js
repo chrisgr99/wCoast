@@ -27,7 +27,7 @@ for (const L of CH) {
   // Gain (amp) CV: a control-voltage input that drives the channel level 0..1, the
   // same range the fader spans bottom-to-top.
   ports.push({ id: `ampCv${L}`, name: `Gain ${L}`, section: 'ampCv', domain: 'control', dir: 'in', target: `level${L}` });
-  params.push({ id: `level${L}`, name: `Level ${L}`, section: 'channel', curve: 'gainDb', min: 0, max: 1, default: 0.8, glideMs: 20 });
+  params.push({ id: `level${L}`, name: `Level ${L}`, section: 'channel', curve: 'gainDb', min: 0, max: 1, default: 0.29, glideMs: 20 });   // ~-11 dB → ~70% up the throw
   params.push({ id: `pan${L}`, name: `Pan ${L}`, section: 'channel', curve: 'linear', min: -1, max: 1, default: 0, glideMs: 20 });
   // Enable lamp: lit = channel enabled (passing audio). Internally still a mute
   // gain, but the sense is flipped — 'on' now means enabled, and it defaults on.
@@ -40,7 +40,7 @@ for (const L of CH) {
   ports.push({ id: `panCv${L}`, name: `Pan ${L}`, section: 'panCv', domain: 'control', dir: 'in', target: `pan${L}` });
 }
 ports.push({ id: 'ampCvMaster', name: 'Gain Master', section: 'ampCv', domain: 'control', dir: 'in', target: 'master' });
-params.push({ id: 'master', name: 'Master', section: 'master', curve: 'gainDb', min: 0, max: 1, default: 0.7, glideMs: 20 });
+params.push({ id: 'master', name: 'Master', section: 'master', curve: 'gainDb', min: 0, max: 1, default: 0.29, glideMs: 20 });   // ~-11 dB → ~70% up the throw
 params.push({ id: 'masterMute', name: 'Master Enable', section: 'master', curve: 'stepped', steps: [{ value: 'off' }, { value: 'on' }], default: 'on' });
 
 export default {
