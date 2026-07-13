@@ -213,7 +213,7 @@ async function boot() {
   // One rAF loop reads the mixer instance's per-channel + master RMS and lights
   // the pre-drawn LED rings (fill the ring when lit, clear it when not), plus the
   // toolbar's horizontal master meter.
-  const vuColumns = [...mixRec.panel.svg.querySelectorAll('[data-wcoast-role="vu"],[data-wcoast-role="vuMaster"]')].map((g) => ({
+  const vuColumns = [...mixRec.panel.svg.querySelectorAll('[data-wcoast-role="vu"],[data-wcoast-role="vuMaster"],[data-wcoast-role="vuMonitor"]')].map((g) => ({
     chan: g.getAttribute('data-wcoast-chan'),
     segs: [...g.querySelectorAll('[data-wcoast-seg]')].sort(
       (a, b) => (+a.getAttribute('data-wcoast-seg')) - (+b.getAttribute('data-wcoast-seg'))),
@@ -239,7 +239,8 @@ async function boot() {
     if (started && masterAn) { const mp = Math.max(peakOf(masterAn.l), peakOf(masterAn.r)); if (mp > (rack._sessionMaxMaster || 0)) rack._sessionMaxMaster = mp; }
     for (const col of vuColumns) {
       const n = col.segs.length;
-      const lit = Math.round(vuScale(col.chan === 'M' ? lv.master : (lv.channels[col.chan] || 0)) * n);
+      const level = col.chan === 'M' ? lv.master : col.chan === 'MON' ? rack.monVuLevel() : (lv.channels[col.chan] || 0);
+      const lit = Math.round(vuScale(level) * n);
       for (let i = 0; i < n; i++) col.segs[i].setAttribute('fill', i < lit ? vuColour(i, n) : 'none');
     }
     const mLit = Math.round(vuScale(lv.master) * TB_SEGS);
@@ -254,10 +255,12 @@ async function boot() {
   // a persistent mixer setting — sound always boots OFF (no autoplay), so it's excluded
   // from save/restore. Otherwise a session saved with sound on would restore the master
   // lamp lit while the transport stays off, so the mixer would look enabled but silent.
+  // outSource (main/monitor radio) is likewise session state, re-derived from the restored monitors
+  // (enabling a monitor selects Monitor), so it's excluded too — a loaded patch boots on Master.
   const mixerIO = {
     key: 'mixer',
-    getParams: () => { const o = Object.fromEntries(mixRec.values); delete o.masterMute; return o; },
-    setParams: (vals) => { for (const [id, v] of Object.entries(vals)) { if (id === 'masterMute') continue; rack.applyParam(mixRec, id, v); } },
+    getParams: () => { const o = Object.fromEntries(mixRec.values); delete o.masterMute; delete o.outSource; return o; },
+    setParams: (vals) => { for (const [id, v] of Object.entries(vals)) { if (id === 'masterMute' || id === 'outSource') continue; rack.applyParam(mixRec, id, v); } },
   };
 
   // AI patch mirror: project the live patch, the module catalogue, and app state

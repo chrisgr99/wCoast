@@ -2,9 +2,9 @@
 //
 // The mixer is our output stage, modelled on the Buchla 207: a six-input,
 // two-output stereo mixer with per-channel level and pan, plus voltage control
-// of pan on the two OUTER channels (A and F) — a left pan-CV that sweeps A and a
-// right pan-CV that sweeps F (CV 0 = full left, 1 = full right); on those two
-// channels the CV jack takes the pan knob's spot (no manual pan knob). We drop
+// of pan on the two OUTER channels (A and F) — the CV jack takes the pan knob's
+// spot there (no manual pan knob). Every channel rests CENTRED; on A and F the
+// pan CV sums onto centre (a bipolar CV sweeps full left..right). We drop
 // the parts that don't
 // apply to a computer — the microphone preamp, headphone/monitor output, preset
 // storage — and add a per-channel mute (our own, not on the real panel).
@@ -39,9 +39,18 @@ for (const L of CH) {
   // the manual pan value).
   ports.push({ id: `panCv${L}`, name: `Pan ${L}`, section: 'panCv', domain: 'control', dir: 'in', target: `pan${L}` });
 }
-ports.push({ id: 'ampCvMaster', name: 'Gain Master', section: 'ampCv', domain: 'control', dir: 'in', target: 'master' });
 params.push({ id: 'master', name: 'Master', section: 'master', curve: 'gainDb', min: 0, max: 1, default: 0.29, glideMs: 20 });   // ~-11 dB → ~70% up the throw
-params.push({ id: 'masterMute', name: 'Master Enable', section: 'master', curve: 'stepped', steps: [{ value: 'off' }, { value: 'on' }], default: 'on' });
+// The engine: all sound on/off (transport). Unified with the toolbar On/Off and the panel
+// context-menu Engine entry (host-wired, id kept as 'masterMute' for compatibility).
+params.push({ id: 'masterMute', name: 'Engine', section: 'master', curve: 'stepped', steps: [{ value: 'off' }, { value: 'on' }], default: 'on' });
+// Monitor bus: its own fader (level) beside the master, and two MUTUALLY EXCLUSIVE bus enables —
+// exactly one of Master / Monitor plays at a time. Enabling a monitor object selects Monitor. All
+// handled by the host (routing lives in the rack), not the DSP.
+params.push({ id: 'monitorLevel', name: 'Monitor', section: 'master', curve: 'gainDb', min: 0, max: 1, default: 0.29, glideMs: 20 });
+// Independent per-bus enables (an on/off lamp under each fader — NOT a radio, so both or neither can
+// play). Enabling a monitor object turns the monitor bus on. Both are still gated by the engine.
+params.push({ id: 'masterEnable', name: 'Master enable', section: 'master', curve: 'stepped', steps: [{ value: 'off' }, { value: 'on' }], default: 'on' });
+params.push({ id: 'monitorEnable', name: 'Monitor enable', section: 'master', curve: 'stepped', steps: [{ value: 'off' }, { value: 'on' }], default: 'off' });
 
 export default {
   id: 'mixer',

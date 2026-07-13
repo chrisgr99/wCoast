@@ -79,6 +79,13 @@ const MON_MIN_DB = -60;
 // Default POSITION ≈ 0.69 → ~-18 dB (gain ~0.12): monitored terminals are internal-level
 // (~15–20 dB hotter than the line-level output), so the un-measured default must be low.
 const MON_VOL_DEFAULT = 0.69;
+// The monitor bus carries the same fixed makeup (+~20 dB) as the mixer's main output, so a
+// monitored (quiet, internal-level) signal reaches a comparable loudness — otherwise the Listen
+// tool is far quieter than the main out even at full volume.
+const MON_MAKEUP = 10;
+// Default monitor-master level (the mixer fader while the output radio is on Monitor). Matches the
+// main master default so the fader sits at a comparable spot and the loudness lines up.
+const MON_LEVEL_DEFAULT = 0.29;
 // Flow animation (on every cable, always): black dashes crawl each cord source->dest
 // to show direction. Dash LENGTH (in cable-widths) encodes the DESTINATION family —
 // audio shortest, CV/pitch medium, trigger longest — a shape cue on top of colour.
@@ -2447,9 +2454,28 @@ export class Rack {
     if (!this._monBus) {
       const ctx = this.host.ctx;
       this._monBus = ctx.createGain();
+      // Monitor master: the mixer's master fader drives this while the output radio is on Monitor
+      // (its own remembered level, independent of the main master).
+      if (this._monLevel == null) this._monLevel = MON_LEVEL_DEFAULT;
+      const monMaster = ctx.createGain(); monMaster.gain.value = this._monLevel;
+      this._monMasterGain = monMaster;
+      // Monitor VU tap: post-fader, so the meter shows the monitor level regardless of the enable/
+      // engine (scaled by MON_MAKEUP in monVuLevel() to read comparably to the master meter).
+      const monVu = ctx.createAnalyser(); monVu.fftSize = 256; monVu.smoothingTimeConstant = 0;
+      this._monVuAnalyser = monVu; this._monVuBuf = new Float32Array(monVu.fftSize);
+      monMaster.connect(monVu);
+      // Mode gate: audible only while the radio is on Monitor (0 on Master).
+      const monRec = this._mixerRec(); const modeGate = ctx.createGain();
+      modeGate.gain.value = (monRec && monRec.values.get('monitorEnable') === 'on') ? 1 : 0;
+      this._monModeGate = modeGate;
+      // Engine gate: monitors follow the master engine on/off (0 while the engine is off).
+      const engineGate = ctx.createGain(); engineGate.gain.value = this.isPlaying() ? 1 : 0;
+      this._monEngineGate = engineGate;
+      const makeup = ctx.createGain(); makeup.gain.value = MON_MAKEUP;   // match the main output's makeup
       const lim = ctx.createDynamicsCompressor();
-      lim.threshold.value = -6; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.003; lim.release.value = 0.12;
-      this._monBus.connect(lim); lim.connect(ctx.destination);
+      lim.threshold.value = -1; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.003; lim.release.value = 0.12;
+      this._monBus.connect(monMaster); monMaster.connect(modeGate); modeGate.connect(engineGate);
+      engineGate.connect(makeup); makeup.connect(lim); lim.connect(ctx.destination);
     }
     // Independent of the master mute: a terminal can be auditioned even with the main
     // output muted.
@@ -2457,21 +2483,63 @@ export class Rack {
     return this._monBus;
   }
 
-  // Duck the mixer's normal output while any monitor is actively listening (connected
-  // to a port and not muted), so you hear only the soloed terminal(s).
-  _refreshSolo() {
+  // Gate the monitor bus by the master engine on/off (called when the mixer's masterMute changes).
+  _setMonEngineGate(on) {
+    if (this._monEngineGate) this._monEngineGate.gain.setTargetAtTime(on ? 1 : 0, this.host.ctx.currentTime, 0.008);
+  }
+
+  // The pinned mixer's record (the output stage).
+  _mixerRec() {
+    for (const rec of this.records.values()) if (rec.descriptorId === 'mixer') return rec;
+    return null;
+  }
+
+  // Turn the monitor bus on/off by setting the mixer's monitorEnable param (updates the lamp and,
+  // via _setParam, applies the routing).
+  _enableMonitorBus(on) {
+    const rec = this._mixerRec();
+    if (rec) this.applyParam(rec, 'monitorEnable', on ? 'on' : 'off');
+    else this._applyBusEnables();
+  }
+
+  // Apply the two INDEPENDENT bus enables: masterEnable gates the main output, monitorEnable gates
+  // the monitor bus (both, neither, or one can play). Both are still gated by the engine. The
+  // channel faders gray while the master bus is off (they don't reach the speakers then).
+  _applyBusEnables() {
+    const rec = this._mixerRec(); if (!rec) return;
+    const masterOn = rec.values.get('masterEnable') !== 'off';
+    const monitorOn = rec.values.get('monitorEnable') === 'on';
     const mix = this._mixerInstance();
-    const active = [...this._monitors].some((m) => m.tap && !m.muted);
-    if (mix && mix.setSolo) mix.setSolo(active);
+    if (mix && mix.setSolo) mix.setSolo(!masterOn);   // soloDuck ducks the main output when master is disabled
+    if (this._monModeGate) this._monModeGate.gain.setTargetAtTime(monitorOn ? 1 : 0, this.host.ctx.currentTime, 0.008);
+    this._setChannelsGrayed(!masterOn);
+  }
+
+  // RMS level (0..~1) of the monitor bus, for its VU meter (scaled to match the master meter).
+  monVuLevel() {
+    const an = this._monVuAnalyser; if (!an) return 0;
+    an.getFloatTimeDomainData(this._monVuBuf);
+    let s = 0; for (let i = 0; i < this._monVuBuf.length; i++) s += this._monVuBuf[i] * this._monVuBuf[i];
+    return Math.min(1, Math.sqrt(s / this._monVuBuf.length) * MON_MAKEUP);
+  }
+
+  // The monitor-bus master gain, driven by the mixer's Monitor fader.
+  _setMonMaster(v) {
+    this._monLevel = v;
+    if (this._monMasterGain) this._monMasterGain.gain.setTargetAtTime(v, this.host.ctx.currentTime, 0.02);
+  }
+
+  // Dim the mixer's channel faders while the monitor bus is the output (they don't feed it).
+  _setChannelsGrayed(on) {
+    const rec = this._mixerRec();
+    if (rec && rec.el) rec.el.classList.toggle('mixer-monitor-mode', !!on);
   }
 
   // Route a terminal's tap into the monitor bus at a level that respects the master
   // output gain; the bus limiter guards against anything much hotter (ear/speaker
   // safety). Muted monitors carry no tap.
   _monTapConnect(m) {
-    const mix = this._mixerInstance();
-    const base = mix && mix.getParam && mix.getParam('master') ? mix.getParam('master').value : 0.7;
-    m.gain.gain.value = base * this._monGainMul(m.vol != null ? m.vol : MON_VOL_DEFAULT);
+    m.gain.gain.value = this._monGainMul(m.vol != null ? m.vol : MON_VOL_DEFAULT);   // per-monitor level; the monitor master (fader) scales the whole bus
     const tap = this._probeTap(m.key, m.portId);
     if (tap && tap.node) { try { tap.node.connect(m.gain, tap.index || 0); m.tap = tap; } catch (_e) { m.tap = null; } }
     return m.tap;
@@ -2519,7 +2587,7 @@ export class Rack {
     this._monitors.add(m);
     if (showCallout) this.onChange();   // a placed monitor is part of the patch (not the temporary peek)
     this._updateCallout(m);
-    this._refreshSolo();
+    this._enableMonitorBus(true);   // enabling a monitor turns the monitor bus on
     return m;
   }
 
@@ -2531,11 +2599,7 @@ export class Rack {
   // Set the monitor's volume by knob POSITION (0..1): gain = master base × taper(pos).
   _setMonVol(m, vol) {
     m.vol = clamp01(vol);
-    if (!m.muted) {
-      const mix = this._mixerInstance();
-      const base = mix && mix.getParam && mix.getParam('master') ? mix.getParam('master').value : 0.7;
-      try { m.gain.gain.value = base * this._monGainMul(m.vol); } catch (_e) { /* node gone */ }
-    }
+    if (!m.muted) { try { m.gain.gain.value = this._monGainMul(m.vol); } catch (_e) { /* node gone */ } }
     this._drawMonTick(m);
   }
   _drawMonTick(m) {
@@ -2640,7 +2704,7 @@ export class Rack {
       m.key = drop.key; m.portId = drop.portId; if (!m.muted) this._monTapConnect(m);
       m.regrabbing = false;
       this._updateCallout(m);
-      this._refreshSolo();
+      this._enableMonitorBus(true);   // re-probing keeps the monitor bus on
     };
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
   }
@@ -2652,7 +2716,7 @@ export class Rack {
     m.el.remove(); m.ring.remove(); m.line.remove(); m.dot.remove();
     this._monitors.delete(m);
     if (m.showCallout !== false) this.onChange();   // removing a placed monitor changes the patch
-    this._refreshSolo();
+    if (this._monitors.size === 0) this._enableMonitorBus(false);   // last monitor gone → monitor bus off
   }
 
   // Click the circle (no drag) → mute/unmute (pull its tap from the mix); a drag
@@ -2679,7 +2743,7 @@ export class Rack {
     m.muted = !m.muted;
     m.el.classList.toggle('mon-muted', m.muted);
     if (m.muted) this._monTapDisconnect(m); else this._monTapConnect(m);
-    this._refreshSolo();   // muting the last listening monitor restores the main output
+    if (!m.muted) this._enableMonitorBus(true);   // un-muting a monitor turns the monitor bus on
   }
 
   // Carry a freshly-placed monitor circle out to be dropped (see _carryScope): the
@@ -2971,6 +3035,9 @@ export class Rack {
     const b = rec.panel.controls.get(id);
     if (b) showValue(b, value);
     this.patchbay.setDepth(rec.key, id, value);   // if this knob is a cord's depth control
+    if (rec.pinned && id === 'masterMute') this._setMonEngineGate(value === 'on');   // engine gates the monitor bus too
+    if (rec.pinned && id === 'monitorLevel') this._setMonMaster(value);              // the Monitor fader
+    if (rec.pinned && (id === 'masterEnable' || id === 'monitorEnable')) this._applyBusEnables();   // per-bus routing
     this.onChange();                              // a knob/switch change dirties the patch
   }
 

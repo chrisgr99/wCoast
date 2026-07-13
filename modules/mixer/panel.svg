@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="103mm" height="128.5mm" viewBox="0 0 103 128.5" font-family="Arial Narrow, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="114mm" height="128.5mm" viewBox="0 0 114 128.5" font-family="Arial Narrow, Helvetica, Arial, sans-serif">
 <defs>
   <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0.4733" dy="0.5916" stdDeviation="0.4733" flood-color="#000" flood-opacity=".28"/></filter>
   <radialGradient id="blueRing"><stop offset="0" stop-color="#1688cc"/><stop offset="0.55" stop-color="#006da8"/><stop offset="1" stop-color="#003d62"/></radialGradient>
@@ -8,15 +8,16 @@
   <radialGradient id="redLed"><stop offset="0" stop-color="#ff4a4a"/><stop offset="0.55" stop-color="#d00000"/><stop offset="1" stop-color="#650000"/></radialGradient>
 </defs>
   <g transform="translate(3.9 7.0994)">
-  <rect x="0" y="0" width="103" height="113.5912" rx="2.5" fill="#cfcfcf"/>
-  <rect x="0.5" y="0.5" width="102" height="112.5912" rx="2.2" fill="none" stroke="#7d7d7d" stroke-width="0.5"/>
+  <rect x="0" y="0" width="114" height="113.5912" rx="2.5" fill="#cfcfcf"/>
+  <rect x="0.5" y="0.5" width="113" height="112.5912" rx="2.2" fill="none" stroke="#7d7d7d" stroke-width="0.5"/>
   <text x="15.5" y="9" font-size="3.306" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">A</text>
   <text x="28.5" y="9" font-size="3.306" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">B</text>
   <text x="41.5" y="9" font-size="3.306" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">C</text>
   <text x="54.5" y="9" font-size="3.306" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">D</text>
   <text x="67.5" y="9" font-size="3.306" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">E</text>
   <text x="80.5" y="9" font-size="3.306" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">F</text>
-  <text x="93.5" y="16.5" font-size="3.306" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">MASTER</text>
+  <text x="95.5" y="16.5" font-size="2.806" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">MON</text>
+  <text x="108" y="16.5" font-size="2.806" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">MSTR</text>
   <g data-wcoast-port="panCvA" data-wcoast-cx="15.5" data-wcoast-cy="105">
     <circle cx="15.5" cy="105" r="3" fill="#8a8a8a" stroke="#000000" stroke-width="0.3" filter="url(#softShadow)"/>
     <circle cx="15.5" cy="105" r="1.6" fill="#000000"/>
@@ -86,10 +87,10 @@
   <text x="11.5" y="88.3" font-size="3.206" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end" font-family="Arial Narrow, Helvetica, Arial, sans-serif">CV IN</text>
   <text x="11.5" y="95" font-size="3.206" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end" font-family="Arial Narrow, Helvetica, Arial, sans-serif">ENABLE</text>
   <text x="11.5" y="106" font-size="3.206" font-weight="700" font-style="italic" fill="#163a69" text-anchor="end" font-family="Arial Narrow, Helvetica, Arial, sans-serif">PAN</text>
-  <line x1="3" y1="21" x2="100" y2="21" stroke="#7d7d7d" stroke-width="0.355"/>
-  <line x1="3" y1="81" x2="100" y2="81" stroke="#7d7d7d" stroke-width="0.355"/>
-  <line x1="3" y1="90.5" x2="100" y2="90.5" stroke="#7d7d7d" stroke-width="0.355"/>
-  <line x1="3" y1="98" x2="100" y2="98" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="3" y1="21" x2="111" y2="21" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="3" y1="81" x2="111" y2="81" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="3" y1="90.5" x2="85" y2="90.5" stroke="#7d7d7d" stroke-width="0.355"/>
+  <line x1="3" y1="98" x2="85" y2="98" stroke="#7d7d7d" stroke-width="0.355"/>
   <line x1="20.5" y1="33.00" x2="20.5" y2="69.00" stroke="#7d7d7d" stroke-width="0.25"/>
   <line x1="33.5" y1="33.00" x2="33.5" y2="69.00" stroke="#7d7d7d" stroke-width="0.25"/>
   <line x1="46.5" y1="33.00" x2="46.5" y2="69.00" stroke="#7d7d7d" stroke-width="0.25"/>
@@ -276,19 +277,27 @@
     <rect x="73.00" y="28.41" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
     <rect x="73.00" y="23.50" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="11"/>
   </g>
-  <g data-wcoast-param="master" data-wcoast-role="slider" data-wcoast-cx="95.5" data-wcoast-top="24" data-wcoast-bot="78">
+  <g data-wcoast-param="monitorLevel" data-wcoast-role="slider" data-wcoast-cx="95.5" data-wcoast-top="24" data-wcoast-bot="78">
     <rect x="94.30" y="22.00" width="2.4" height="58.00" rx="1.2" fill="#20242a" stroke="#000000" stroke-width="0.3"/>
     <g data-wcoast-role="handle" transform="translate(0 -10.800)">
       <rect x="91.50" y="48.80" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
       <line x1="92.30" y1="51" x2="98.70" y2="51" stroke="#e6ecf3" stroke-width="0.7"/>
     </g>
   </g>
-  <g data-wcoast-port="ampCvMaster" data-wcoast-cx="95.5" data-wcoast-cy="86">
-    <circle cx="95.5" cy="86" r="3" fill="#8a8a8a" stroke="#000000" stroke-width="0.3" filter="url(#softShadow)"/>
-    <circle cx="95.5" cy="86" r="1.6" fill="#000000"/>
+  <g data-wcoast-param="master" data-wcoast-role="slider" data-wcoast-cx="108" data-wcoast-top="24" data-wcoast-bot="78">
+    <rect x="106.80" y="22.00" width="2.4" height="58.00" rx="1.2" fill="#20242a" stroke="#000000" stroke-width="0.3"/>
+    <g data-wcoast-role="handle" transform="translate(0 -10.800)">
+      <rect x="104.00" y="48.80" width="8" height="4.4" rx="1.1" fill="#3c4653" stroke="#0d1218" stroke-width="0.4" filter="url(#softShadow)"/>
+      <line x1="104.80" y1="51" x2="111.20" y2="51" stroke="#e6ecf3" stroke-width="0.7"/>
+    </g>
   </g>
-  <g data-wcoast-param="masterMute"><circle cx="95.5" cy="94" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/><circle cx="95.00" cy="93.50" r="0.54" fill="#ffb4b4" opacity="0.85" pointer-events="none"/></g>
-  <g data-wcoast-role="vuMaster" data-wcoast-chan="M">
+  <text x="95.5" y="84.5" font-size="2.4" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">MON</text>
+  <text x="108" y="84.5" font-size="2.4" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">MSTR</text>
+  <g data-wcoast-param="monitorEnable"><circle cx="95.5" cy="88" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/><circle cx="95.00" cy="87.50" r="0.54" fill="#ffb4b4" opacity="0.85" pointer-events="none"/></g>
+  <g data-wcoast-param="masterEnable"><circle cx="108" cy="88" r="1.8" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/><circle cx="107.50" cy="87.50" r="0.54" fill="#ffb4b4" opacity="0.85" pointer-events="none"/></g>
+  <g data-wcoast-param="masterMute"><circle cx="101.75" cy="99" r="2.7" fill="url(#redLed)" stroke="#7c0000" stroke-width="0.2366" filter="url(#softShadow)" data-wcoast-role="step-indicator" data-wcoast-step="on"/><circle cx="101.00" cy="98.24" r="0.80" fill="#ffb4b4" opacity="0.85" pointer-events="none"/></g>
+  <text x="101.75" y="95" font-size="2.606" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">ENGINE</text>
+  <g data-wcoast-role="vuMonitor" data-wcoast-chan="MON">
     <rect x="88.00" y="77.50" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
     <rect x="88.00" y="72.59" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
     <rect x="88.00" y="67.68" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
@@ -301,6 +310,20 @@
     <rect x="88.00" y="33.32" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
     <rect x="88.00" y="28.41" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
     <rect x="88.00" y="23.50" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="11"/>
+  </g>
+  <g data-wcoast-role="vuMaster" data-wcoast-chan="M">
+    <rect x="100.50" y="77.50" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="0"/>
+    <rect x="100.50" y="72.59" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="1"/>
+    <rect x="100.50" y="67.68" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="2"/>
+    <rect x="100.50" y="62.77" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="3"/>
+    <rect x="100.50" y="57.86" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="4"/>
+    <rect x="100.50" y="52.95" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="5"/>
+    <rect x="100.50" y="48.05" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="6"/>
+    <rect x="100.50" y="43.14" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="7"/>
+    <rect x="100.50" y="38.23" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="8"/>
+    <rect x="100.50" y="33.32" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="9"/>
+    <rect x="100.50" y="28.41" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="10"/>
+    <rect x="100.50" y="23.50" width="3" height="1" rx="0.35" fill="none" stroke="#7d7d7d" stroke-width="0.3" data-wcoast-seg="11"/>
   </g>
   </g>
 </svg>

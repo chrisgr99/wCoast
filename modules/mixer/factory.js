@@ -67,13 +67,13 @@ export function create(ctx, services) {
     level.gain.value = paramDefault(`level${L}`);
     mute.gain.value = paramDefault(`mute${L}`) === 'on' ? 1 : 0;
     level.connect(mute); mute.connect(pan); pan.connect(master);
-    // Outer channels are pan-CV only (no knob): the panner rests full-left (−1)
-    // and a ×2 scaler turns a 0..1 CV into a full −1..+1 sweep. Inner channels
-    // take their manual pan default.
+    // Every channel rests CENTRED by default. The outer channels are pan-CV only (no knob): the
+    // pan CV sums onto centre, so a bipolar CV sweeps full −1..+1 and a unipolar 0..1 CV sweeps
+    // centre → right. Inner channels take their manual pan default (also centre).
     let panScale = null;
     if (vcPan.has(L)) {
-      pan.pan.value = -1;
-      panScale = ctx.createGain(); panScale.gain.value = 2; panScale.connect(pan.pan);
+      pan.pan.value = 0;
+      panScale = ctx.createGain(); panScale.gain.value = 1; panScale.connect(pan.pan);
     } else {
       pan.pan.value = paramDefault(`pan${L}`);
     }
