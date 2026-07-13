@@ -44,6 +44,7 @@ const EAR_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" 
 const STYLE_COLOR = { audio: '#f3c40b', control: '#ff7300', trigger: '#5aa0e6', pitch: '#39a85a' };
 const domainStyle = (domain) => (domain === 'audio' ? 'audio' : domain === 'trigger' ? 'trigger' : 'control');
 const CABLE_PX = 3.8;   // cord thickness in px at zoom 1 (scales up as you zoom in)
+const CABLE_HOVER_FADE = 0.28;   // opacity a cable drops to while it obscures a control you're hovering
 // Scope calibrated scales (1-2-5). Vertical = signal amplitude per division; time = seconds
 // per division. A division is a fixed SCOPE_DIV_PX px on the face (absolute scaling), so resizing
 // the frame reveals MORE/less of the wave at the same scale rather than magnifying the trace.
@@ -207,9 +208,13 @@ export class Rack {
     }, true);
     // A cable body is click-through, so it fires no hover events of its own.
     // Detect a hovered cable by proximity and reveal its middle reshape handle.
-    this.container.addEventListener('pointermove', (e) => this._updateCableHover(e));
+    // Same pass: fade any cable that's covering the control the pointer is over.
+    this.container.addEventListener('pointermove', (e) => { this._updateCableHover(e); this._updateControlCableFade(e); });
     this.container.addEventListener('pointerleave', () => {
-      if (this._hoverCableEdgeId !== null) { this._hoverCableEdgeId = null; this._drawCables(); }
+      let redraw = false;
+      if (this._hoverCableEdgeId !== null) { this._hoverCableEdgeId = null; redraw = true; }
+      if (this._fadedCables) { this._fadedCables = null; this._cableFadeCtrl = null; redraw = true; }
+      if (redraw) this._drawCables();
     });
   }
 
@@ -531,7 +536,8 @@ export class Rack {
       const g = this._cordGeom(e);
       if (!g) continue;
       const color = STYLE_COLOR[e.style] || STYLE_COLOR.control;
-      const op = this._cableOpacity(e);
+      const faded = !!(this._fadedCables && this._fadedCables.has(e.id));   // covering a hovered control → see-through
+      const op = faded ? Math.min(this._cableOpacity(e), CABLE_HOVER_FADE) : this._cableOpacity(e);
       // The cable body is pointer-events:none, so a press falls through to the jack
       // behind it — a cord is grabbed and re-routed from the PORT it ends on, not
       // from the cord itself. Its only grab point is the middle reshape handle.
@@ -543,7 +549,7 @@ export class Rack {
       // dimmed, no dashes. Dash length is per destination family; the crawl offset is
       // driven by a clock in _startFlow so it survives the frequent redraws.
       if (!this._isolateNet || this._isolateNet.has(e.id)) {
-        const fd = mk(bodyD, '#000', wmm / 2, 1, null);
+        const fd = mk(bodyD, '#000', wmm / 2, faded ? CABLE_HOVER_FADE : 1, null);
         fd.setAttribute('class', 'flow-dash');
         fd.dataset.edge = e.id;
         fd.dataset.src = e.src.key + '|' + e.src.portId;   // source jack tag → its live level drives this cable's crawl in isolate mode
@@ -600,6 +606,49 @@ export class Rack {
     if (this._netEdges) return this._netEdges.has(e.id) ? 1 : 0.5;          // net highlight: members full, rest as normal
     const h = this._hoverRec;
     return (h && (e.src.key === h.key || e.dst.key === h.key)) ? 1 : 0.5;
+  }
+
+  // While the pointer sits on a control (knob/button/switch), fade any OPAQUE cable drawn over it
+  // so the control shows through. The cable body is pointer-events:none, so the control already
+  // receives the hover; we just find which cables cross its box and mark them for a lighter draw.
+  _updateControlCableFade(e) {
+    const ctrl = (e.target && e.target.closest) ? e.target.closest('[data-wcoast-param]') : null;
+    if (ctrl === this._cableFadeCtrl) return;   // still on the same control (or still off any) → nothing changed
+    this._cableFadeCtrl = ctrl;
+    const faded = ctrl ? this._cablesOverControl(ctrl) : null;
+    if (this._sameFadeSet(faded, this._fadedCables)) return;
+    this._fadedCables = faded;
+    this._drawCables();
+  }
+  _sameFadeSet(a, b) {
+    if (a === b) return true;
+    if (!a || !b || a.size !== b.size) return false;
+    for (const x of a) if (!b.has(x)) return false;
+    return true;
+  }
+  // The set of module-cable edge ids whose curve passes over `el`'s box (null if none). Samples each
+  // cord's cubic every ~2mm and maps the points to screen space to test against the control's rect.
+  _cablesOverControl(el) {
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const pad = 2, L = rect.left - pad, R = rect.right + pad, T = rect.top - pad, B = rect.bottom + pad;
+    const cr = this.cables.getBoundingClientRect(), s = this.pxPerMm || 1;
+    const set = new Set();
+    for (const e of this.patchbay.list()) {
+      if (this.mixer && (e.src.key === this.mixer.key || e.dst.key === this.mixer.key)) continue;   // mixer cords drawn elsewhere
+      const g = this._cordGeom(e);
+      if (!g) continue;
+      const chord = Math.hypot(g.pB.x - g.pA.x, g.pB.y - g.pA.y);
+      const n = Math.max(24, Math.ceil(chord / 2));   // a sample every ~2mm — finer than any control
+      for (let i = 0; i <= n; i++) {
+        const t = i / n, mt = 1 - t;
+        const x = mt * mt * mt * g.pA.x + 3 * mt * mt * t * g.c1.x + 3 * mt * t * t * g.c2.x + t * t * t * g.pB.x;
+        const y = mt * mt * mt * g.pA.y + 3 * mt * mt * t * g.c1.y + 3 * mt * t * t * g.c2.y + t * t * t * g.pB.y;
+        const sx = cr.left + x * s, sy = cr.top + y * s;
+        if (sx >= L && sx <= R && sy >= T && sy <= B) { set.add(e.id); break; }
+      }
+    }
+    return set.size ? set : null;
   }
 
   // Nearest module-to-module cable to a point (mm), within a small pixel radius,
