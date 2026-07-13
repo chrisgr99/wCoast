@@ -21,6 +21,7 @@ const EXPECTED_WORKLET_INPUTS = [
 ];
 const EXPECTED_OUTPUTS = [
   'outA', 'outB', 'outC', 'outD', 'mixOdd', 'mixEven', 'clkOut',
+  'clkOutA', 'clkOutB', 'clkOutC', 'clkOutD',
 ];
 
 const CI = { A: 0, B: 1, C: 2, D: 3 };
@@ -39,7 +40,6 @@ function assertOrder(label, got, expected) {
 
 export function create(ctx, services) {
   const { descriptor, registry } = services;
-  const DIVISORS = descriptor.divisors || [1, 2, 3, 4, 6, 8];
 
   const outPorts = registry.outputPorts(descriptor.id);
   assertOrder('output-port', outPorts, EXPECTED_OUTPUTS);
@@ -68,6 +68,16 @@ export function create(ctx, services) {
   const outIndex = new Map(outPorts.map((p, i) => [p.id, i]));
   const inIndex = new Map(inPorts.map((p, i) => [p.id, i]));
 
+  // Per-channel clock state: the ratio knob's integer (1..8) and the mode (divide/multiply).
+  // The effective RATE FACTOR sent to the DSP is 1/ratio when dividing (slower) and ratio when
+  // multiplying (faster). Seeded from descriptor defaults so an untouched channel is ÷1 = ×1.
+  const clkRatio = [1, 1, 1, 1];
+  const clkMul = [false, false, false, false];
+  function sendClk(ch) {
+    const r = Math.max(1, clkRatio[ch] | 0);
+    node.port.postMessage({ type: 'clk', ch, factor: clkMul[ch] ? r : 1 / r });
+  }
+
   function getOutput(portId) {
     const idx = outIndex.get(portId);
     return idx === undefined ? null : { node, index: idx };
@@ -81,12 +91,6 @@ export function create(ctx, services) {
   }
   function supports(paramId) {
     return paramMeta.has(paramId);
-  }
-
-  // Quantise a divider knob (0..1) to one of the DIVISORS detents.
-  function divOf(value) {
-    const i = Math.max(0, Math.min(DIVISORS.length - 1, Math.floor(value * DIVISORS.length)));
-    return DIVISORS[i];
   }
 
   function setParam(paramId, value, atTime) {
@@ -106,9 +110,19 @@ export function create(ctx, services) {
       if (value === 'on') node.port.postMessage({ type: 'strike', ch: CI[paramId.slice(-1)] });
       return;
     }
-    // Divider knob -> quantised integer division.
+    // Clock-ratio knob -> integer 1..8 (already detented by the panel). Recompute the factor
+    // against the channel's current divide/multiply mode.
     if (isCh(paramId, 'div')) {
-      node.port.postMessage({ type: 'div', ch: CI[paramId.slice(-1)], div: divOf(value) });
+      const ch = CI[paramId.slice(-1)];
+      clkRatio[ch] = Math.max(1, Math.round(value));
+      sendClk(ch);
+      return;
+    }
+    // Divide/multiply mode -> recompute the factor against the current ratio.
+    if (isCh(paramId, 'clkMode')) {
+      const ch = CI[paramId.slice(-1)];
+      clkMul[ch] = value === 'mul';
+      sendClk(ch);
       return;
     }
     // Numeric AudioParams: level / decay / rate. Glide to target.

@@ -8,9 +8,9 @@
 'use strict';
 const fs = require('fs');
 const { THEME } = require('../../panel/theme');
-const { defs, jack, knob, button, label, evenScale } = require('../../panel/primitives');
+const { defs, jack, knob, button, label, evenScale, ledLamp } = require('../../panel/primitives');
 
-const FACE_W = 140, FACE_H = 113.5912;
+const FACE_W = 142, FACE_H = 113.5912;
 // The loader's cropToFace() shows only viewBox (3.9, 7.0994)..; the panel body is
 // drawn inside a translate(FACE_LEFT, FACE_TOP) group so its frame sits within
 // the visible face (top+left border no longer cropped), matching the 259t.
@@ -22,14 +22,16 @@ const DIVLINES = [27.3, 48.0, 68.7, 89.4];   // A|B, B|C, C|D, D|bottom
 
 // Equal visual-gap column layout. eL/eR = each control's visual half-extent to
 // the left / right of its anchor (knob+ticks, jack, LED, or LED+side-label).
+// STRIKE has no column of its own — its button tucks up-right of each TRIG port (see below),
+// so dropping its slot here is what narrows the module.
 const seq = [
   { k: 'in', eL: 3, eR: 3 }, { k: 'cv', eL: 3, eR: 3 }, { k: 'trig', eL: 3, eR: 3 },
-  { k: 'strike', eL: 2.2, eR: 2.2 },
   { k: 'level', eL: 6.7, eR: 6.7 }, { k: 'decay', eL: 5.9, eR: 5.9 },
   { k: 'mode', eL: 1.9, eR: 7.8 },
-  { k: 'div', eL: 7.5, eR: 7.5 }, { k: 'on', eL: 2.0, eR: 2.0 }, { k: 'out', eL: 3, eR: 3 },
+  { k: 'div', eL: 7.5, eR: 7.5 }, { k: 'on', eL: 2.0, eR: 2.0 },
+  { k: 'clkOut', eL: 3, eR: 3 }, { k: 'out', eL: 3, eR: 3 },
 ];
-const X0 = 13, X1 = 135;                       // flow spans first-left-edge .. last-right-edge
+const X0 = 13, X1 = 137;                       // flow spans first-left-edge .. last-right-edge
 const sumW = seq.reduce((s, c) => s + c.eL + c.eR, 0);
 const GAP = (X1 - X0 - sumW) / (seq.length - 1);
 const X = {}; { let cur = X0; for (const c of seq) { cur += c.eL; X[c.k] = +cur.toFixed(2); cur += c.eR + GAP; } }
@@ -57,14 +59,13 @@ function build(dark) {
   const vmid = (a, b) => +(((X[a] + eR(a)) + (X[b] - eL(b))) / 2).toFixed(2);
   const vline = (x) => `  <line x1="${x}" y1="13" x2="${x}" y2="${DIVLINES[3]}" stroke="${th.frame}" stroke-width="0.355"/>`;
   p.push(vline(vmid('mode', 'div')));
-  p.push(vline(vmid('on', 'out')));
+  p.push(vline(vmid('clkOut', 'out')));
 
   // top headers
   ink(X.level, 10, 'LEVEL', { size: 2.4 });
   ink(X.decay, 10, 'DECAY', { size: 2.4 });
   ink(X.mode + 3, 10, 'MODE', { size: 2.4 });
-  ink(X.strike, 10, 'STRIKE', { size: 2.4 });
-  ink((X.div + X.on) / 2, 10, 'CLOCK', { size: 2.4 });
+  ink((X.div + X.on) / 2, 9.2, 'CLOCK', { size: 2.4 });
 
   // channel rows
   for (const L of CH) {
@@ -77,9 +78,25 @@ function build(dark) {
     p.push(knob(`decay${L}`, X.decay, y, { radius: 5.4, theme: th }));
     p.push(button(`vca${L}`, X.mode, y - 2.6, { r: 1.9, kind: 'red' })); ink(X.mode + 3.2, y - 2.6 + 0.9, 'VCA', { size: 1.9, anchor: 'start' });
     p.push(button(`lp${L}`, X.mode, y + 2.6, { r: 1.9, kind: 'red' })); ink(X.mode + 3.2, y + 2.6 + 0.9, 'LP', { size: 1.9, anchor: 'start' });
-    p.push(button(`strike${L}`, X.strike, y, { r: 2.2, kind: 'red' }));
-    p.push(knob(`div${L}`, X.div, y, { radius: 4.0, theme: th, ticks: 0, scale: { marks: evenScale(['1', '2', '3', '4', '6', '8']), size: 1.5 } }));
+    // STRIKE: up and slightly right of the TRIG port (~60° above horizontal), with a small
+    // label hugging its left so the pairing with the trigger reads at a glance.
+    p.push(button(`strike${L}`, X.trig + 2.5, y - 6.3, { r: 2.0, kind: 'red' }));
+    ink(X.trig + 0.2, y - 6.3 + 0.6, 'STRIKE', { size: 1.7, anchor: 'end' });
+    // Clock-ratio knob, nudged up to leave room for the mode pair; detents 1..8.
+    p.push(knob(`div${L}`, X.div, y - 1.0, { radius: 3.4, theme: th, ticks: 0, scale: { marks: evenScale(['1', '2', '3', '4', '5', '6', '7', '8']), size: 1.3 } }));
+    // Divide / multiply mode: a mutually-exclusive lamp pair on one line under the knob,
+    // the divide sign (÷) flanking the left lamp and the multiply sign (×) the right.
+    const yR = y + 7.9;
+    p.push(
+      `  <g data-wcoast-param="clkMode${L}">`
+      + `\n    ${label(X.div - 3.3, yR + 0.65, '÷', { size: 1.9, fill: th.ink })}`
+      + `\n    ${ledLamp(X.div - 1.5, yR, { r: 1.0, role: 'step-indicator', step: 'div' })}`
+      + `\n    ${ledLamp(X.div + 1.5, yR, { r: 1.0, role: 'step-indicator', step: 'mul' })}`
+      + `\n    ${label(X.div + 3.3, yR + 0.65, '×', { size: 1.9, fill: th.ink })}`
+      + `\n  </g>`,
+    );
     p.push(button(`clkOn${L}`, X.on, y, { r: 2.0, kind: 'red', label: { text: 'CLK ON', placement: 'below', size: 1.8, maxWidth: 4, fill: th.ink } }));
+    p.push(jack(`clkOut${L}`, X.clkOut, y, { label: { text: 'CLK out', placement: 'below', size: 1.8, maxWidth: 4.2, fill: th.ink } }));
     p.push(jack(`out${L}`, X.out, y, { label: lab('OUT') }));
   }
 

@@ -115,6 +115,13 @@ export function valueToPosition(meta, value) {
     const i = steps.findIndex((s) => s.value === value);
     return (i < 0 ? 0 : i) / (steps.length - 1);
   }
+  // A DETENT knob: integer values min..max, evenly spaced along the throw. Like a linear
+  // knob for placement, but positionToValue rounds to the nearest integer so the pointer
+  // (and value) only ever land on a mark.
+  if (meta.curve === 'detent') {
+    if (meta.max === meta.min) return 0;
+    return clamp01((value - meta.min) / (meta.max - meta.min));
+  }
   return clamp01((value - meta.min) / (meta.max - meta.min));
 }
 
@@ -133,6 +140,11 @@ export function positionToValue(meta, pos) {
     if (!steps.length) return undefined;
     const i = Math.round(pos * (steps.length - 1));
     return steps[Math.max(0, Math.min(steps.length - 1, i))].value;
+  }
+  // Detent knob: snap to the nearest integer in min..max, so a scroll clicks from one mark
+  // to the next and never rests between them.
+  if (meta.curve === 'detent') {
+    return meta.min + Math.round(pos * (meta.max - meta.min));
   }
   return meta.min + pos * (meta.max - meta.min);
 }
@@ -341,6 +353,30 @@ function makeHitPad(lamp, growMm) {
 
 export function attachControlInteraction(binding, hooks, opts = {}) {
   const el = binding.group;
+  if (binding.kind === 'knob' && binding.meta.curve === 'detent') {
+    // A DETENT knob steps by whole integers. Momentum integration would move the
+    // position by less than one detent per gentle notch and round straight back, so
+    // it never leaves its mark — scroll must advance discrete detents instead. Scroll
+    // deltas accumulate; each time they cross a threshold the value steps one detent.
+    if (!binding.indicator || !binding.pivot) return;
+    const min = binding.meta.min, max = binding.meta.max, THRESH = 100;
+    let acc = 0;
+    const step = (dir) => {
+      const cur = Math.round(Number(hooks.get()));
+      const nv = Math.max(min, Math.min(max, cur + dir));
+      if (nv !== cur) hooks.set(nv);
+    };
+    el.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) return;   // ctrl+wheel is the rack pinch-zoom
+      e.preventDefault();
+      const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+      acc += -d;   // up (negative delta) raises the value
+      let guard = 0;
+      while (acc >= THRESH && guard++ < 8) { acc -= THRESH; step(+1); }
+      while (acc <= -THRESH && guard++ < 8) { acc += THRESH; step(-1); }
+    }, { passive: false });
+    return;
+  }
   if (binding.kind === 'knob') {
     if (!binding.indicator || !binding.pivot) return;
     // Momentum: each scroll pulse adds velocity (scaled by the actual scroll

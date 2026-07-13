@@ -58,17 +58,26 @@ class Lpg292 extends AudioWorkletProcessor {
     this.lp = [true, true, true, true];
     this.vca = [true, true, true, true];
     this.clkOn = [false, false, false, false];
-    this.div = new Int32Array([1, 1, 1, 1]);
+    // Per-channel clock-rate factor: 1 = master rate, 1/k = divide by k (slower), k = multiply
+    // by k (faster). Each channel accrues its OWN phase so it can run faster than the master.
+    this.factor = new Float32Array([1, 1, 1, 1]);
+    this.chPhase = new Float32Array(NCH);
+    this.chPulse = new Int32Array(NCH);   // per-channel clock-out pulse (samples remaining)
     this.run = false;
     this.clockPhase = 0;
-    this.tickCount = 0;
-    this.clkPulse = 0;            // samples remaining of the current clock pulse
+    this.clkPulse = 0;            // samples remaining of the master clock-out pulse
 
     const CI = { A: 0, B: 1, C: 2, D: 3 };
     this.port.onmessage = (e) => {
       const m = e.data || {};
       if (m.type === 'switch') {
-        if (m.id === 'run') { this.run = m.value === 'on'; return; }
+        if (m.id === 'run') {
+          const on = m.value === 'on';
+          // Fresh start: re-zero every phase so divided channels line up with the master
+          // downbeat (both master and channel phases begin at 0 and stay aligned).
+          if (on && !this.run) { this.clockPhase = 0; for (let i = 0; i < NCH; i++) this.chPhase[i] = 0; }
+          this.run = on; return;
+        }
         const ch = CI[m.id.slice(-1)];
         if (ch === undefined) return;
         if (m.id.startsWith('lp')) this.lp[ch] = m.value === 'on';
@@ -76,8 +85,8 @@ class Lpg292 extends AudioWorkletProcessor {
         else if (m.id.startsWith('clkOn')) this.clkOn[ch] = m.value === 'on';
       } else if (m.type === 'strike') {
         if (m.ch >= 0 && m.ch < NCH) this.v[m.ch] = 1;
-      } else if (m.type === 'div') {
-        if (m.ch >= 0 && m.ch < NCH) this.div[m.ch] = Math.max(1, m.div | 0);
+      } else if (m.type === 'clk') {
+        if (m.ch >= 0 && m.ch < NCH && m.factor > 0) this.factor[m.ch] = m.factor;
       }
     };
   }
@@ -102,17 +111,25 @@ class Lpg292 extends AudioWorkletProcessor {
     const clkInc = rateHz / sr;
 
     const oddOut = outputs[4][0], evenOut = outputs[5][0], clkOut = outputs[6][0];
+    // Per-channel clock outputs (indices 7..10, one per channel).
+    const chClkOut = this._cco || (this._cco = new Array(NCH));
+    for (let ch = 0; ch < NCH; ch++) chClkOut[ch] = outputs[7 + ch][0];
 
     for (let i = 0; i < n; i++) {
-      // --- internal clock: advance phase, fire ticks ---
+      // --- internal clock: master phase drives clk-out; each channel accrues its OWN phase
+      // at the master rate scaled by its factor (1/k divide = slower, k multiply = faster),
+      // and strikes its gate when that phase wraps ---
       if (this.run) {
         this.clockPhase += clkInc;
-        if (this.clockPhase >= 1) {
-          this.clockPhase -= 1;
-          this.tickCount++;
-          this.clkPulse = pulseLen;
-          for (let ch = 0; ch < NCH; ch++) {
-            if (this.clkOn[ch] && (this.tickCount % this.div[ch]) === 0) this.v[ch] = 1;
+        if (this.clockPhase >= 1) { this.clockPhase -= 1; this.clkPulse = pulseLen; }
+        for (let ch = 0; ch < NCH; ch++) {
+          // Each channel's clock always runs while RUN is on so its CLK-out jack is live even
+          // when it isn't striking its own gate; CLK ON only gates the local strike.
+          this.chPhase[ch] += clkInc * this.factor[ch];
+          if (this.chPhase[ch] >= 1) {
+            this.chPhase[ch] -= 1;
+            this.chPulse[ch] = pulseLen;
+            if (this.clkOn[ch]) this.v[ch] = 1;
           }
         }
       }
@@ -121,6 +138,10 @@ class Lpg292 extends AudioWorkletProcessor {
 
       let odd = 0, even = 0;
       for (let ch = 0; ch < NCH; ch++) {
+        // emit this channel's clock pulse on its own jack
+        chClkOut[ch][i] = this.chPulse[ch] > 0 ? 1 : 0;
+        if (this.chPulse[ch] > 0) this.chPulse[ch]--;
+
         // strike on rising trigger edge
         const trigIn = inputs[8 + ch];
         const t = (trigIn && trigIn.length) ? trigIn[0][i] : 0;

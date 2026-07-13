@@ -18,7 +18,7 @@
 
 const CH = ['A', 'B', 'C', 'D'];
 const ODD = new Set(['A', 'C']);          // A,C -> odd sum; B,D -> even sum
-const DIVISORS = [1, 2, 3, 4, 6, 8];      // clock-divider detents (also read by the factory)
+const DIVISORS = [1, 2, 3, 4, 5, 6, 7, 8];   // clock-ratio detents (also read by the factory)
 
 const ports = [];
 const params = [];
@@ -33,6 +33,9 @@ for (const L of CH) ports.push({ id: `out${L}`, name: `Out ${L}`, section: 'chan
 ports.push({ id: 'mixOdd', name: 'Odd', section: 'sum', domain: 'audio', dir: 'out' });
 ports.push({ id: 'mixEven', name: 'Even', section: 'sum', domain: 'audio', dir: 'out' });
 ports.push({ id: 'clkOut', name: 'Clk Out', section: 'clock', domain: 'trigger', dir: 'out' });
+// Per-channel clock outputs: each channel's own divided/multiplied clock pulse, so the module
+// doubles as a four-output clock source (independent of whether the channel strikes its own gate).
+for (const L of CH) ports.push({ id: `clkOut${L}`, name: `Clk ${L}`, section: 'channel', domain: 'trigger', dir: 'out' });
 
 // Params. LEVEL and DECAY are knobs; MODE is two independent toggles (LP, VCA);
 // STRIKE is a momentary button (each press fires a strike); the per-channel
@@ -45,7 +48,13 @@ for (const L of CH) {
   params.push({ id: `lp${L}`, name: `Lowpass ${L}`, section: 'channel', ...onoff(), default: 'on' });
   params.push({ id: `vca${L}`, name: `VCA ${L}`, section: 'channel', ...onoff(), default: 'on' });
   params.push({ id: `strike${L}`, name: `Strike ${L}`, section: 'channel', ...onoff(), default: 'off', momentary: true });
-  params.push({ id: `div${L}`, name: `Divide ${L}`, section: 'channel', curve: 'linear', min: 0, max: 1, default: 0, glideMs: 0 });
+  // Clock ratio: a detented knob that clicks to the integers 1..8 (its pointer only ever
+  // rests ON a mark, never between two). The ratio is applied as DIVIDE or MULTIPLY per the
+  // mode pair below it — divide slows this channel's clock, multiply speeds it up.
+  params.push({ id: `div${L}`, name: `Clock ratio ${L}`, section: 'channel', curve: 'detent', min: 1, max: 8, default: 1, glideMs: 0 });
+  // Divide-or-multiply mode: a mutually-exclusive pair (÷ / ×) drawn under the knob; divide is
+  // the default and preserves the original behaviour.
+  params.push({ id: `clkMode${L}`, name: `Clock mode ${L}`, section: 'channel', curve: 'stepped', steps: [{ value: 'div' }, { value: 'mul' }], default: 'div' });
   params.push({ id: `clkOn${L}`, name: `Clock ${L}`, section: 'channel', ...onoff(), default: 'off' });
 }
 params.push({ id: 'rate', name: 'Clock Rate', section: 'clock', curve: 'linear', min: 0, max: 1, default: 0.35, glideMs: 10 });
