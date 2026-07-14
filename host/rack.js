@@ -61,7 +61,8 @@ const SCOPE_CTRL = '#ff9d3a';
 // axis units, i.e. every 2/5/10 divisions for a 1-2-5 scale). The G button toggles the grid.
 const SCOPE_GRID_FINE = 0.5, SCOPE_GRID_COARSE = 0.9;
 // The zero-amplitude reference line: brighter than the grid so the signal's position about zero reads clearly.
-const SCOPE_GRID_ZERO = 'rgba(210,225,210,0.85)';   // brighter than the grid, but clearly below the white trace
+const SCOPE_GRID_ZERO = 'rgba(150,190,150,0.9)';   // the grid's green-grey, brighter than the grid lines but clearly NOT the white trace
+const CALLOUT_OPACITY = 0.6;   // scope/monitor connection loop, line, and dot — 40% translucent so they read as secondary
 // Transport button glyphs (shown = the ACTION a click performs). Running → pause bars; frozen → play triangle.
 const SCOPE_PAUSE_ICON = `<svg viewBox="0 0 12 12"><rect x="3" y="2.4" width="2.2" height="7.2" fill="${SCOPE_CTRL}"/><rect x="6.8" y="2.4" width="2.2" height="7.2" fill="${SCOPE_CTRL}"/></svg>`;
 const SCOPE_PLAY_ICON = `<svg viewBox="0 0 12 12"><path d="M3.2 2.2 L10 6 L3.2 9.8 Z" fill="${SCOPE_CTRL}"/></svg>`;
@@ -2690,7 +2691,7 @@ export class Rack {
     const px = jr.left + jr.width / 2, py = jr.top + jr.height / 2;
     const rr = Math.max(jr.width, jr.height) / 2 + 3;
     sc.ring.setAttribute('cx', r2(px)); sc.ring.setAttribute('cy', r2(py)); sc.ring.setAttribute('r', r2(rr));
-    sc.ring.setAttribute('stroke', col); sc.ring.setAttribute('stroke-width', lw);
+    sc.ring.setAttribute('stroke', col); sc.ring.setAttribute('stroke-width', lw); sc.ring.setAttribute('opacity', String(CALLOUT_OPACITY));
     // Line from the loop to the CENTRE of the control's side that's closest to the
     // terminal — dynamic, so it re-picks the facing side as the control moves. The four
     // candidates are the mid-points of the box's sides (for the circular monitor, its
@@ -2707,7 +2708,7 @@ export class Rack {
     const jx = px + u.x * rr, jy = py + u.y * rr;   // where the line meets the loop
     sc.line.setAttribute('x1', r2(jx)); sc.line.setAttribute('y1', r2(jy));
     sc.line.setAttribute('x2', r2(cx)); sc.line.setAttribute('y2', r2(cy));
-    sc.line.setAttribute('stroke', col); sc.line.setAttribute('stroke-width', lw);
+    sc.line.setAttribute('stroke', col); sc.line.setAttribute('stroke-width', lw); sc.line.setAttribute('opacity', String(CALLOUT_OPACITY));
     if (sc.dot) { sc.dot.style.left = r2(jx) + 'px'; sc.dot.style.top = r2(jy) + 'px'; }
   }
 
