@@ -10,6 +10,7 @@
       --accent: #e0a353; --accent-ink: #14110d; --line: #3a3226; --panel: #211c15;
       --audio: #ff7300; --control: #1f7fe0;
       --grip: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%3E%3Cpath%20d%3D%22M3%2C2%20L3%2C20%20L8%2C16%20L11%2C22%20L14%2C21%20L11%2C15%20L18%2C15%20Z%22%20fill%3D%22%23000%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.4%22%20stroke-linejoin%3D%22round%22%2F%3E%3Cg%20transform%3D%22translate(13%2C12)%22%3E%3Crect%20x%3D%221%22%20y%3D%225%22%20width%3D%2211%22%20height%3D%228%22%20rx%3D%223.5%22%20fill%3D%22%23fafafa%22%20stroke%3D%22%23000%22%20stroke-width%3D%221%22%2F%3E%3Ccircle%20cx%3D%223.2%22%20cy%3D%225%22%20r%3D%221.8%22%20fill%3D%22%23fafafa%22%20stroke%3D%22%23000%22%20stroke-width%3D%221%22%2F%3E%3Ccircle%20cx%3D%226.2%22%20cy%3D%224.2%22%20r%3D%221.8%22%20fill%3D%22%23fafafa%22%20stroke%3D%22%23000%22%20stroke-width%3D%221%22%2F%3E%3Ccircle%20cx%3D%229.2%22%20cy%3D%225%22%20r%3D%221.8%22%20fill%3D%22%23fafafa%22%20stroke%3D%22%23000%22%20stroke-width%3D%221%22%2F%3E%3Ccircle%20cx%3D%221.3%22%20cy%3D%228.5%22%20r%3D%221.9%22%20fill%3D%22%23fafafa%22%20stroke%3D%22%23000%22%20stroke-width%3D%221%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") 3 2, auto;
+      --spin: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2724%27%20height%3D%2724%27%20viewBox%3D%270%200%2024%2024%27%3E%3Cpath%20d%3D%27M16.95%207.05%20A7%207%200%201%201%207.05%207.05%20M7.05%207.05%20L3.7%207.3%20M7.05%207.05%20L6.8%2010.4%27%20fill%3D%27none%27%20stroke%3D%27%23e6e6e6%27%20stroke-width%3D%271.5%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%2F%3E%3C%2Fsvg%3E") 12 12, pointer;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; }
@@ -60,12 +61,15 @@
     .scope-canvas { display: block; border-radius: 3px; }
     /* A small clickable nub at the bottom-centre of the display opens the values panel. */
     /* Values panel below the display: spin boxes for the two scales. */
-    .scope-values { display: none; position: absolute; left: 50%; transform: translateX(-50%); background: #0a0c09; color: #ffffff; border: 1px solid #8a8d92; border-radius: 4px; padding: 2px 7px; font-size: 13px; font-weight: 400; line-height: 1; white-space: nowrap; align-items: center; gap: 4px; z-index: 2; user-select: none; -webkit-user-select: none; }
-    .scope-values.show { display: flex; }
+    .scope-values { display: flex; opacity: 0; pointer-events: none; transition: opacity 1s; position: absolute; left: 50%; transform: translateX(-50%); background: #0a0c09; color: #ffffff; border: 1px solid #8a8d92; border-radius: 4px; padding: 2px 7px; font-size: 13px; font-weight: 400; line-height: 1; white-space: nowrap; align-items: center; gap: 4px; z-index: 2; user-select: none; -webkit-user-select: none; }
+    .scope-values.show { opacity: 1; pointer-events: auto; }
     .scope-spin { display: inline-flex; align-items: center; gap: 3px; }
     .scope-arrows { display: inline-flex; flex-direction: column; line-height: 0.7; }
     .scope-arrows button { background: none; border: none; color: #ff9d3a; cursor: pointer; padding: 0; margin: 0; display: block; font-size: 0.72em; }
     .scope-arrows button:hover { color: #ffd089; }
+    .scope-modestep { position: absolute; left: 50%; background: none; border: none; color: #8a8d92; cursor: var(--spin); padding: 1px 4px; margin: 0; font-size: 0.7em; line-height: 0.7; z-index: 3; }
+    .scope-modestep.up { top: 0; transform: translate(-50%, -12%); }
+    .scope-modestep:hover { color: #b8bbc0; }
     .scope-splabel { color: #ff9d3a; font-weight: 700; }
     .scope-val { display: inline-block; }
     .scope-half { display: inline-flex; align-items: center; gap: 3px; }
@@ -97,7 +101,7 @@
     .scope-closebtn:hover { opacity: 1; color: #ff5a5a; }
     .scope-triglevel { position: absolute; left: 0; width: 100%; height: 1.5px; margin-top: -0.75px; background: rgba(255,157,58,0.9); pointer-events: none; z-index: 2; }
     .scope-preview { pointer-events: none; opacity: 0.8; border-style: dashed; cursor: default; }
-    .scope-dot { position: fixed; z-index: 1246; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 1px solid rgba(0,0,0,0.55); transform: translate(-50%,-50%); cursor: grab; opacity: 0.6; }
+    .scope-dot { position: fixed; z-index: 1246; width: 10.5px; height: 10.5px; background: #8a8d92; transform: translate(-50%,-50%); cursor: grab; }
     .scope-callouts { position: fixed; inset: 0; pointer-events: none; z-index: 1240; overflow: visible; }
     .mon { position: fixed; z-index: 1250; width: 34px; height: 34px; border-radius: 50%; background: #0d0f0c; border: 1px solid #8a8d92;
       box-shadow: 0 4px 12px rgba(0,0,0,0.5); cursor: default; display: flex; align-items: center; justify-content: center; color: #cfe8d4; }

@@ -47,6 +47,7 @@ const CABLE_PX = 3.8;   // cord thickness in px at zoom 1 (scales up as you zoom
 const CABLE_HOVER_FADE = 0.28;   // opacity a cable drops to while it obscures a control you're hovering
 const CABLE_FADE_TAU = 0.3;      // opacity easing time constant — cables brighten/dim over ~1s so quick sweeps don't flash
 const CABLE_BRIGHT = 0.9;        // opacity of a fully-highlighted cable — a touch under full so it reads bright without dazzling
+const SCOPE_FADE_TAU = 0.3;      // scopes/monitors fade IN over ~1s in the loop (OUT via a 1s CSS transition), so they don't pop
 // Scope calibrated scales (1-2-5). Vertical = signal amplitude per division; time = seconds
 // per division. A division is a fixed SCOPE_DIV_PX px on the face (absolute scaling), so resizing
 // the frame reveals MORE/less of the wave at the same scale rather than magnifying the trace.
@@ -64,7 +65,11 @@ const SCOPE_CTRL = '#ff9d3a';
 const SCOPE_GRID_FINE = 0.5, SCOPE_GRID_COARSE = 0.9;
 // The zero-amplitude reference line: brighter than the grid so the signal's position about zero reads clearly.
 const SCOPE_GRID_ZERO = 'rgba(150,190,150,0.9)';   // the grid's green-grey, brighter than the grid lines but clearly NOT the white trace
-const CALLOUT_OPACITY = 0.6;   // scope/monitor connection loop, line, and dot — 40% translucent so they read as secondary
+const CALLOUT_OPACITY = 1;     // loop, line, and grab handle are OPAQUE — the muted border colour already reads as secondary
+const CALLOUT_COLOR = '#8a8d92';        // DARK mode: loop/line/handle in the scope's border grey (the .scope border) — reads as part of the frame on dark panels
+const CALLOUT_COLOR_LIGHT = '#5a5d62';  // LIGHT mode: a darker grey — the callout floats over LIGHT panels, where the border grey has no contrast
+const SCOPE_HANDLE = 10.5;     // grab-handle size (3/4 of the old 14px dot): a rounded tab — semicircle edge kissing the loop,
+                               // slightly-rounded outer corners, filled in the callout colour. Also the shortest the loop→viewer line may get.
 // Compact base64 for a saved frozen-scope trace (Float32 samples) in the patch JSON.
 function f32ToB64(f32) {
   const bytes = new Uint8Array(f32.buffer, f32.byteOffset, f32.byteLength);
@@ -300,8 +305,8 @@ export class Rack {
   // kept — they're recreated once at boot, not per patch — but their cords are
   // pulled so a restore rewires from a clean slate.
   clear() {
-    for (const sc of [...this._scopes]) this._closeScope(sc);
-    for (const m of [...this._monitors]) this._closeMonitor(m);
+    for (const sc of [...this._scopes]) this._closeScope(sc, true);
+    for (const m of [...this._monitors]) this._closeMonitor(m, true);
     for (const rec of [...this.records.values()]) {
       if (rec.pinned) this.patchbay.disconnectModule(rec.key);
       else this.deleteModule(rec);
@@ -2000,8 +2005,12 @@ export class Rack {
         label: 'Monitor', icon: EAR_ICON,
         onDwell: () => {
           if (tempMon) return;
-          tempMon = this._createMonitor(key, portId, ox, oy, false);   // audio only
-          tempMon.el.style.display = 'none';                          // heard, not seen
+          const a = this._dwellAnchor || { x: ox, y: oy };
+          tempMon = this._createMonitor(key, portId, a.x, a.y, false);   // preview: now SEEN as well as heard — it fades into view like the scope
+          tempMon.el.style.zIndex = 3100;               // over the menu
+          tempMon.el.style.pointerEvents = 'none';      // a visual preview; the menu owns the pointer
+          tempMon.el.style.left = Math.round(a.x + 3 * (this.pxPerMm || 1)) + 'px';   // beside the pointer, like the scope preview
+          tempMon.el.style.top = Math.round(a.y - (tempMon.el.offsetHeight || 28) / 2) + 'px';
           this._autoLevelMonitor(tempMon);
         },
         onLeave: () => { if (tempMon) { this._closeMonitor(tempMon); tempMon = null; } },
@@ -2132,6 +2141,7 @@ export class Rack {
     const canvas = document.createElement('canvas');
     canvas.className = 'scope-canvas';
     el.appendChild(canvas);
+    el.style.opacity = '0';   // eased up to full in the scope loop, so a new scope fades in
     document.body.appendChild(el);
 
     const an = this.host.ctx.createAnalyser();
@@ -2149,7 +2159,7 @@ export class Rack {
       valuesEl: null, playBtn: null, trigBtn: null, valEls: {}, valMode: 'scale',
       gridOn: true,   // the G button toggles the grid on/off
       trigger: true, trigLevel: 0, frozen: false, forceMode: 'auto',
-      armed: false, recFrames: 0, prevPeak: null, showCallout,
+      armed: false, recFrames: 0, prevPeak: null, showCallout, fade: 0,
       ring: document.createElementNS(SVG_NS, 'circle'), line: document.createElementNS(SVG_NS, 'line'),
       dot: document.createElement('div'),
     };
@@ -2262,8 +2272,13 @@ export class Rack {
   // interaction. Runs while any scope OR monitor exists.
   _startScopeLoop() {
     if (this._scopeRaf) return;
-    const tick = () => {
-      if (!this._scopes.size && !this._monitors.size) { this._scopeRaf = null; return; }
+    this._scopeLast = 0;
+    const tick = (now) => {
+      if (!this._scopes.size && !this._monitors.size) { this._scopeRaf = null; this._scopeLast = 0; return; }
+      const t = now || performance.now();
+      const dt = this._scopeLast ? Math.min(0.05, (t - this._scopeLast) / 1000) : 0.016;
+      this._scopeLast = t;
+      const k = 1 - Math.exp(-dt / SCOPE_FADE_TAU);
       for (const sc of this._scopes) {
         // One-shot autoset: frame the signal once it's present (or give up after the budget),
         // then hold — the trace is free to grow and shrink so its dynamics stay readable.
@@ -2274,13 +2289,29 @@ export class Rack {
           if (this._autosetScope(sc)) sc.autosetPending = false;
           else if (this.host.ctx.state === 'running' && --sc.autosetBudget <= 0) sc.autosetPending = false;
         }
+        this._fadeInStep(sc, k);
         this._drawScope(sc); if (!sc.regrabbing) this._updateCallout(sc);
         if ((sc.valMode === 'freq' || sc.valMode === 'peak') && sc.valuesEl && sc.valuesEl.classList.contains('show')) this._refreshScopeValues(sc);   // live CPS / min-mean-max
       }
-      for (const m of this._monitors) if (!m.regrabbing) this._updateCallout(m);
+      for (const m of this._monitors) { this._fadeInStep(m, k); if (!m.regrabbing) this._updateCallout(m); }
       this._scopeRaf = requestAnimationFrame(tick);
     };
     this._scopeRaf = requestAnimationFrame(tick);
+  }
+  // Ease a viewer's box opacity up to full on appearance; its callout follows via the fade factor in
+  // _updateCallout. Fade-OUT is a CSS transition set at close, once the object has left the live set.
+  _fadeInStep(obj, k) {
+    if (obj.fade == null) obj.fade = 1;
+    if (obj.fade >= 1) return;
+    obj.fade += (1 - obj.fade) * k;
+    if (obj.fade > 0.995) { obj.fade = 1; obj.el.style.opacity = ''; }
+    else obj.el.style.opacity = String(r2(obj.fade));
+  }
+  // Fade a just-removed viewer's elements out over ~1s, then drop them. It's already gone from the
+  // live set, so nothing repaints its callout in the meantime and the CSS transition runs cleanly.
+  _fadeOutRemove(els) {
+    for (const el of els) { if (!el) continue; el.style.transition = 'opacity 1s'; el.style.opacity = '0'; }
+    setTimeout(() => { for (const el of els) if (el) el.remove(); }, 1050);
   }
 
   // Size the canvas backing store to the logical size × the display DPR (style stays logical),
@@ -2495,12 +2526,13 @@ export class Rack {
   _toggleScopeValues(sc) {
     const el = sc.valuesEl; if (!el) return;
     if (el.classList.contains('show')) { el.classList.remove('show'); return; }
-    sc.valMode = 'freq';
+    sc.valMode = 'scale';   // always open in range (scale) mode, whatever mode it was last closed in
     this._placeScopeValues(sc);
     el.classList.add('show');
     this._refreshScopeValues(sc);
   }
-  // A click inside the box cycles its mode: scale settings → frequency → min/mean/max → scale.
+  // Step the box's mode forward: scale settings → frequency → min/mean/max → (wraps). Both the
+  // top-edge triangle and a click anywhere in the box do this.
   _cycleScopeMode(sc) {
     const order = ['scale', 'freq', 'peak'];
     sc.valMode = order[(order.indexOf(sc.valMode) + 1) % order.length];
@@ -2575,6 +2607,13 @@ export class Rack {
     // A click anywhere in the box (except the scale arrows, which stop propagation) cycles the mode:
     // scale → frequency → min/mean/max → scale.
     panel.addEventListener('click', (e) => { e.stopPropagation(); this._cycleScopeMode(sc); });
+    // One triangle at the box's top-centre edge steps through the three views — a visible clue,
+    // twinning the (less obvious) click-anywhere-in-the-box. It rides the TOP edge, which is fixed;
+    // the box grows downward, so the triangle never shifts under the pointer as the height changes.
+    const up = document.createElement('button'); up.className = 'scope-modestep up'; up.textContent = '▲'; up.tabIndex = -1;
+    up.addEventListener('pointerdown', (e) => e.stopPropagation());
+    up.addEventListener('click', (e) => { e.stopPropagation(); this._cycleScopeMode(sc); });
+    panel.appendChild(up);
     // Scroll over the H/V group to step that scale, accumulated so a trackpad flick is gentle.
     this._attachValueWheel(left, sc, 't');
     this._attachValueWheel(right, sc, 'v');
@@ -2815,37 +2854,70 @@ export class Rack {
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
   }
 
+  // Clip shape for the grab handle: a square whose TOP (loop) side is cut into a concave arc by the
+  // loop's own circle (radius rr), with straight sides and rounded OUTER (bottom) corners. Coords are
+  // px in the handle's box (top-left origin); it's rotated into place by _updateCallout.
+  _handleClip(rr) {
+    const S = SCOPE_HANDLE, cr = 3;
+    return `path('M0 0 A${r2(rr)} ${r2(rr)} 0 0 1 ${r2(S)} 0 L${r2(S)} ${r2(S - cr)} A${r2(cr)} ${r2(cr)} 0 0 1 ${r2(S - cr)} ${r2(S)} L${r2(cr)} ${r2(S)} A${r2(cr)} ${r2(cr)} 0 0 1 0 ${r2(S - cr)} Z')`;
+  }
   _updateCallout(sc) {
     // Click-shown (temporary) viewers show no connection loop or line — the callout
     // running behind the menu reads as clutter. Only dragged-out ones are "connected".
     if (sc.showCallout === false) { sc.ring.setAttribute('r', '0'); sc.line.setAttribute('stroke', 'none'); if (sc.dot) sc.dot.style.display = 'none'; return; }
     const jel = this._jackElement(sc.key, sc.portId);
-    const col = this.dark ? '#ffffff' : '#000000';
+    const col = this.dark ? CALLOUT_COLOR : CALLOUT_COLOR_LIGHT;   // border grey on dark panels; a darker grey on light ones for contrast
     const lw = 1.8;
+    const f = sc.fade == null ? 1 : sc.fade;   // the whole callout fades in/out with its viewer
     if (!jel) { sc.ring.setAttribute('r', '0'); sc.line.setAttribute('stroke', 'none'); return; }
     const jr = this._jackClientRect(jel);   // the terminal itself, NOT its wider hit-pad
     const px = jr.left + jr.width / 2, py = jr.top + jr.height / 2;
     const rr = Math.max(jr.width, jr.height) / 2 + 3;
     sc.ring.setAttribute('cx', r2(px)); sc.ring.setAttribute('cy', r2(py)); sc.ring.setAttribute('r', r2(rr));
-    sc.ring.setAttribute('stroke', col); sc.ring.setAttribute('stroke-width', lw); sc.ring.setAttribute('opacity', String(CALLOUT_OPACITY));
+    sc.ring.setAttribute('stroke', col); sc.ring.setAttribute('stroke-width', lw); sc.ring.setAttribute('opacity', String(CALLOUT_OPACITY * f));
     // Line from the loop to the CENTRE of the control's side that's closest to the
     // terminal — dynamic, so it re-picks the facing side as the control moves. The four
     // candidates are the mid-points of the box's sides (for the circular monitor, its
     // cardinal edge points); nearest to the loop wins. The carry/drag grab point stays
     // the left-centre regardless — this only steers the drawn line.
     const sr = sc.el.getBoundingClientRect();
-    const midX = sr.left + sr.width / 2, midY = sr.top + sr.height / 2;
-    // The line ends at the mid-point of whichever scope side faces the terminal, re-picked as the
-    // scope moves.
-    const sides = [[sr.left, midY], [sr.right, midY], [midX, sr.top], [midX, sr.bottom]];
-    let cx = sr.left, cy = midY, bd = Infinity;
+    let bl = sr.left, bt = sr.top; const bw = sr.width, bh = sr.height;
+    // Keep the viewer far enough from its terminal that the grab dot (now just OUTSIDE the loop)
+    // always has room: the loop→box line is never allowed shorter than the dot's diameter. If a drag
+    // brought it too close, push it straight back out along the loop→box centre line. (.scope is
+    // position:fixed, so its style left/top ARE client coords, matching everything else here.)
+    let bcx = bl + bw / 2, bcy = bt + bh / 2;
+    let wx = bcx - px, wy = bcy - py; const wl = Math.hypot(wx, wy) || 1; wx /= wl; wy /= wl;
+    const edge = Math.min(Math.abs(wx) > 1e-4 ? (bw / 2) / Math.abs(wx) : Infinity, Math.abs(wy) > 1e-4 ? (bh / 2) / Math.abs(wy) : Infinity);
+    const minDist = rr + SCOPE_HANDLE + edge;
+    if (wl < minDist - 0.5) {
+      const ox = px + wx * minDist - bcx, oy = py + wy * minDist - bcy;
+      bl += ox; bt += oy; bcx += ox; bcy += oy;
+      sc.el.style.left = r2(bl) + 'px'; sc.el.style.top = r2(bt) + 'px';
+    }
+    // The line ends at the mid-point of whichever box side faces the terminal, re-picked as it moves.
+    const midX = bl + bw / 2, midY = bt + bh / 2;
+    const sides = [[bl, midY], [bl + bw, midY], [midX, bt], [midX, bt + bh]];
+    let cx = bl, cy = midY, bd = Infinity;
     for (const [sx, sy] of sides) { const d = (sx - px) * (sx - px) + (sy - py) * (sy - py); if (d < bd) { bd = d; cx = sx; cy = sy; } }
     const u = unit(cx - px, cy - py);
     const jx = px + u.x * rr, jy = py + u.y * rr;   // where the line meets the loop
+    // The grab handle is a square whose loop side is cut by the loop into a CONCAVE arc; it sits so its
+    // top corners meet the loop and it rests on the line — clear of the terminal, where you drag a cable.
+    // Rotated so the concave edge always faces the loop and the rounded outer corners face the viewer.
+    const S = SCOPE_HANDLE, off = S / 2 + Math.sqrt(Math.max(0, rr * rr - (S / 2) * (S / 2)));
+    const gx = px + u.x * off, gy = py + u.y * off;
+    const ang = Math.atan2(-u.x, u.y) * 180 / Math.PI;   // local -Y (the concave loop edge) points at the loop
     sc.line.setAttribute('x1', r2(jx)); sc.line.setAttribute('y1', r2(jy));
     sc.line.setAttribute('x2', r2(cx)); sc.line.setAttribute('y2', r2(cy));
-    sc.line.setAttribute('stroke', col); sc.line.setAttribute('stroke-width', lw); sc.line.setAttribute('opacity', String(CALLOUT_OPACITY));
-    if (sc.dot) { sc.dot.style.left = r2(jx) + 'px'; sc.dot.style.top = r2(jy) + 'px'; }
+    sc.line.setAttribute('stroke', col); sc.line.setAttribute('stroke-width', lw); sc.line.setAttribute('opacity', String(CALLOUT_OPACITY * f));
+    if (sc.dot) {
+      if (sc._dotRr !== rr) { sc._dotRr = rr; sc.dot.style.clipPath = this._handleClip(rr); }
+      sc.dot.style.left = r2(gx) + 'px'; sc.dot.style.top = r2(gy) + 'px';
+      sc.dot.style.background = col;   // handle tracks the same mode-aware grey as the loop and line
+      sc.dot.style.transform = `translate(-50%,-50%) rotate(${r2(ang)}deg)`;
+      sc.dot.style.opacity = String(r2(CALLOUT_OPACITY * f));
+    }
   }
 
   // Scroll over the H/V number group to step that scale. Clicking or scrolling the scope FACE
@@ -2978,13 +3050,14 @@ export class Rack {
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
   }
 
-  _closeScope(sc) {
+  _closeScope(sc, immediate = false) {
     this._scopeTapDisconnect(sc);
     if (this._scopeTip) this._scopeTip.classList.remove('show');   // the button vanishes before its pointerleave → hide the stuck tooltip
-    sc.el.remove(); sc.ring.remove(); sc.line.remove(); sc.dot.remove();
-    this._scopes.delete(sc);
+    this._scopes.delete(sc);   // gone from the live set at once; only the DOM lingers to fade
     if (sc.showCallout !== false) this.onChange();   // removing a placed scope changes the patch
-    if (!this._scopes.size && this._scopeRaf) { cancelAnimationFrame(this._scopeRaf); this._scopeRaf = null; }
+    if (!this._scopes.size && !this._monitors.size && this._scopeRaf) { cancelAnimationFrame(this._scopeRaf); this._scopeRaf = null; this._scopeLast = 0; }
+    if (immediate) { sc.el.remove(); sc.ring.remove(); sc.line.remove(); sc.dot.remove(); }
+    else this._fadeOutRemove([sc.el, sc.ring, sc.line, sc.dot]);   // fade out over ~1s, then drop
   }
 
   // ---- Ear monitors: solo-listen to one terminal, muting the normal output ----
@@ -3163,6 +3236,7 @@ export class Rack {
     el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px';
     el.innerHTML = EAR_ICON;
     el.insertAdjacentHTML('afterbegin', this._monArcSvg());   // volume-ramp wedge + limit ticks, behind the ear icon
+    el.style.opacity = '0';   // eased up to full in the scope loop, so a new monitor fades in
     document.body.appendChild(el);
     // A momentary hover-preview (showCallout === false) injects AFTER the mode/engine gates so it
     // always auditions; a placed monitor sums into the gated monitor bus.
@@ -3172,7 +3246,7 @@ export class Rack {
     // over the top to max (lower-right); the scroll wheel turns it with knob momentum.
     const tick = document.createElement('div'); tick.className = 'mon-tick'; el.appendChild(tick);
     const m = {
-      key, portId, el, gain: g, tap: null, muted: false, showCallout, tick,
+      key, portId, el, gain: g, tap: null, muted: false, showCallout, tick, fade: 0,
       vol: (opts.vol != null ? clamp01(opts.vol) : MON_VOL_DEFAULT),
       volVel: 0, volRaf: null, volLast: 0,
       ring: document.createElementNS(SVG_NS, 'circle'), line: document.createElementNS(SVG_NS, 'line'),
@@ -3319,14 +3393,16 @@ export class Rack {
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
   }
 
-  _closeMonitor(m) {
+  _closeMonitor(m, immediate = false) {
     if (m.volRaf) { cancelAnimationFrame(m.volRaf); m.volRaf = null; }
     this._monTapDisconnect(m);
     try { m.gain.disconnect(); } catch (_e) { /* gone */ }
-    m.el.remove(); m.ring.remove(); m.line.remove(); m.dot.remove();
-    this._monitors.delete(m);
+    this._monitors.delete(m);   // gone from the live set (and the audio bus) at once; only the DOM lingers to fade
     if (m.showCallout !== false) this.onChange();   // removing a placed monitor changes the patch
     if (m.showCallout !== false && this._monitors.size === 0) this._enableMonitorBus(false);   // last PLACED monitor gone → bus off (a preview never touches it)
+    if (!this._scopes.size && !this._monitors.size && this._scopeRaf) { cancelAnimationFrame(this._scopeRaf); this._scopeRaf = null; this._scopeLast = 0; }
+    if (immediate) { m.el.remove(); m.ring.remove(); m.line.remove(); m.dot.remove(); }
+    else this._fadeOutRemove([m.el, m.ring, m.line, m.dot]);   // fade out over ~1s, then drop
   }
 
   // Click the circle (no drag) → mute/unmute (pull its tap from the mix); a drag
