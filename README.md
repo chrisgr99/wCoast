@@ -36,7 +36,7 @@ wCoast is in alpha — fully usable, but expect rough edges and things to change
 - A **rack** you place modules on, and **save and load** for whole patches.
 - **Modules:** Complex Oscillator, Quad Low Pass Gate, Quad Function Generator, and a Mixer — plus a "gallery" module used to exercise every control and jack type.
 
-Still ahead, designed but not yet built: the floating signal sources and injectors above, polyphony (it's one voice today), and a bridge that lets any Web Audio companion app drive it over a local message link. Many other modules are planned; suggestions are welcome.
+Still ahead, designed but not yet built: the floating signal sources and injectors above, polyphony (it's one voice today), and an interface module that conforms to the Web Audio Modules (WAM) plugin standard, so other in-browser audio hosts and sequencers can drive wCoast and embed it as a sound source. Many other modules are planned; suggestions are welcome.
 
 Share thoughts, bugs, and ideas in the [discussions](https://github.com/chrisgr99/wCoast/discussions).
 
