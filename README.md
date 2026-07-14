@@ -42,7 +42,7 @@ Share thoughts, bugs, and ideas in the [discussions](https://github.com/chrisgr9
 
 ## Running it
 
-There's nothing to download or install. Open the GitHub Pages build at [chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/) and follow the getting-started notes that appear on first run.
+There's nothing to download or install. Open the GitHub Pages build at [chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/) and follow the getting-started notes that appear on first run. A cross-platform desktop version, built on Electron, is coming in the near future.
 
 It works in most browsers — Chrome, Edge, Firefox, or Safari. Saving and loading patches as files relies on the browser's File System Access feature, which today is only in Chrome and Edge, so use one of those if you want to keep your patches; everything else works the same everywhere.
 
