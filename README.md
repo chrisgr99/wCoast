@@ -1,89 +1,49 @@
 # wCoast
 
-wCoast is a modular synthesizer for Web Audio. Building on Web Audio makes it
-cross-platform: it plays in most browsers, and a desktop app will be available.
-It's non-commercial, free and will be open source when it's more complete.
+wCoast is a modular synthesizer that runs in a web browser, built on Web Audio. You place modules on a rack, wire their jacks with virtual cables, turn the knobs, and listen — the feel of a hardware modular, with a few things a screen can do that hardware can't. It's a personal project: non-commercial, free, open source once it's a little further along, and — I hope — something you'll enjoy using as much as I do. Your mileage may vary. 😌
 
-It's a personal project with these main objectives:
+Two ideas drive it. The first is the interface — making a modular easier to read, explore, and understand — which is where most of the effort below has gone. The second is an open architecture: each module is just a folder holding a descriptor and its DSP, and the host builds the panel and handles patching, saving, and the rest from that descriptor alone — pure JavaScript (and a bit of SVG), without reaching into the core. New modules of any kind, with or without a hardware ancestor, drop in as plug-ins; in time, if there's interest, so could modules contributed by others.
 
-- To provide a general-purpose, open-architecture modular synthesizer platform for
-  Web Audio.
-- To explore user-interface ideas to make a modular synth more flexible, easier to use, and patches easier to explore and understand.
-- To create a modular synth I, and hopefully you, will enjoy using. YMMV… 😌
+The modules that ship today are a West Coast-style complex oscillator, a quad low-pass gate, a quad function generator, and a mixer. The name comes from my interest in West Coast synthesis (Buchla and Serge style), but nothing in the architecture ties it to that — it's meant for modules of any kind.
 
-wCoast recreates the feel of a hardware modular synthesizer: you place modules on
-a rack, wire their jacks with virtual cables on easy-to-read panels, turn the
-knobs, and listen. The modules available initially are a West Coast-style complex
-oscillator, a quad low-pass gate, a quad function generator and a mixer. The name
-wCoast comes from my interest in West Coast synthesis (Buchla/Serge-style), but
-nothing in its architecture limits it in any way.
+## What makes it different
 
-The open architecture is structural: each module is just a folder holding a
-descriptor and its DSP, and the host works entirely from that descriptor —
-building the panel, handling patching, saving, and more, pure JavaScript (and a bit of SVG) —
-without reaching inside the core. That lets new modules of any kind, with or
-without a hardware ancestor, drop in as plug-ins — potentially, if there is
-interest, modules contributed by others.
+**Cables and terminals you can read at a glance.**
 
-Toward the second objective, wCoast tries a number of interface ideas:
+- A cable takes its colour from the terminal it plugs into, not the one it comes from — so a cable shows its job. Run an audio output into a trigger input and the cable is a trigger cable, because that's how the signal is being used.
+- Input and output terminals in a family share a colour but are drawn differently, so a terminal's direction is always clear.
+- A slow dashed pattern crawls along each cable in the direction the signal flows.
+- Cables stay out of the way: drawn semi-transparent, brightening only when relevant, and fading to let a click pass straight through to any control they cover. Drag a cable's middle to reshape its path.
 
-- **Patching with confidence.** Right-click a jack or a panel to open an *active
-  context menu* — a menu whose items act the moment you rest on one, so you can try
-  before you commit. Stop on Engine and the sound starts for as long as you hover.
-  Cables are pulled in place: a left-click on a jack starts one.
-- **Exploring signals in place.** From that same menu, stop on Scope and a live
-  oscilloscope appears beside the pointer; stop on Monitor and you hear that terminal.
-  Click to keep the result — a scope or monitor then follows the pointer to wherever
-  you drop it — or move off to dismiss it. Scopes and monitors clip on to any
-  terminal without rewiring.
-- **Signals automatically colour-coded by destination terminal type/colour**
-  (audio, control voltage, trigger/gate), with the ability to highlight everything
-  upstream of a terminal — so you can read a patch at a glance.
-- **Visually distinct input and output terminals**, so a terminal's direction is
-  instantly recognizable.
-- **Gentle animation showing signal direction on cables**, so flow is easy to
-  follow.
-- **Compact panels** that keep a lot of the instrument in view and behave
-  consistently from module to module.
+**Watching, hearing, and driving any point — without rewiring.**
+
+- Clip a full oscilloscope onto any terminal. It floats above the panels, takes no rack space, and needs no extra cable. Freeze the trace to study its shape, and read its frequency or its minimum, mean, and maximum level. Add as many as you like.
+- Clip an audio monitor onto any terminal the same way to listen at that point in the chain. Monitors feed their own bus on the mixer, so you can balance them against the main output.
+- Or just peek: right-click a terminal for a menu whose items act the moment you rest on one. Rest on Scope or Monitor and it shows or plays only while you hover, then vanishes when you leave — or click to drop it in place and keep it. (Rest on Engine and the whole patch sounds for as long as you hover.)
+- Planned, as the input-side counterpart: floating signal sources you clip to a terminal the same way — a control-voltage knob, a push button, or a toggle — to drive a control from off-panel without a module or any rack space; and signal injectors that feed a test sine or square wave into any terminal for probing a patch.
+
+**Focusing on one part of a patch.**
+
+- Hovering a module lights up the cables feeding it and the cables it feeds, so you can see what a change here will touch.
+- Right-click a terminal to isolate its subnet — just the cables, modules, and controls that shape the signal arriving there — so you can work on one branch of a large patch at a time. Each terminal then pulses gently in time and size with the signal passing through it.
+
+Patching itself stays direct: a left-click on a jack starts a cable, which you pull to its destination. You can also chain input terminals to share one incoming signal — a mult, like a hardware multiple — so a source can feed several inputs without a cable running back to it each time, which keeps the patch tidier. The panels are compact and consistent, keeping a lot of the instrument in view and behaving the same from module to module, in matching light and dark faceplates.
 
 ## Current state
 
-wCoast is in alpha. It is fully usable, but expect rough edges and things to
-change.
+wCoast is in alpha — fully usable, but expect rough edges and things to change. What works today:
 
-A pretty complete modular instrument you can patch and play:
+- A **rack** you place modules on, and **save and load** for whole patches.
+- **Modules:** Complex Oscillator, Quad Low Pass Gate, Quad Function Generator, and a Mixer — plus a "gallery" module used to exercise every control and jack type.
 
-- A **rack** you place modules on, with both light and dark mode faceplates.
-- **Save and load** whole patches.
-- **Modules so far:** Complex Oscillator (feature-complete), Low Pass Gate,
-  Function Generator, and a Mixer — plus a "gallery" module used to exercise every
-  control and jack type.
+Still ahead, designed but not yet built: the floating signal sources and injectors above, polyphony (it's one voice today), and a bridge that lets any Web Audio companion app drive it over a local message link. Many other modules are planned; suggestions are welcome.
 
-Still ahead: more modules (a random and fluctuating voltage source is designed),
-polyphony (it's currently one voice), and a bridge that lets any Web Audio
-companion app drive it over a local message link. These are designed but not yet
-built.
-
-Feedback is welcome — share thoughts, bugs, and ideas in the
-[discussions](https://github.com/chrisgr99/wCoast/discussions).
+Share thoughts, bugs, and ideas in the [discussions](https://github.com/chrisgr99/wCoast/discussions).
 
 ## Running it
 
-wCoast runs in your web browser — there's nothing to download or install.
-Open the GitHub Pages build at
-[chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/) and follow the
-getting-started instructions that appear on first run.
+There's nothing to download or install. Open the GitHub Pages build at [chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/) and follow the getting-started notes that appear on first run.
 
-## Browser support
+It works in most browsers — Chrome, Edge, Firefox, or Safari. Saving and loading patches as files relies on the browser's File System Access feature, which today is only in Chrome and Edge, so use one of those if you want to keep your patches; everything else works the same everywhere.
 
-wCoast works in most browsers — Chrome, Edge, Firefox, or Safari. Saving and
-loading patches as files on your computer relies on the browser's File System Access
-feature, which today is available only in Chrome and Edge, so use one of those if you
-want to keep your patches. Everything else works the same in every browser; you just
-can't save to disk yet in Firefox or Safari.
-
-**Important — disable page-recolouring extensions.** If you use a browser add-on that
-changes how pages look — Dark Reader, or any dark-mode or colour-adjusting extension —
-turn it off for wCoast. The app has its own light and dark modes, and these extensions
-distort the panel graphics and lettering. If the panels ever look wrong, an extension
-like this is the most likely cause.
+**One caveat — turn off page-recolouring extensions.** If you use an add-on that changes how pages look (Dark Reader, or any dark-mode or colour-adjusting extension), disable it for wCoast. The app has its own light and dark modes, and these extensions distort the panels and lettering — the most likely culprit if anything ever looks wrong.
