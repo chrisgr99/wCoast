@@ -63,6 +63,18 @@ const SCOPE_GRID_FINE = 0.5, SCOPE_GRID_COARSE = 0.9;
 // The zero-amplitude reference line: brighter than the grid so the signal's position about zero reads clearly.
 const SCOPE_GRID_ZERO = 'rgba(150,190,150,0.9)';   // the grid's green-grey, brighter than the grid lines but clearly NOT the white trace
 const CALLOUT_OPACITY = 0.6;   // scope/monitor connection loop, line, and dot — 40% translucent so they read as secondary
+// Compact base64 for a saved frozen-scope trace (Float32 samples) in the patch JSON.
+function f32ToB64(f32) {
+  const bytes = new Uint8Array(f32.buffer, f32.byteOffset, f32.byteLength);
+  let bin = ''; const CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  return btoa(bin);
+}
+function b64ToF32(b64) {
+  const bin = atob(b64), bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Float32Array(bytes.buffer);
+}
 // Transport button glyphs (shown = the ACTION a click performs). Running → pause bars; frozen → play triangle.
 const SCOPE_PAUSE_ICON = `<svg viewBox="0 0 12 12"><rect x="3" y="2.4" width="2.2" height="7.2" fill="${SCOPE_CTRL}"/><rect x="6.8" y="2.4" width="2.2" height="7.2" fill="${SCOPE_CTRL}"/></svg>`;
 const SCOPE_PLAY_ICON = `<svg viewBox="0 0 12 12"><path d="M3.2 2.2 L10 6 L3.2 9.8 Z" fill="${SCOPE_CTRL}"/></svg>`;
@@ -299,7 +311,10 @@ export class Rack {
     const out = [];
     for (const sc of this._scopes) {
       if (sc.showCallout === false || !sc.key) continue;
-      out.push({ kind: 'scope', module: sc.key, port: sc.portId, ...at(sc.el), w: sc.cssW, h: sc.cssH, vIdx: sc.vIdx, tIdx: sc.tIdx, vOffset: r2(sc.vOffset || 0), hOffset: r2(sc.hOffset || 0), grid: sc.gridOn ? 1 : 0, trigger: !!sc.trigger, trigLevel: r2(sc.trigLevel || 0), frozen: !!sc.frozen });
+      const p = { kind: 'scope', module: sc.key, port: sc.portId, ...at(sc.el), w: sc.cssW, h: sc.cssH, vIdx: sc.vIdx, tIdx: sc.tIdx, vOffset: r2(sc.vOffset || 0), hOffset: r2(sc.hOffset || 0), grid: sc.gridOn ? 1 : 0, trigger: !!sc.trigger, trigLevel: r2(sc.trigLevel || 0), frozen: !!sc.frozen };
+      // A FROZEN scope also stores the paused trace, so the exact captured shape reopens with it.
+      if (sc.frozen) this._saveFrozenTrace(sc, p);
+      out.push(p);
     }
     for (const m of this._monitors) {
       if (m.showCallout === false || !m.key) continue;
@@ -328,11 +343,50 @@ export class Rack {
         if (p.trigger != null) sc.trigger = !!p.trigger;
         if (p.trigLevel != null) sc.trigLevel = p.trigLevel;
         if (p.frozen != null) sc.frozen = !!p.frozen;
+        if (sc.frozen) this._loadFrozenTrace(sc, p);   // repopulate the paused trace so it reopens as captured
+        this._updateScopePlayPause(sc);
         this._updateCallout(sc);
       } else if (p.kind === 'monitor') {
         const m = this._createMonitor(p.module, p.port, x, y, true, { vol: p.vol, skipAutoLevel: true });
         if (m && p.muted) this._toggleMonMute(m);
       }
+    }
+  }
+  // Capture a frozen scope's displayed trace into the probe record. A triggerable (wave) scope draws
+  // from the raw sample RING, so save the window it shows plus trigger/pan headroom; a slow (roll)
+  // scope draws from its per-frame peak HISTORY, so save that instead. `fastVotes`/`forceMode` decide
+  // which mode it reopens in. Only the shown window is stored, so a fast time base stays small.
+  _saveFrozenTrace(sc, p) {
+    p.forceMode = sc.forceMode; p.fastVotes = sc.fastVotes | 0;
+    const fast = sc.forceMode === 'wave' ? true : sc.forceMode === 'roll' ? false : sc.fastVotes > 0;
+    if (fast) {
+      const sr = (this.host.ctx && this.host.ctx.sampleRate) || 48000;
+      const pxPerSamp = SCOPE_DIV_PX / (SCOPE_TDIV[sc.tIdx] * sr);
+      const need = Math.ceil(sc.cssW / Math.max(pxPerSamp, 1e-9)) + 1;
+      const count = Math.min(sc.ringFilled, 3 * need + 8);
+      if (count > 0) {
+        const R = sc.ringBuf, RL = R.length, base = (sc.ringPos - sc.ringFilled + RL) % RL, s0 = sc.ringFilled - count;
+        const out = new Float32Array(count);
+        for (let k = 0; k < count; k++) out[k] = R[(base + s0 + k) % RL];
+        p.wave = f32ToB64(out);
+      }
+    } else {
+      const h = Float32Array.from(sc.hist, (v) => (v == null ? NaN : v));   // null gaps → NaN, restored as null
+      p.hist = f32ToB64(h); p.histIdx = sc.histIdx | 0;
+    }
+  }
+  // Restore a saved frozen trace into a freshly created (frozen) scope so the draw reproduces it.
+  _loadFrozenTrace(sc, p) {
+    if (p.forceMode) sc.forceMode = p.forceMode;
+    if (p.fastVotes != null) sc.fastVotes = p.fastVotes | 0;
+    if (p.wave) {
+      const s = b64ToF32(p.wave), RL = sc.ringBuf.length, N = Math.min(s.length, RL);
+      sc.ringBuf.set(s.subarray(0, N), 0); sc.ringFilled = N; sc.ringPos = N % RL; sc.lastCapTime = null;
+    }
+    if (p.hist) {
+      const h = b64ToF32(p.hist), L = sc.hist.length;
+      for (let i = 0; i < L; i++) { const v = i < h.length ? h[i] : NaN; sc.hist[i] = Number.isNaN(v) ? null : v; }
+      if (p.histIdx != null) sc.histIdx = ((p.histIdx | 0) % L + L) % L;
     }
   }
   // Apply one module param value (knob/switch), updating DSP and the panel.
