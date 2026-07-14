@@ -58,6 +58,7 @@ export default {
   name: 'Mixer',
   abbreviation: 'Mixer',
   worklets: [],          // native Web Audio nodes only
+  sectioned: true,       // six independent channel strips — net highlight scopes to the hovered channel
   channels: CH,
   vcPan: [...VC_PAN],
   ports,

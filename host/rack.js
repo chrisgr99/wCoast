@@ -45,6 +45,8 @@ const STYLE_COLOR = { audio: '#f3c40b', control: '#ff7300', trigger: '#5aa0e6', 
 const domainStyle = (domain) => (domain === 'audio' ? 'audio' : domain === 'trigger' ? 'trigger' : 'control');
 const CABLE_PX = 3.8;   // cord thickness in px at zoom 1 (scales up as you zoom in)
 const CABLE_HOVER_FADE = 0.28;   // opacity a cable drops to while it obscures a control you're hovering
+const CABLE_FADE_TAU = 0.3;      // opacity easing time constant — cables brighten/dim over ~1s so quick sweeps don't flash
+const CABLE_BRIGHT = 0.9;        // opacity of a fully-highlighted cable — a touch under full so it reads bright without dazzling
 // Scope calibrated scales (1-2-5). Vertical = signal amplitude per division; time = seconds
 // per division. A division is a fixed SCOPE_DIV_PX px on the face (absolute scaling), so resizing
 // the frame reveals MORE/less of the wave at the same scale rather than magnifying the trace.
@@ -147,6 +149,8 @@ export class Rack {
     this.pxPerMm = 1;
     this.zoom = 1;
     this._hoverRec = null;   // module under the pointer
+    this._cableCur = new Map();   // edge id -> current (eased) { body, dash } opacity, animated toward _cableTgt in the flow loop
+    this._cableTgt = new Map();   // edge id -> target { body, dash } opacity set each _drawCables
     this._isolateNet = null; // Set of edge ids when isolating one terminal's subnet (else null)
     this._isolateOrigin = null; // { key, portId } of the isolated terminal, for live recompute
     this._undoStack = [];    // { undo, redo } ops for cable/module topology changes (not knob values)
@@ -223,11 +227,12 @@ export class Rack {
     // A cable body is click-through, so it fires no hover events of its own.
     // Detect a hovered cable by proximity and reveal its middle reshape handle.
     // Same pass: fade any cable that's covering the control the pointer is over.
-    this.container.addEventListener('pointermove', (e) => { this._updateCableHover(e); this._updateControlCableFade(e); });
+    this.container.addEventListener('pointermove', (e) => { this._updateCableHover(e); this._updateControlCableFade(e); this._updateNetOrigin(e); });
     this.container.addEventListener('pointerleave', () => {
       let redraw = false;
       if (this._hoverCableEdgeId !== null) { this._hoverCableEdgeId = null; redraw = true; }
       if (this._fadedCables) { this._fadedCables = null; this._cableFadeCtrl = null; redraw = true; }
+      if (this._netOrigin !== null) { this._netOrigin = null; redraw = true; }
       if (redraw) this._drawCables();
     });
   }
@@ -597,19 +602,30 @@ export class Rack {
       if (!g) continue;
       const color = STYLE_COLOR[e.style] || STYLE_COLOR.control;
       const faded = !!(this._fadedCables && this._fadedCables.has(e.id));   // covering a hovered control → see-through
-      const op = faded ? Math.min(this._cableOpacity(e), CABLE_HOVER_FADE) : this._cableOpacity(e);
+      const bodyTgt = faded ? Math.min(this._cableOpacity(e), CABLE_HOVER_FADE) : this._cableOpacity(e);
+      const dashTgt = faded ? CABLE_HOVER_FADE : 1;
+      // Cables EASE toward their target opacity (in the flow loop) instead of snapping, so sweeping
+      // the pointer quickly across controls/modules doesn't make them flash. Isolate keeps its own look.
+      let bodyOp = bodyTgt, dashOp = dashTgt;
+      if (!this._isolateNet) {
+        let cur = this._cableCur.get(e.id);
+        if (!cur) { cur = { body: bodyTgt, dash: dashTgt }; this._cableCur.set(e.id, cur); }
+        this._cableTgt.set(e.id, { body: bodyTgt, dash: dashTgt });
+        bodyOp = cur.body; dashOp = cur.dash;
+      }
       // The cable body is pointer-events:none, so a press falls through to the jack
       // behind it — a cord is grabbed and re-routed from the PORT it ends on, not
       // from the cord itself. Its only grab point is the middle reshape handle.
       const bodyD = `M${r2(g.pA.x)},${r2(g.pA.y)} C${r2(g.c1.x)},${r2(g.c1.y)} ${r2(g.c2.x)},${r2(g.c2.y)} ${r2(g.pB.x)},${r2(g.pB.y)}`;
-      mk(bodyD, color, wmm, op, null);
+      const bp = mk(bodyD, color, wmm, bodyOp, null);
+      if (!this._isolateNet) { bp.setAttribute('class', 'cable-body'); bp.dataset.edge = e.id; }
       // Flow direction: black dashes crawl source->dest (path runs pA=src -> pB=dst),
       // full-opacity black so they read over any cable. EVERY cord gets them normally;
       // while isolating a subnet only the SUBNET's cords do — the others are shown just
       // dimmed, no dashes. Dash length is per destination family; the crawl offset is
       // driven by a clock in _startFlow so it survives the frequent redraws.
       if (!this._isolateNet || this._isolateNet.has(e.id)) {
-        const fd = mk(bodyD, '#000', wmm / 2, faded ? CABLE_HOVER_FADE : 1, null);
+        const fd = mk(bodyD, '#000', wmm / 2, dashOp, null);
         fd.setAttribute('class', 'flow-dash');
         fd.dataset.edge = e.id;
         fd.dataset.src = e.src.key + '|' + e.src.portId;   // source jack tag → its live level drives this cable's crawl in isolate mode
@@ -632,6 +648,11 @@ export class Rack {
         hd.addEventListener('pointerdown', (ev) => this._startReshape(ev, e));
         this.cables.appendChild(hd);
       }
+    }
+    // Forget eased-opacity state for cables that no longer exist.
+    if (this._cableCur.size) {
+      const live = new Set(this.patchbay.list().map((x) => x.id));
+      for (const id of this._cableCur.keys()) if (!live.has(id)) { this._cableCur.delete(id); this._cableTgt.delete(id); }
     }
     if (this._tempCable) {
       this._tempCable.setAttribute('stroke-width', r2(wmm));
@@ -662,17 +683,20 @@ export class Rack {
   // under the pointer go fully opaque so you can trace them. Purely visual — the
   // body stays click-through either way.
   _cableOpacity(e) {
-    if (this._isolateNet) return this._isolateNet.has(e.id) ? 1 : 0.25;    // isolate: subnet bright, the rest dimmed (no dashes)
-    if (this._netEdges) return this._netEdges.has(e.id) ? 1 : 0.5;          // net highlight: members full, rest as normal
+    if (this._isolateNet) return this._isolateNet.has(e.id) ? CABLE_BRIGHT : 0.25;    // isolate: subnet bright, the rest dimmed (no dashes)
+    if (this._netEdges) return this._netEdges.has(e.id) ? CABLE_BRIGHT : 0.5;          // net highlight: members full, rest as normal
     const h = this._hoverRec;
-    return (h && (e.src.key === h.key || e.dst.key === h.key)) ? 1 : 0.5;
+    return (h && (e.src.key === h.key || e.dst.key === h.key)) ? CABLE_BRIGHT : 0.5;
   }
 
   // While the pointer sits on a control (knob/button/switch), fade any OPAQUE cable drawn over it
   // so the control shows through. The cable body is pointer-events:none, so the control already
   // receives the hover; we just find which cables cross its box and mark them for a lighter draw.
   _updateControlCableFade(e) {
-    const ctrl = (e.target && e.target.closest) ? e.target.closest('[data-wcoast-param]') : null;
+    let ctrl = (e.target && e.target.closest) ? e.target.closest('[data-wcoast-param]') : null;
+    // Faders opt out of cable-fading: their track is long, so a cable never blocks reaching the handle,
+    // and dimming cables as the pointer travels a fader's length just reads as flicker.
+    if (ctrl && ctrl.getAttribute('data-wcoast-role') === 'slider') ctrl = null;
     if (ctrl === this._cableFadeCtrl) return;   // still on the same control (or still off any) → nothing changed
     this._cableFadeCtrl = ctrl;
     const faded = ctrl ? this._cablesOverControl(ctrl) : null;
@@ -1429,15 +1453,24 @@ export class Rack {
   // module (the quads) splits into per-channel nodes (key:A …) from the port's
   // trailing letter, so one channel's net never bleeds into its neighbours. Shared
   // ports (quad/sum/clock) form their own node; the mixer/unknown is one node.
+  // The channel letter an id belongs to (its last char, if that's one of the module's channels),
+  // else null. Covers A–D (quads) and A–F (mixer) from the descriptor, not a hard-coded range.
+  _channelOf(desc, id) {
+    const last = id && id.slice(-1);
+    return (desc && desc.channels && desc.channels.includes(last)) ? last : null;
+  }
   _sectionKey(key, portId) {
     const rec = this.records.get(key);
     if (!rec) return key;
     const desc = this.host.registry.descriptor(rec.descriptorId);
     if (!desc || !desc.sectioned) return key;
+    // Any port ending in a channel letter belongs to that channel (so the mixer's gain/pan CV inputs
+    // join their channel's net too, not just the audio input). Others form their named-section node.
+    const ch = this._channelOf(desc, portId);
+    if (ch) return `${key}:${ch}`;
     const port = rec.panel.ports.get(portId);
     const sec = port && port.meta && port.meta.section;
-    const ch = /([A-D])$/.exec(portId);
-    return (sec === 'channel' && ch) ? `${key}:${ch[1]}` : `${key}:${sec || 'x'}`;
+    return `${key}:${sec || 'x'}`;
   }
 
   // The origin node under a pointer over a module: the whole module, or (for a
@@ -1449,24 +1482,54 @@ export class Rack {
     if (!desc || !desc.sectioned) return rec.key;
     const m = this._clientToMm(clientX, clientY);
     const cen = new Map();   // channel letter -> { x, y, n }
-    for (const [portId, port] of rec.panel.ports) {
-      if (!port.meta || port.meta.section !== 'channel') continue;
-      const ch = /([A-D])$/.exec(portId);
+    for (const [portId] of rec.panel.ports) {
+      const ch = this._channelOf(desc, portId);
       if (!ch) continue;
       const p = this._jackPosMm(rec.key, portId);
       if (!p) continue;
-      const c = cen.get(ch[1]) || { x: 0, y: 0, n: 0 };
+      const c = cen.get(ch) || { x: 0, y: 0, n: 0 };
       c.x += p.x; c.y += p.y; c.n++;
-      cen.set(ch[1], c);
+      cen.set(ch, c);
     }
-    let best = null, bestD = Infinity;
-    for (const [letter, c] of cen) {
-      const d = Math.hypot(c.x / c.n - m.x, c.y / c.n - m.y);
-      if (d < bestD) { bestD = d; best = letter; }
+    if (!cen.size) return rec.key;
+    const chs = [...cen].map(([ch, c]) => ({ ch, x: c.x / c.n, y: c.y / c.n }));
+    // Partition along the axis the channels spread most (mixer: x-columns; quad: y-rows), by the
+    // DIVIDER LINES between them (midpoints of neighbouring channel centroids). The whole span is
+    // covered with NO gaps, so the origin depends only on where the pointer is, never on the element
+    // under it: the first channel reaches the near edge, each channel runs to its next divider, and
+    // anything PAST the last channel's divider — the mixer's MON/MSTR faders beyond channel F — is the
+    // whole module (every channel's upstream net).
+    const span = (k) => Math.max(...chs.map((c) => c[k])) - Math.min(...chs.map((c) => c[k]));
+    const axis = span('x') >= span('y') ? 'x' : 'y';
+    chs.sort((a, b) => a[axis] - b[axis]);
+    const pos = m[axis], N = chs.length;
+    const lastGap = N > 1 ? (chs[N - 1][axis] - chs[N - 2][axis]) / 2 : Infinity;
+    if (pos >= chs[N - 1][axis] + lastGap) return rec.key;   // past the mixer/monitor divider → whole module
+    for (let i = 0; i < N; i++) {
+      const right = i < N - 1 ? (chs[i][axis] + chs[i + 1][axis]) / 2 : chs[i][axis] + lastGap;
+      if (pos < right) return `${rec.key}:${chs[i].ch}`;      // first channel reaching this divider owns the point
     }
-    return best ? `${rec.key}:${best}` : rec.key;
+    return rec.key;
   }
 
+  // The module whose panel the pointer is over, by bounding rect (not the event target), so the
+  // net origin is decided PURELY by pointer location — the same anywhere in a band, whether that
+  // point happens to sit on a control or on bare panel. Modules don't overlap, so first hit wins.
+  _moduleAt(clientX, clientY) {
+    for (const rec of this.records.values()) {
+      const r = rec.el.getBoundingClientRect();
+      if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) return rec;
+    }
+    return null;
+  }
+  // Track the net-explore origin from the pointer location alone (container-level, so it fires over
+  // controls and bare panel alike — module-level handlers miss pointer-events:none gaps).
+  _updateNetOrigin(e) {
+    if (!this._netMode || this._isolateNet) return;
+    const rec = this._moduleAt(e.clientX, e.clientY);
+    const o = rec ? this._netOriginAt(rec, e.clientX, e.clientY) : null;
+    if (o !== this._netOrigin) { this._netOrigin = o; this._drawCables(); }
+  }
   // The set of cable ids in `origin`'s net: every cord downstream of it (to the
   // outputs) plus every cord upstream (its feeders/modulators), traced over the
   // section graph so a quad channel stays clean even where sections reconverge.
@@ -1476,12 +1539,16 @@ export class Rack {
     const link = (map, a, b) => { if (!map.has(a)) map.set(a, new Set()); map.get(a).add(b); };
     const pair = edges.map((e) => ({ e, s: this._sectionKey(e.src.key, e.src.portId), d: this._sectionKey(e.dst.key, e.dst.portId) }));
     for (const { s, d } of pair) { link(fwd, s, d); link(bwd, d, s); }
-    const closure = (start, adj) => {
-      const seen = new Set([start]), stack = [start];
+    // A whole-module origin (no ':section') seeds from EVERY section node of that module, so hovering a
+    // sectioned module's non-channel area (the mixer's MON/MSTR region) lights all its channels' nets.
+    const nodes = new Set(); for (const { s, d } of pair) { nodes.add(s); nodes.add(d); }
+    const seeds = origin.includes(':') ? [origin] : [...nodes].filter((k) => k === origin || k.startsWith(origin + ':'));
+    const closure = (starts, adj) => {
+      const seen = new Set(starts), stack = [...starts];
       while (stack.length) { for (const n of (adj.get(stack.pop()) || [])) if (!seen.has(n)) { seen.add(n); stack.push(n); } }
       return seen;
     };
-    const down = closure(origin, fwd), up = closure(origin, bwd);
+    const down = closure(seeds, fwd), up = closure(seeds, bwd);
     const net = new Set();
     for (const { e, s, d } of pair) if (down.has(s) || up.has(d)) net.add(e.id);
     return net;
@@ -1699,10 +1766,11 @@ export class Rack {
   _controlSectionKey(rec, b) {
     const desc = this.host.registry.descriptor(rec.descriptorId);
     if (!desc || !desc.sectioned) return rec.key;
+    const ch = this._channelOf(desc, b.id);
+    if (ch) return `${rec.key}:${ch}`;
     const param = desc.params && desc.params.find((p) => p.id === b.id);
     const sec = (b.meta && b.meta.section) || (param && param.section);
-    const ch = /([A-D])$/.exec(b.id);
-    return (sec === 'channel' && ch) ? `${rec.key}:${ch[1]}` : `${rec.key}:${sec || 'x'}`;
+    return `${rec.key}:${sec || 'x'}`;
   }
 
   // Enlarge one jack (the drop-cue swell + family-colour ring) AND open a live tap on
@@ -1853,7 +1921,21 @@ export class Rack {
         this._tickIsolate(dt);   // isolate: per-terminal breathe + per-cable signal-driven crawl
       } else {
         const off = r2(this._flowOffset());
-        for (const p of this.cables.querySelectorAll('.flow-dash')) p.setAttribute('stroke-dashoffset', off);
+        // Ease every cable's opacity a step toward its target this frame (framerate-independent), then
+        // paint it — so brighten/dim animates over ~1s and quick pointer sweeps don't flash.
+        const k = 1 - Math.exp(-dt / CABLE_FADE_TAU);
+        for (const [id, tgt] of this._cableTgt) {
+          const cur = this._cableCur.get(id); if (!cur) continue;
+          cur.body += (tgt.body - cur.body) * k;
+          cur.dash += (tgt.dash - cur.dash) * k;
+        }
+        for (const p of this.cables.querySelectorAll('.flow-dash')) {
+          p.setAttribute('stroke-dashoffset', off);
+          const c = this._cableCur.get(p.dataset.edge); if (c) p.style.opacity = String(r2(c.dash));
+        }
+        for (const p of this.cables.querySelectorAll('.cable-body')) {
+          const c = this._cableCur.get(p.dataset.edge); if (c) p.style.opacity = String(r2(c.body));
+        }
       }
       this._flowRaf = requestAnimationFrame(tick);
     };
@@ -3587,11 +3669,11 @@ export class Rack {
     // Module-level handlers live on the wrapper element, so they survive a skin swap.
     el.addEventListener('pointerdown', (e) => this._startDrag(e, rec));
     el.addEventListener('contextmenu', (e) => this._onModuleContextMenu(e, rec));
-    el.addEventListener('pointerenter', (ev) => { this._hoverRec = rec; this.onSelect(rec); if (this._netMode && !this._isolateNet) this._netOrigin = this._netOriginAt(rec, ev.clientX, ev.clientY); this._drawCables(); });
-    // Moving within a module retargets the hover net highlight to the module (or the
-    // quad channel) under the pointer — suspended while isolating a subnet.
-    el.addEventListener('pointermove', (ev) => { if (!this._netMode || this._isolateNet) return; const o = this._netOriginAt(rec, ev.clientX, ev.clientY); if (o !== this._netOrigin) { this._netOrigin = o; this._drawCables(); } });
-    el.addEventListener('pointerleave', () => { if (this._hoverRec === rec) { this._hoverRec = null; if (this._netMode && !this._isolateNet) this._netOrigin = null; this._drawCables(); } });
+    // _hoverRec drives the plain (non-net-mode) highlight. The net-mode origin is tracked purely by
+    // pointer location in _updateNetOrigin (container-level), so it never depends on which control or
+    // panel gap the pointer happens to be over.
+    el.addEventListener('pointerenter', () => { this._hoverRec = rec; this.onSelect(rec); this._drawCables(); });
+    el.addEventListener('pointerleave', () => { if (this._hoverRec === rec) { this._hoverRec = null; this._drawCables(); } });
 
     this.records.set(rec.key, rec);
     this.rows[rowIndex].push(rec);
