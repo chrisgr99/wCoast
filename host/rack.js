@@ -53,8 +53,6 @@ const SCOPE_TDIV = [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.0
 const SCOPE_DIV_PX = 12;   // a division is this many CSS px on the face
 const SCOPE_RING_SEC = 4;  // seconds of raw samples kept so a slow sweep can still fill the window
 const SCOPE_EDGE_CURSOR = { l: 'ew-resize', r: 'ew-resize', t: 'ns-resize', b: 'ns-resize', tl: 'nwse-resize', br: 'nwse-resize', tr: 'nesw-resize', bl: 'nesw-resize' };
-const SCOPE_VALUES_DWELL_MS = 500;   // the pointer must LINGER this long over a scope before its values panel shows (a mere pass-through doesn't)
-const SCOPE_VALUES_HIDE_MS = 3000;   // how long the panel lingers after the pointer leaves
 const SCOPE_ROLL_FPS = 60;      // roll history is one peak per animation frame — used to label the slow time base
 const SCOPE_TRACE = '#ffffff';  // trace 1 colour (white); the bright-orange second trace is phase 3
 // The scope's little controls (transport + trigger) are orange for visibility on the dark face.
@@ -63,12 +61,10 @@ const SCOPE_CTRL = '#ff9d3a';
 // axis units, i.e. every 2/5/10 divisions for a 1-2-5 scale). The G button toggles the grid.
 const SCOPE_GRID_FINE = 0.5, SCOPE_GRID_COARSE = 0.9;
 // The zero-amplitude reference line: brighter than the grid so the signal's position about zero reads clearly.
-const SCOPE_GRID_ZERO = 'rgba(205,215,205,0.98)';
+const SCOPE_GRID_ZERO = 'rgba(210,225,210,0.85)';   // brighter than the grid, but clearly below the white trace
 // Transport button glyphs (shown = the ACTION a click performs). Running → pause bars; frozen → play triangle.
 const SCOPE_PAUSE_ICON = `<svg viewBox="0 0 12 12"><rect x="3" y="2.4" width="2.2" height="7.2" fill="${SCOPE_CTRL}"/><rect x="6.8" y="2.4" width="2.2" height="7.2" fill="${SCOPE_CTRL}"/></svg>`;
 const SCOPE_PLAY_ICON = `<svg viewBox="0 0 12 12"><path d="M3.2 2.2 L10 6 L3.2 9.8 Z" fill="${SCOPE_CTRL}"/></svg>`;
-// Frequency button: two cycles of a sine wave (measures cycles-per-second + period).
-const SCOPE_FREQ_ICON = `<svg viewBox="0 0 15 12"><path d="M1 6 Q2.75 1 4.5 6 T8 6 T11.5 6 T15 6" fill="none" stroke="${SCOPE_CTRL}" stroke-width="1.3" stroke-linecap="round"/></svg>`;
 const JACK_DROP_MARGIN_MM = 2;   // a cable arms/drops within this much of a terminal's edge (a forgiving zone)
 // Grabbing vs. new cable off a populated OUTPUT: a left move within this angle of an
 // existing cord's departure grabs that cord; a move in a fresher direction starts a new
@@ -2013,7 +2009,7 @@ export class Rack {
       hi: null, lo: null, fastVotes: 0, tap: null,
       cssW: 120, cssH: 37, dpr: 1,   // logical CSS size; backing store is scaled to the display DPR
       vIdx: 7, tIdx: 6, vOffset: 0, hOffset: 0, autosetPending: true, autosetBudget: 180,   // 0.2 /div, 10 ms/div, centred on 0 until autoset frames it; hOffset = horizontal trace pan (px)
-      valuesEl: null, playBtn: null, trigBtn: null, valEls: {}, valuesTimer: null, dwellTimer: null,
+      valuesEl: null, playBtn: null, trigBtn: null, valEls: {}, valMode: 'scale',
       gridOn: true,   // the G button toggles the grid on/off
       trigger: true, trigLevel: 0, frozen: false, forceMode: 'auto',
       armed: false, recFrames: 0, prevPeak: null, showCallout,
@@ -2029,14 +2025,13 @@ export class Rack {
     // target (an SVG hit-ring in a pointer-events:none overlay proved unhittable).
     sc.dot.className = 'scope-dot'; document.body.appendChild(sc.dot);
 
-    // Only a genuine HOVER (a short dwell) reveals the panel — a pointer merely crossing the scope
-    // on its way elsewhere shouldn't summon it.
-    el.addEventListener('pointerenter', () => { clearTimeout(sc.dwellTimer); sc.dwellTimer = setTimeout(() => this._showScopeValues(sc), SCOPE_VALUES_DWELL_MS); });
-    el.addEventListener('pointerleave', () => { clearTimeout(sc.dwellTimer); sc.dwellTimer = null; this._hideScopeValuesSoon(sc); el.style.cursor = ''; });
+    // The settings box is NOT summoned by hovering — only by a click on the scope face (which toggles
+    // it). Entering just clears any stale cursor.
+    el.addEventListener('pointerleave', () => { el.style.cursor = ''; });
     el.addEventListener('contextmenu', (ev) => this._scopeMenu(ev, sc));
-    // Drag ANY edge of the face to resize; drag the INTERIOR to move the whole scope (like a
-    // monitor). Controls stop propagation / sit outside, so they keep priority where they are.
-    el.addEventListener('pointerdown', (ev) => { this._exitFreqMode(sc); this._hideScopeValues(sc); const e = this._scopeEdgeAt(sc, ev); if (e) this._resizeScopeEdge(ev, sc, e); else this._moveScope(ev, sc); });
+    // Drag ANY edge of the face to resize; drag the INTERIOR to move the whole scope (like a monitor);
+    // a plain CLICK on the interior toggles the settings box. Controls stop propagation / sit outside.
+    el.addEventListener('pointerdown', (ev) => { const e = this._scopeEdgeAt(sc, ev); if (e) this._resizeScopeEdge(ev, sc, e); else this._moveScope(ev, sc); });
     el.addEventListener('pointermove', (ev) => {
       if (sc._resizing) return;
       if (ev.target !== sc.canvas) { el.style.cursor = ''; return; }   // over the settings panel/buttons → no resize/move affordance
@@ -2143,7 +2138,7 @@ export class Rack {
           else if (this.host.ctx.state === 'running' && --sc.autosetBudget <= 0) sc.autosetPending = false;
         }
         this._drawScope(sc); if (!sc.regrabbing) this._updateCallout(sc);
-        if (sc.freqMode && sc.valuesEl && sc.valuesEl.classList.contains('show')) this._refreshScopeValues(sc);   // live CPS/period
+        if ((sc.valMode === 'freq' || sc.valMode === 'peak') && sc.valuesEl && sc.valuesEl.classList.contains('show')) this._refreshScopeValues(sc);   // live CPS / min-mean-max
       }
       for (const m of this._monitors) if (!m.regrabbing) this._updateCallout(m);
       this._scopeRaf = requestAnimationFrame(tick);
@@ -2350,28 +2345,34 @@ export class Rack {
     this._refreshScopeValues(sc);   // update the (pinned) bottom panel if it's open
   }
 
-  // Open the bottom values panel and keep it up (no auto-hide) — used while the pointer is over the
-  // scope or its panel, and during any adjustment.
+  // Show the box (used after an in-box adjustment, to keep it up).
   _showScopeValues(sc) {
     const el = sc.valuesEl; if (!el) return;
     this._placeScopeValues(sc);
-    el.classList.add('show');            // make it visible BEFORE measuring — scrollWidth is 0 while display:none
-    this._refreshScopeValues(sc);        // now equalise the two number widths so the arrows don't overlap them
-    clearTimeout(sc.valuesTimer); sc.valuesTimer = null;
+    el.classList.add('show');
+    this._refreshScopeValues(sc);
   }
-  // Start the countdown to hide the panel (after the pointer leaves the scope + panel). The
-  // frequency readout is the exception — it stays PINNED so you can watch it while setting a
-  // frequency on some panel knob elsewhere; only clicking a scope control or its face dismisses it.
-  _hideScopeValuesSoon(sc) {
-    const el = sc.valuesEl; if (!el || sc.freqMode) return;
-    clearTimeout(sc.valuesTimer);
-    sc.valuesTimer = setTimeout(() => el.classList.remove('show'), SCOPE_VALUES_HIDE_MS);
+  // A click on the scope face TOGGLES the box; opening it always starts in frequency mode (you clicked
+  // the wave to inspect it). It then stays up — no auto-hide — until you click the face again, cycle
+  // it, or click a panel background.
+  _toggleScopeValues(sc) {
+    const el = sc.valuesEl; if (!el) return;
+    if (el.classList.contains('show')) { el.classList.remove('show'); return; }
+    sc.valMode = 'freq';
+    this._placeScopeValues(sc);
+    el.classList.add('show');
+    this._refreshScopeValues(sc);
   }
-  // Hide the panel at once — a click on the scope face dismisses it (and cancels any pending dwell).
-  _hideScopeValues(sc) {
-    clearTimeout(sc.dwellTimer); sc.dwellTimer = null;
-    clearTimeout(sc.valuesTimer); sc.valuesTimer = null;
-    if (sc.valuesEl) sc.valuesEl.classList.remove('show');
+  // A click inside the box cycles its mode: scale settings → frequency → min/mean/max → scale.
+  _cycleScopeMode(sc) {
+    const order = ['scale', 'freq', 'peak'];
+    sc.valMode = order[(order.indexOf(sc.valMode) + 1) % order.length];
+    this._refreshScopeValues(sc);
+  }
+  // Hide every open box — a click on a panel background dismisses them (the pointer is away from any scope).
+  _hideAllScopeValues() {
+    if (!this._scopes) return;
+    for (const sc of this._scopes) if (sc.valuesEl) sc.valuesEl.classList.remove('show');
   }
 
   // One axis's value, e.g. "0.1 /div" or "2 ms/div".
@@ -2406,8 +2407,8 @@ export class Rack {
     const right = document.createElement('span'); right.className = 'scope-half scope-half-r';
     right.appendChild(label('V')); right.appendChild(arrowsFor('v')); right.appendChild(valEl('v'));   // V = vertical
     panel.appendChild(left); panel.appendChild(divEl); panel.appendChild(right);
-    // Frequency readout: replaces the scale halves while the wave (CPS) button is active —
-    // cycles-per-second on the left, the period on the right, same mirrored layout.
+    // Frequency readout (one of the box's three modes): cycles-per-second on the left, period on the
+    // right, same mirrored layout as the scale halves.
     const freq = document.createElement('span'); freq.className = 'scope-freq';
     const fCps = document.createElement('span'); fCps.className = 'scope-val';
     const fDiv = document.createElement('span'); fDiv.className = 'scope-vdiv'; fDiv.textContent = '│';
@@ -2415,8 +2416,28 @@ export class Rack {
     freq.appendChild(fCps); freq.appendChild(fDiv); freq.appendChild(fPer);
     freq.style.display = 'none';
     panel.appendChild(freq);
-    sc._valHalves = { left, div: divEl, right }; sc.freqEls = { wrap: freq, cps: fCps, per: fPer };
+    // Peak/level readout (the third mode): min, mean, max over a settled window, so you can read the
+    // amplitude and how far the wave is pushed positive.
+    const peak = document.createElement('span'); peak.className = 'scope-peak';
+    const pcell = (labelText) => {
+      const c = document.createElement('span'); c.className = 'scope-pcell';
+      const l = document.createElement('span'); l.className = 'scope-splabel'; l.textContent = labelText;
+      const v = document.createElement('span'); v.className = 'scope-val';
+      c.appendChild(l); c.appendChild(v); return { c, v };
+    };
+    const pMin = pcell('min'), pMean = pcell('mean'), pMax = pcell('max');
+    const pd1 = document.createElement('span'); pd1.className = 'scope-vdiv'; pd1.textContent = '│';
+    const pd2 = document.createElement('span'); pd2.className = 'scope-vdiv'; pd2.textContent = '│';
+    peak.append(pMin.c, pd1, pMean.c, pd2, pMax.c);
+    peak.style.display = 'none';
+    panel.appendChild(peak);
+    sc._valHalves = { left, div: divEl, right };
+    sc.freqEls = { wrap: freq, cps: fCps, per: fPer };
+    sc.peakEls = { wrap: peak, min: pMin.v, mean: pMean.v, max: pMax.v };
     panel.addEventListener('pointerdown', (e) => e.stopPropagation());   // never starts a face gesture
+    // A click anywhere in the box (except the scale arrows, which stop propagation) cycles the mode:
+    // scale → frequency → min/mean/max → scale.
+    panel.addEventListener('click', (e) => { e.stopPropagation(); this._cycleScopeMode(sc); });
     // Scroll over the H/V group to step that scale, accumulated so a trackpad flick is gentle.
     this._attachValueWheel(left, sc, 't');
     this._attachValueWheel(right, sc, 'v');
@@ -2424,16 +2445,16 @@ export class Rack {
     // Lower-left transport button: pause/resume the trace. Only visible on hover over the scope.
     const play = document.createElement('div'); play.className = 'scope-playpause';
     play.addEventListener('pointerdown', (e) => e.stopPropagation());
-    play.addEventListener('click', (e) => { e.stopPropagation(); this._exitFreqMode(sc); sc.frozen = !sc.frozen; this._updateScopePlayPause(sc); });
+    play.addEventListener('click', (e) => { e.stopPropagation(); sc.frozen = !sc.frozen; this._updateScopePlayPause(sc); });
     // Upper-left trigger button: T (triggered) / F (free running). Only visible on hover.
     const trig = document.createElement('div'); trig.className = 'scope-trigbtn';
     trig.addEventListener('pointerdown', (e) => e.stopPropagation());
-    trig.addEventListener('click', (e) => { e.stopPropagation(); this._exitFreqMode(sc); sc.trigger = !sc.trigger; this._updateScopeTrigBtn(sc); });
+    trig.addEventListener('click', (e) => { e.stopPropagation(); sc.trigger = !sc.trigger; this._updateScopeTrigBtn(sc); });
     trig.addEventListener('wheel', (e) => this._trigWheel(e, sc), { passive: false });   // scroll = trigger level
     // Autoset button (a momentary "A" just right of the transport button): re-frames on press,
     // showing a pressed state while held.
     const auto = document.createElement('div'); auto.className = 'scope-autobtn'; auto.textContent = 'A';
-    auto.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); auto.setPointerCapture && auto.setPointerCapture(e.pointerId); auto.classList.add('pressed'); this._exitFreqMode(sc); this._scopeAutoset(sc); });
+    auto.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); auto.setPointerCapture && auto.setPointerCapture(e.pointerId); auto.classList.add('pressed'); this._scopeAutoset(sc); });
     const autoUp = () => auto.classList.remove('pressed');
     auto.addEventListener('pointerup', autoUp); auto.addEventListener('pointercancel', autoUp);
     // Grid button (a momentary "G" right of "A"): toggles the grid on/off.
@@ -2441,11 +2462,6 @@ export class Rack {
     grid.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); grid.setPointerCapture && grid.setPointerCapture(e.pointerId); grid.classList.add('pressed'); sc.gridOn = !sc.gridOn; });
     const gridUp = () => grid.classList.remove('pressed');
     grid.addEventListener('pointerup', gridUp); grid.addEventListener('pointercancel', gridUp);
-    // Frequency button (the two-cycle sine wave, right of "G"): put the readout box into frequency
-    // mode — live cycles-per-second and period — until another control or the face is clicked.
-    const fbtn = document.createElement('div'); fbtn.className = 'scope-freqbtn'; fbtn.innerHTML = SCOPE_FREQ_ICON;
-    fbtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-    fbtn.addEventListener('click', (e) => { e.stopPropagation(); sc.freqMode = !sc.freqMode; fbtn.classList.toggle('on', sc.freqMode); this._showScopeValues(sc); });
     // Close button (upper-right ×): remove the scope. Only visible on hover.
     const close = document.createElement('div'); close.className = 'scope-closebtn'; close.textContent = '×';
     close.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -2460,10 +2476,9 @@ export class Rack {
     this._attachScopeTip(trig, 'triggered mode · scroll = level');
     this._attachScopeTip(auto, 'auto scale');
     this._attachScopeTip(grid, 'grid');
-    this._attachScopeTip(fbtn, 'frequency (CPS + period)');
     this._attachScopeTip(close, 'close');
-    sc.el.appendChild(panel); sc.el.appendChild(play); sc.el.appendChild(trig); sc.el.appendChild(auto); sc.el.appendChild(grid); sc.el.appendChild(fbtn); sc.el.appendChild(close); sc.el.appendChild(trigLine);
-    sc.valuesEl = panel; sc.playBtn = play; sc.trigBtn = trig; sc.freqBtn = fbtn;
+    sc.el.appendChild(panel); sc.el.appendChild(play); sc.el.appendChild(trig); sc.el.appendChild(auto); sc.el.appendChild(grid); sc.el.appendChild(close); sc.el.appendChild(trigLine);
+    sc.valuesEl = panel; sc.playBtn = play; sc.trigBtn = trig;
     this._updateScopePlayPause(sc); this._updateScopeTrigBtn(sc);
     this._placeScopeValues(sc);
     this._refreshScopeValues(sc);
@@ -2481,16 +2496,24 @@ export class Rack {
   // In frequency mode it instead shows the live cycles-per-second and period readout.
   _refreshScopeValues(sc) {
     const vt = sc.valEls && sc.valEls.t, vv = sc.valEls && sc.valEls.v; if (!vt || !vv) return;
-    const half = sc._valHalves, fq = sc.freqEls;
-    if (sc.freqMode && half && fq) {
-      half.left.style.display = 'none'; half.div.style.display = 'none'; half.right.style.display = 'none';
-      fq.wrap.style.display = 'flex';
+    const half = sc._valHalves, fq = sc.freqEls, pk = sc.peakEls;
+    const mode = sc.valMode || 'scale';
+    if (half) { const on = mode === 'scale' ? '' : 'none'; half.left.style.display = on; half.div.style.display = on; half.right.style.display = on; }
+    if (fq) fq.wrap.style.display = mode === 'freq' ? 'flex' : 'none';
+    if (pk) pk.wrap.style.display = mode === 'peak' ? 'flex' : 'none';
+    if (mode === 'freq' && fq) {
       const m = this._measureScopeFreq(sc);
       fq.cps.textContent = m ? this._fmtCps(m.hz) : '—';       // em dash on no measurable pitch
       fq.per.textContent = m ? this._fmtPeriod(m.periodSec) : '—';
       return;
     }
-    if (half && fq) { fq.wrap.style.display = 'none'; half.left.style.display = ''; half.div.style.display = ''; half.right.style.display = ''; }
+    if (mode === 'peak' && pk) {
+      const m = this._measureScopePeaks(sc);
+      pk.min.textContent = m ? this._fmtLevel(m.min) : '—';
+      pk.mean.textContent = m ? this._fmtLevel(m.mean) : '—';
+      pk.max.textContent = m ? this._fmtLevel(m.max) : '—';
+      return;
+    }
     vt.style.width = ''; vv.style.width = '';
     vt.textContent = this._scopeAxisText(sc, 't');
     vv.textContent = this._scopeAxisText(sc, 'v');
@@ -2499,19 +2522,7 @@ export class Rack {
     const w = Math.max(vt.scrollWidth, vv.scrollWidth);
     vt.style.width = w + 'px'; vv.style.width = w + 'px';
   }
-  // Leave frequency mode and restore the scale readout (a click on any other control or the face).
-  _exitFreqMode(sc) {
-    if (!sc.freqMode) return;
-    sc.freqMode = false;
-    if (sc.freqBtn) sc.freqBtn.classList.remove('on');
-    this._refreshScopeValues(sc);
-  }
-  // Dismiss EVERY pinned frequency readout at once and hide its panel — used when a click lands on a
-  // panel background (you're done watching the frequency), since the pointer is nowhere near the scope.
-  _exitAllFreqMode() {
-    if (!this._scopes) return;
-    for (const sc of this._scopes) if (sc.freqMode) { this._exitFreqMode(sc); this._hideScopeValues(sc); }
-  }
+  _fmtLevel(v) { return (v >= 0 ? '+' : '') + (Math.abs(v) < 10 ? v.toFixed(2) : v.toFixed(1)); }
   _fmtCps(hz) {
     const v = hz >= 1000 ? Math.round(hz) : hz >= 100 ? Math.round(hz * 10) / 10 : Math.round(hz * 100) / 100;
     return `${v} CPS`;
@@ -2553,6 +2564,31 @@ export class Rack {
     const res = (periodSec > 0) ? { hz: 1 / periodSec, periodSec } : null;
     sc._freqCache = res;
     return res;
+  }
+  // Min, mean and max over the ~1.5s sample window, smoothed like a peak meter: the displayed max
+  // jumps up to any new peak at once and eases back down slowly (min mirrors it), and the mean eases
+  // both ways — so the numbers settle to a readable level instead of flickering. Throttled to ~16Hz.
+  _measureScopePeaks(sc) {
+    const R = sc.ringBuf, RL = R.length, filled = sc.ringFilled;
+    if (filled < 8) return sc._pkCache || null;
+    const now = (typeof performance !== 'undefined') ? performance.now() : 0;
+    if (sc._pkT != null && (now - sc._pkT) < 60) return sc._pkCache || null;
+    const dt = (sc._pkT != null) ? Math.min(0.25, (now - sc._pkT) / 1000) : 0.06;
+    sc._pkT = now;
+    const sr = (this.host.ctx && this.host.ctx.sampleRate) || 48000;
+    const N = Math.min(filled, Math.round(sr * 1.5));
+    const base = ((sc.ringPos - N) % RL + RL) % RL;
+    let lo = Infinity, hi = -Infinity, sum = 0;
+    for (let j = 0; j < N; j++) { const v = R[(base + j) % RL]; if (v < lo) lo = v; if (v > hi) hi = v; sum += v; }
+    const mean = sum / N;
+    const ease = 1 - Math.exp(-dt / 0.5);   // ~0.5s release toward a lower level
+    if (!sc._pk) sc._pk = { min: lo, mean, max: hi };
+    const p = sc._pk;
+    p.max = (hi > p.max) ? hi : p.max + (hi - p.max) * ease;   // rise instantly to a new peak, fall back gently
+    p.min = (lo < p.min) ? lo : p.min + (lo - p.min) * ease;
+    p.mean += (mean - p.mean) * ease;
+    sc._pkCache = { min: p.min, mean: p.mean, max: p.max };
+    return sc._pkCache;
   }
   // The transport button shows the ACTION: pause bars while running, play triangle while frozen.
   // The trigger button is hidden while frozen (triggering is moot on a held trace).
@@ -2696,7 +2732,6 @@ export class Rack {
       const s = sc._wAcc[key] < 0 ? -1 : 1; sc._wAcc[key] -= s * STEP;
       this._stepScope(sc, axis, s);   // scroll up (s = -1) → finer
     }
-    this._showScopeValues(sc);
   }
 
   // Scroll over the T button to nudge the trigger level (the orange line follows). Scroll up raises
@@ -2707,7 +2742,6 @@ export class Rack {
     const halfV = this._scopeHalfV(sc), off = sc.vOffset || 0;
     sc.trigLevel = Math.max(off - halfV, Math.min(off + halfV, (sc.trigLevel || 0) - ev.deltaY * norm * halfV * 0.0015));
     this._updateTrigLine(sc);
-    this._showScopeValues(sc);
   }
 
   // Reposition the scope by dragging the white move-dot on its edge (where the line attaches).
@@ -2722,7 +2756,10 @@ export class Rack {
       moved = true;
       sc.el.style.left = Math.round(e2.clientX - ox) + 'px'; sc.el.style.top = Math.round(e2.clientY - oy) + 'px'; this._updateCallout(sc);
     };
-    const onUp = () => { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
+      if (!moved) this._toggleScopeValues(sc);   // a click (not a drag) on the face toggles the settings box
+    };
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
   }
 
@@ -3746,7 +3783,7 @@ export class Rack {
   // ---- drag (left button, from the faceplate background) ----
   _startDrag(e, rec) {
     if (e.button !== 0) return;
-    this._exitAllFreqMode();   // a click on a panel background also dismisses any pinned frequency readout
+    this._hideAllScopeValues();   // a click on a panel background also dismisses any open scope settings box
     e.preventDefault();
     const s = this.pxPerMm;
     const startX = e.clientX, startY = e.clientY;
