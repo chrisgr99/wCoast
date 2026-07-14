@@ -24,7 +24,7 @@
 // browser deployment these headers are a hosting hassle; in Electron we
 // control how the page reaches the renderer, so it's trivial.
 
-const { app, BrowserWindow, protocol, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, protocol, ipcMain, dialog, Menu, shell, session } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { initMirror } = require('./electron-mirror');
@@ -191,6 +191,10 @@ function registerAppProtocol() {
       status: 200,
       headers: {
         'Content-Type': mime,
+        // The renderer is served straight off disk, so caching buys nothing and only risks the
+        // window loading a stale build after a restart (Chromium's disk cache outlives the process).
+        // no-store keeps every launch honest — it always reads the current files.
+        'Cache-Control': 'no-store',
         ...ISOLATION_HEADERS,
       },
     });
@@ -250,8 +254,11 @@ function applyDockIcon() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerAppProtocol();
+  // Purge any renderer files a previous build left in Chromium's persistent disk cache, so this
+  // launch can't show stale code (belt-and-braces with the no-store header on the app scheme).
+  try { await session.defaultSession.clearCache(); } catch (_e) { /* best effort */ }
   registerPatchIpc();
   initMirror(() => mainWindow);
   applyMinimalMenu();
