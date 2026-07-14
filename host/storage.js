@@ -30,30 +30,38 @@ const baseName = (p) => (p ? p.replace(/^.*[\\/]/, '') : null);
 // ---- Electron: native dialogs + Node writes via the preload bridge ----
 
 function electronStorage(bridge) {
+  // Persist the current file's PATH across relaunches (in lockstep with the in-memory state) so a
+  // resumed session can re-adopt its file and Save writes back to it instead of prompting.
+  const PATH_KEY = 'wcoast.electronPath';
   let currentPath = null;
+  const remember = (p) => { currentPath = p || null; try { currentPath ? localStorage.setItem(PATH_KEY, currentPath) : localStorage.removeItem(PATH_KEY); } catch (_e) { /* no storage */ } };
   return {
     async open() {
       const res = await bridge.open();
       if (!res) return null;
-      currentPath = res.path;
+      remember(res.path);
       return { text: res.text, name: baseName(res.path) };
     },
     async save(text) {
       const res = await bridge.save({ path: currentPath, text });
       if (!res) return null;
-      currentPath = res.path;
+      remember(res.path);
       return baseName(res.path);
     },
     async saveAs(text) {
       const res = await bridge.saveAs({ text, path: currentPath });
       if (!res) return null;
-      currentPath = res.path;
+      remember(res.path);
       return baseName(res.path);
     },
     async reopenLast() { return null; },   // Electron reopen (via settings) is deferred
     hasLast() { return false; },
     lastName() { return null; },
-    forget() { currentPath = null; },
+    // Called ONLY when a session resumes: re-adopt the last file (from the persisted path) as the
+    // current file, so Save writes there. Not called for a fresh/default patch, so it can't point at
+    // a stale file; and "New" clears the persisted path, so a New-then-resume also stays fileless.
+    adoptLast() { let p = null; try { p = localStorage.getItem(PATH_KEY); } catch (_e) { /* none */ } if (!p) return null; currentPath = p; return baseName(p); },
+    forget() { remember(null); },
     name() { return baseName(currentPath); },
   };
 }
@@ -94,10 +102,11 @@ function handleStore() {
 function browserStorage() {
   if (typeof window === 'undefined' || !window.showSaveFilePicker) {
     const no = () => { throw new Error('This browser lacks the File System Access API — use Chrome or Edge.'); };
-    return { open: no, save: no, saveAs: no, async reopenLast() { return null; }, hasLast() { return false; }, lastName() { return null; }, forget() {}, name() { return null; } };
+    return { open: no, save: no, saveAs: no, async reopenLast() { return null; }, hasLast() { return false; }, lastName() { return null; }, adoptLast() { return null; }, forget() {}, name() { return null; } };
   }
 
   const PICKER = { types: [{ description: 'Wcoast Patch', accept: { 'application/json': ['.wcoast'] } }] };
+  const FILE_ACTIVE_KEY = 'wcoast.browserFileActive';   // persists whether the session corresponds to a file (so a resume can re-adopt it)
   const idb = handleStore();
   let current = null;   // the file being edited this session (Save writes here)
   let last = null;      // the persisted handle, offered for reopen after a relaunch
@@ -114,7 +123,7 @@ function browserStorage() {
     if ((await handle.queryPermission(opts)) === 'granted') return true;
     return (await handle.requestPermission(opts)) === 'granted';
   };
-  const remember = async (handle) => { current = handle; last = handle; try { await idb.set(handle); } catch (_e) { /* fine */ } };
+  const remember = async (handle) => { current = handle; last = handle; try { localStorage.setItem(FILE_ACTIVE_KEY, '1'); } catch (_e) { /* no storage */ } try { await idb.set(handle); } catch (_e) { /* fine */ } };
   const read = async (handle) => (await (await handle.getFile()).text());
   const write = async (handle, text) => { const w = await handle.createWritable(); await w.write(text); await w.close(); };
 
@@ -151,7 +160,17 @@ function browserStorage() {
     },
     hasLast() { return !!last; },
     lastName() { return last ? last.name : null; },
-    forget() { current = null; },
+    // Called ONLY when a session resumes: if the session corresponded to a file (the marker), adopt
+    // the persisted handle as current so Save writes there. Permission is (re-)requested on Save's click.
+    async adoptLast() {
+      let active = false; try { active = localStorage.getItem(FILE_ACTIVE_KEY) === '1'; } catch (_e) { /* none */ }
+      if (!active) return null;
+      if (!last) { try { last = await idb.get(); } catch (_e) { /* none */ } }
+      if (!last) return null;
+      current = last;
+      return last.name;
+    },
+    forget() { current = null; try { localStorage.removeItem(FILE_ACTIVE_KEY); } catch (_e) { /* no storage */ } },
     name() { return current ? current.name : null; },
   };
 }
