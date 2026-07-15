@@ -126,7 +126,6 @@ async function boot() {
   let dirty = false, patchName = null, mirror = null, booted = false;
   rack = new Rack(document.getElementById('rack'), {
     host, moduleTypes: MODULE_TYPES, rowCount: 2, dark: darkMode, onChange: () => onEdit(),
-    onNetMode: (on) => document.getElementById('netmode').classList.toggle('on', on),
     onScopeArm: (on) => document.getElementById('scopebtn').classList.toggle('on', on),
   });
   rack.relayout();
@@ -166,9 +165,6 @@ async function boot() {
     get: () => masterValue,
     set: (v) => { masterValue = Math.max(0, Math.min(1, v)); showValue(masterKnob, masterValue); rack.applyParam(mixRec, 'master', masterValue); },
   });
-  // Net-explore toggle (Escape also exits; the rack keeps the button's state in sync).
-  document.getElementById('netmode').addEventListener('click', () => rack.toggleNetMode());
-  if (!rack.isNetMode()) rack.toggleNetMode();   // show network on by default
   // "Add scope" arm: next drag off a port drops a probe there; disarms after one.
   document.getElementById('scopebtn').addEventListener('click', () => rack.toggleScopeArm());
   syncToolbarMaster();

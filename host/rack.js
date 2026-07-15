@@ -135,7 +135,6 @@ export class Rack {
     this.moduleTypes = opts.moduleTypes;
     this.onChange = opts.onChange || (() => {});
     this.onSelect = opts.onSelect || (() => {});   // module the pointer entered (deixis)
-    this.onNetMode = opts.onNetMode || (() => {});  // net-explore mode toggled (for the toolbar button)
     this.onScopeArm = opts.onScopeArm || (() => {});  // "add scope" armed/disarmed (for the toolbar button)
     // Panel-pie hooks into app-level actions the rack doesn't own (set by rack-app).
     this.onAppMenu = opts.onAppMenu || (() => {});    // open the app (File) menu at (x,y)
@@ -164,6 +163,11 @@ export class Rack {
     this._isolateSwells = []; // enlarged jack records (el + live tap) to restore when isolate mode ends
     this._isolateJackByTag = new Map();
     this._isolateOffsets = new Map();
+    this._hoverSwells = [];         // pulsing ports for the always-on HOVER focus (parallel to the latched ones)
+    this._hoverJackByTag = new Map();
+    this._haloEase = new Map();     // control group el -> { cur, target } opacity, eased ~1s for the hover control-dim
+    this._swellTimer = null;        // debounce so a quick sweep doesn't thrash audio taps
+    this._netSections = null;
     this._seq = 0;
     this._rowEls = [];
     this._menuEl = null;
@@ -237,8 +241,26 @@ export class Rack {
       let redraw = false;
       if (this._hoverCableEdgeId !== null) { this._hoverCableEdgeId = null; redraw = true; }
       if (this._fadedCables) { this._fadedCables = null; this._cableFadeCtrl = null; redraw = true; }
-      if (this._netOrigin !== null) { this._netOrigin = null; redraw = true; }
+      if (this._netOrigin !== null) { this._netOrigin = null; this._rebuildHoverFocus(); redraw = true; }
       if (redraw) this._drawCables();
+    });
+    // U / D latch the Upstream / Downstream of whatever terminal the pointer is over; pressing the
+    // same one again (or a click on a panel, or Escape) closes it. A direction with nothing that way
+    // does nothing (the menu greys it out for the same reason).
+    document.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'u' && k !== 'd') return;
+      const dir = k === 'u' ? 'up' : 'down';
+      const hov = this._hoverJack, iso = this._isolateOrigin;
+      if (iso && hov && iso.key === hov.key && iso.portId === hov.portId && iso.dir === dir) { e.preventDefault(); this._exitIsolate(); return; }
+      if (!hov) return;
+      const net = dir === 'up' ? this._upstreamOf(hov.key, hov.portId) : this._downstreamOf(hov.key, hov.portId);
+      if (!net.edges.size) return;   // nothing that way — same as the greyed-out menu item
+      e.preventDefault();
+      this._isolateSubnet(hov.key, hov.portId, dir);
     });
   }
 
@@ -305,6 +327,7 @@ export class Rack {
   // kept — they're recreated once at boot, not per patch — but their cords are
   // pulled so a restore rewires from a clean slate.
   clear() {
+    this._exitIsolate(); this._clearHoverFocus(); this._netOrigin = null;   // no stale focus pointing at removed jacks
     for (const sc of [...this._scopes]) this._closeScope(sc, true);
     for (const m of [...this._monitors]) this._closeMonitor(m, true);
     for (const rec of [...this.records.values()]) {
@@ -578,7 +601,9 @@ export class Rack {
       const net = o.dir === 'down' ? this._downstreamOf(o.key, o.portId) : this._upstreamOf(o.key, o.portId);
       if (!this._sameSet(net.edges, this._isolateNet)) { this._isolateNet = net.edges; this._isolateSections = net.sections; this._buildIsolateSwells(); this._buildControlHalos(); }
     }
-    this._netEdges = (!this._isolateNet && this._netOrigin) ? this._computeNet(this._netOrigin) : null;   // recompute so it tracks patch edits
+    const cn = (!this._isolateNet && this._netOrigin) ? this._computeNet(this._netOrigin) : null;   // recompute so it tracks patch edits
+    this._netEdges = cn ? cn.edges : null;
+    this._netSections = cn ? cn.sections : null;
     const s = this.pxPerMm;
     this.cables.setAttribute('viewBox', `0 0 ${r2(this._contentWmm)} ${r2(this._contentHmm)}`);
     this.cables.style.width = (this._contentWmm * s) + 'px';
@@ -1527,13 +1552,14 @@ export class Rack {
     }
     return null;
   }
-  // Track the net-explore origin from the pointer location alone (container-level, so it fires over
-  // controls and bare panel alike — module-level handlers miss pointer-events:none gaps).
+  // Track the net-highlight origin from the pointer location alone (container-level, so it fires over
+  // controls and bare panel alike — module-level handlers miss pointer-events:none gaps). Always on
+  // now (no mode) — suspended only while a subnet is LATCHED (Upstream/Downstream), which owns the view.
   _updateNetOrigin(e) {
-    if (!this._netMode || this._isolateNet) return;
+    if (this._isolateNet) return;
     const rec = this._moduleAt(e.clientX, e.clientY);
     const o = rec ? this._netOriginAt(rec, e.clientX, e.clientY) : null;
-    if (o !== this._netOrigin) { this._netOrigin = o; this._drawCables(); }
+    if (o !== this._netOrigin) { this._netOrigin = o; this._rebuildHoverFocus(); this._drawCables(); }
   }
   // The set of cable ids in `origin`'s net: every cord downstream of it (to the
   // outputs) plus every cord upstream (its feeders/modulators), traced over the
@@ -1556,31 +1582,8 @@ export class Rack {
     const down = closure(seeds, fwd), up = closure(seeds, bwd);
     const net = new Set();
     for (const { e, s, d } of pair) if (down.has(s) || up.has(d)) net.add(e.id);
-    return net;
-  }
-
-  // Signal-net EXPLORE MODE. While on, whatever module (or quad channel) you HOVER
-  // lights its net — the whole downstream chain to the outputs plus everything
-  // upstream that feeds or modulates it — full-opaque, the rest at their normal
-  // 50%. It's a mode, not a per-click pin: the hovered scope drives the highlight,
-  // not where you invoked it. Off by default, so the plain overview is never
-  // dimmed. Toggle from the panel right-click menu; Escape also exits.
-  // Public toggle (the toolbar button); the origin follows hover, so none is needed.
-  toggleNetMode() { if (this._netMode) this._exitNetMode(); else this._enterNetMode(null); }
-  isNetMode() { return !!this._netMode; }
-
-  _enterNetMode(origin) {
-    this._netMode = true;
-    this._netOrigin = origin || null;
-    this.onNetMode(true);
-    this._drawCables();
-  }
-
-  _exitNetMode() {
-    this._netMode = false;
-    this._netOrigin = null;
-    this.onNetMode(false);
-    this._drawCables();
+    const sections = new Set([...down, ...up]);   // every section the net touches (for the control-dim)
+    return { edges: net, sections };
   }
 
   // ---- isolate a terminal's UPSTREAM (from its pie's "view subnet" wedge) ----
@@ -1594,6 +1597,7 @@ export class Rack {
   // recompute in _drawCables walks the same way as the patch changes.
   _isolateSubnet(key, portId, dir = 'up') {
     this._exitIsolate();
+    this._clearHoverFocus();   // the latch owns the view; drop the transient hover focus first
     const net = dir === 'down' ? this._downstreamOf(key, portId) : this._upstreamOf(key, portId);
     if (!net.edges.size) return;   // nothing in that direction — nothing to isolate
     this._isolateOrigin = { key, portId, dir };
@@ -1614,7 +1618,7 @@ export class Rack {
     const seen = new Set();
     // Downstream: the mixer is the sink — light the cord reaching it but don't swell its jack.
     const skipSink = !!(this._isolateOrigin && this._isolateOrigin.dir === 'down');
-    const swell = (k, p) => { if (skipSink && this._isSink(k)) return; const tag = k + '|' + p; if (!seen.has(tag)) { seen.add(tag); this._swellJack(k, p); } };
+    const swell = (k, p) => { if (skipSink && this._isSink(k)) return; const tag = k + '|' + p; if (!seen.has(tag)) { seen.add(tag); this._swellJack(k, p, this._isolateSwells, this._isolateJackByTag); } };
     if (this._isolateOrigin) swell(this._isolateOrigin.key, this._isolateOrigin.portId);   // always the clicked port
     for (const e of this.patchbay.list()) {
       if (!this._isolateNet.has(e.id)) continue;
@@ -1624,14 +1628,81 @@ export class Rack {
   }
 
   // Restore every enlarged jack and disconnect its tap.
-  _clearIsolateSwells() {
-    for (const a of this._isolateSwells) {
+  _clearSwellList(list) {
+    for (const a of list) {
       if (a.tf == null) a.el.removeAttribute('transform'); else a.el.setAttribute('transform', a.tf);
       const ring = a.el.querySelector('.jack-net-ring');
       if (ring) ring.remove();
       if (a.analyser && a.tapNode) { try { a.tapNode.disconnect(a.analyser, a.tapIndex); } catch (_e) { /* gone */ } }
     }
-    this._isolateSwells = [];
+    list.length = 0;
+  }
+  _clearIsolateSwells() { this._clearSwellList(this._isolateSwells); }
+
+  // ---- always-on HOVER focus: swell the ports on the hovered chain + dim the off-chain controls ----
+  // Same breathing ports and control-dim as the latched Upstream/Downstream, but transient: it tracks
+  // the pointer and eases in/out. Suspended while a subnet is latched (which owns the view).
+
+  // Rebuild the hover focus for the current _netOrigin: dim the off-chain controls at once (they ease),
+  // and — debounced, so a quick sweep doesn't thrash audio taps — swell the ports on the lit cables.
+  _rebuildHoverFocus() {
+    const cn = this._netOrigin ? this._computeNet(this._netOrigin) : null;
+    this._setHoverHalos(cn ? cn.sections : null);   // instant target change; the opacity eases in the loop
+    if (this._swellTimer) { clearTimeout(this._swellTimer); this._swellTimer = null; }
+    if (!cn) { this._clearHoverSwells(); return; }
+    const edges = cn.edges;
+    this._swellTimer = setTimeout(() => { this._swellTimer = null; if (!this._isolateNet) this._buildHoverSwells(edges); }, 120);
+  }
+  _buildHoverSwells(edges) {
+    this._clearHoverSwells();
+    const seen = new Set();
+    const swell = (k, p) => { const tag = k + '|' + p; if (!seen.has(tag)) { seen.add(tag); this._swellJack(k, p, this._hoverSwells, this._hoverJackByTag); } };
+    for (const e of this.patchbay.list()) { if (!edges.has(e.id)) continue; swell(e.src.key, e.src.portId); swell(e.dst.key, e.dst.portId); }
+  }
+  _clearHoverSwells() {
+    if (this._swellTimer) { clearTimeout(this._swellTimer); this._swellTimer = null; }
+    this._clearSwellList(this._hoverSwells);
+    this._hoverJackByTag = new Map();
+  }
+  // Drop the whole hover focus (ports back to size, controls back to full) — used when a subnet latches.
+  _clearHoverFocus() {
+    this._clearHoverSwells();
+    for (const [el] of this._haloEase) el.style.opacity = '';
+    this._haloEase.clear();
+  }
+  // Set each control's dim TARGET (0.46 off-chain, 1 on-chain); the flow loop eases opacity toward it
+  // over ~1s. `sections` null = nothing hovered → everything eases back to full.
+  _setHoverHalos(sections) {
+    for (const rec of this.records.values()) {
+      if (!rec.panel || !rec.panel.controls) continue;
+      for (const b of rec.panel.controls.values()) {
+        const inNet = !sections || sections.has(this._controlSectionKey(rec, b));
+        const gate = (inNet && sections) ? this._controlGatePort(rec, b) : null;
+        const lit = inNet && !(gate && !this._portOccupied(rec.key, gate));
+        const target = lit ? 1 : 0.46;
+        let h = this._haloEase.get(b.group);
+        if (target < 1) { if (!h) this._haloEase.set(b.group, { cur: 1, target }); else h.target = target; }
+        else if (h) h.target = 1;   // dropped from the map once it eases back to full
+      }
+    }
+  }
+  // Per frame (non-isolate branch of the flow loop): breathe the hover ports and ease the control dim.
+  _tickHoverFocus(k) {
+    for (const rec of this._hoverSwells) {
+      const target = this._jackLevel(rec);
+      rec.level = rec.level * 0.7 + target * 0.3;
+      this._applyJackSwell(rec);
+    }
+    if (this._haloEase.size) {
+      for (const [el, h] of this._haloEase) {
+        if (Math.abs(h.cur - h.target) < 0.004) {   // settled: a dimmed control stays put; a restored one is dropped
+          if (h.target >= 1) { el.style.opacity = ''; this._haloEase.delete(el); }
+          continue;
+        }
+        h.cur += (h.target - h.cur) * k;
+        el.style.opacity = String(r2(h.cur));
+      }
+    }
   }
 
   // While isolating, DIM every control whose section doesn't affect the terminal, leaving the
@@ -1781,7 +1852,7 @@ export class Rack {
   // Enlarge one jack (the drop-cue swell + family-colour ring) AND open a live tap on
   // its signal, so the swell can breathe with the signal level. Remembered so
   // _exitIsolate can restore the jack and disconnect the tap.
-  _swellJack(key, portId) {
+  _swellJack(key, portId, list, byTag) {
     const el = this._jackElement(key, portId);
     const circle = el && el.querySelector('circle');
     if (!el || !circle) return;
@@ -1805,8 +1876,8 @@ export class Rack {
         rec.analyser = an; rec.buf = new Float32Array(an.fftSize); rec.tapNode = tap.node; rec.tapIndex = tap.index || 0;
       } catch (_e) { rec.analyser = null; }
     }
-    this._isolateSwells.push(rec);
-    this._isolateJackByTag.set(key + '|' + portId, rec);
+    list.push(rec);
+    byTag.set(key + '|' + portId, rec);
     this._applyJackSwell(rec);
   }
 
@@ -1857,52 +1928,8 @@ export class Rack {
     this._isolateSections = null;
     this._isolateOrigin = null;
     if (this._isolateEsc) { document.removeEventListener('keydown', this._isolateEsc); this._isolateEsc = null; }
+    this._rebuildHoverFocus();   // hand the view back to the always-on hover focus for wherever the pointer is
     this._drawCables();
-  }
-
-  // "Browse networks" mode: the pointer keeps its arrow but wears the network badge, and
-  // hovering ANY terminal live-shows its subnet — upstream for an input, downstream for an
-  // output. A way to roam the whole patch and read every connection pattern. A click
-  // anywhere (or Escape) cancels the mode.
-  _startBrowseNet() {
-    if (this._browsing) return;
-    this._browsing = true;
-    this._browseTag = null;                 // the terminal currently previewed, so we rebuild only on change
-    const badge = document.createElement('div');   // the net glyph riding just off the arrow tip
-    badge.className = 'net-browse-badge';
-    badge.innerHTML = NET_ICON;
-    document.body.appendChild(badge);
-    this._browseBadge = badge;
-    const onMove = (ev) => {
-      badge.style.left = ev.clientX + 'px';
-      badge.style.top = ev.clientY + 'px';
-      const j = this._jackNear(ev.clientX, ev.clientY);
-      const tag = j ? j.key + '|' + j.portId : null;
-      if (tag === this._browseTag) return;   // same terminal (or still empty space): nothing to redo
-      this._browseTag = tag;
-      if (!j) { this._exitIsolate(); return; }
-      const ep = this._ep(j.key, j.portId);
-      const dir = (ep && ep.meta.dir === 'out') ? 'down' : 'up';   // outputs look forward, inputs back
-      this._isolateSubnet(j.key, j.portId, dir);   // clears any previous; blank if nothing that way
-    };
-    const onDown = (ev) => { ev.preventDefault(); ev.stopPropagation(); this._stopBrowseNet(); };   // any click cancels
-    const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); this._stopBrowseNet(); } };
-    this._browseMove = onMove; this._browseDown = onDown; this._browseKey = onKey;
-    document.addEventListener('pointermove', onMove, true);
-    document.addEventListener('pointerdown', onDown, true);
-    document.addEventListener('keydown', onKey, true);
-  }
-
-  _stopBrowseNet() {
-    if (!this._browsing) return;
-    this._browsing = false;
-    document.removeEventListener('pointermove', this._browseMove, true);
-    document.removeEventListener('pointerdown', this._browseDown, true);
-    document.removeEventListener('keydown', this._browseKey, true);
-    this._browseMove = this._browseDown = this._browseKey = null;
-    if (this._browseBadge) { this._browseBadge.remove(); this._browseBadge = null; }
-    this._browseTag = null;
-    this._exitIsolate();
   }
 
   // The crawl offset (content mm) from one running clock, so the dashes drift
@@ -1941,6 +1968,7 @@ export class Rack {
         for (const p of this.cables.querySelectorAll('.cable-body')) {
           const c = this._cableCur.get(p.dataset.edge); if (c) p.style.opacity = String(r2(c.body));
         }
+        this._tickHoverFocus(k);   // breathe the hovered ports; ease the control-dim (same ~1s as the cables)
       }
       this._flowRaf = requestAnimationFrame(tick);
     };
@@ -1973,11 +2001,8 @@ export class Rack {
     // The subnet item follows the signal's natural direction for this terminal: an OUTPUT looks
     // forward ("Show downstream"), an INPUT looks back ("Show upstream"). It's greyed when there's
     // nothing to show (an unconnected terminal, or one with no cords in that direction).
-    const ep = this._ep(key, portId);
-    const isOut = !!ep && ep.meta.dir === 'out';
-    const netDir = isOut ? 'down' : 'up';
-    const netLabel = isOut ? 'Show downstream' : 'Show upstream';
-    const hasNet = (isOut ? this._downstreamOf(key, portId) : this._upstreamOf(key, portId)).edges.size > 0;
+    const hasUp = this._upstreamOf(key, portId).edges.size > 0;
+    const hasDown = this._downstreamOf(key, portId).edges.size > 0;
     // Scope preview handoff: while the preview is up, a document watcher lets the pointer walk
     // OFF the menu item and ONTO the floating scope — entering it makes the scope permanent (as
     // if dragged out and dropped there) and closes the menu. scopeItemEl is the Scope row, so the
@@ -2055,15 +2080,18 @@ export class Rack {
         action: (ev) => takeScope(ev),
       },
       {
-        label: netLabel, icon: NET_ICON, disabled: !hasNet,
-        onDwell: () => this._isolateSubnet(key, portId, netDir),
+        label: 'Upstream (U)', icon: NET_ICON, disabled: !hasUp,
+        onDwell: () => this._isolateSubnet(key, portId, 'up'),
         onLeave: () => this._exitIsolate(),
         latch: true,                                    // a click keeps the highlight past the menu close
-        action: () => this._isolateSubnet(key, portId, netDir),
+        action: () => this._isolateSubnet(key, portId, 'up'),
       },
       {
-        label: 'Browse networks', icon: NET_ICON,       // roam the patch: hover any terminal to see its subnet
-        action: () => this._startBrowseNet(),
+        label: 'Downstream (D)', icon: NET_ICON, disabled: !hasDown,
+        onDwell: () => this._isolateSubnet(key, portId, 'down'),
+        onLeave: () => this._exitIsolate(),
+        latch: true,
+        action: () => this._isolateSubnet(key, portId, 'down'),
       },
     ]);
   }
@@ -3699,6 +3727,9 @@ export class Rack {
       port.element.dataset.jackPort = portId;
       port.element.addEventListener('pointerdown', (e) => this._onJackPointerDown(e, rec.key, portId));
       port.element.addEventListener('contextmenu', (e) => this._onJackContextMenu(e, rec.key, portId));
+      // Track the terminal under the pointer so the U / D shortcuts know which one they mean.
+      port.element.addEventListener('pointerenter', () => { this._hoverJack = { key: rec.key, portId }; });
+      port.element.addEventListener('pointerleave', () => { if (this._hoverJack && this._hoverJack.key === rec.key && this._hoverJack.portId === portId) this._hoverJack = null; });
       // An invisible hit-pad HIT_GROW_MM beyond the outer edge, appended LAST so the outer
       // circle stays the first-match for the paint/geometry queries. Clicks on it bubble to
       // the group's handlers above.

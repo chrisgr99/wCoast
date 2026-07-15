@@ -32,7 +32,7 @@
     }
     #tools { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; gap: 8px; }
     .tool-sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
-    #onoff, #hamburger, #netmode, #scopebtn {
+    #onoff, #hamburger, #scopebtn {
       width: 26px; height: 26px; padding: 0; display: inline-flex; flex: none;
       align-items: center; justify-content: center; cursor: pointer;
       border: 1px solid var(--line); border-radius: 6px;
@@ -46,10 +46,6 @@
     #hamburger svg { width: 16px; height: 16px; fill: var(--ink); }
     #hamburger:hover { background: var(--accent); }
     #hamburger:hover svg { fill: var(--accent-ink); }
-    #netmode { background: var(--panel); color: var(--ink); }
-    #netmode svg { width: 23px; height: 23px; }
-    #netmode:hover { background: var(--accent); color: var(--accent-ink); }
-    #netmode.on { background: var(--accent); color: var(--accent-ink); }
     #scopebtn { background: var(--panel); color: var(--ink); }
     #scopebtn svg { width: 20px; height: 20px; }
     #scopebtn:hover, #scopebtn.on { background: var(--accent); color: var(--accent-ink); }
@@ -178,9 +174,6 @@
     .rack-menu-item { display: flex; align-items: center; }
     .rack-menu-icon { flex: none; width: 15px; height: 15px; margin-right: 7px; line-height: 0; color: inherit; }
     .rack-menu-icon svg { width: 15px; height: 15px; display: block; fill: currentColor; }
-    /* "Browse networks" cursor badge: the net glyph riding just off the arrow tip. */
-    .net-browse-badge { position: fixed; left: 0; top: 0; width: 18px; height: 18px; transform: translate(12px, 9px); color: #2ad4e6; pointer-events: none; z-index: 4000; filter: drop-shadow(0 0 1.6px rgba(0,0,0,0.9)); }
-    .net-browse-badge svg { width: 18px; height: 18px; display: block; }
     .rack-menu-arrow { margin-left: auto; padding-left: 16px; color: var(--ink-dim); }
     .rack-menu-item:hover .rack-menu-arrow { color: var(--accent-ink); }
     .rack-menu-item.disabled { color: var(--ink-dim); opacity: 0.55; cursor: default; }
@@ -228,22 +221,6 @@
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <polygon class="ico-play" points="7,5 19,12 7,19"/>
           <rect class="ico-stop" x="6" y="6" width="12" height="12" rx="2"/>
-        </svg>
-      </button>
-      <span class="tool-sep" aria-hidden="true"></span>
-      <button id="netmode" aria-label="Explore signal nets" title="Explore signal nets">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <g stroke="currentColor" stroke-linecap="round">
-            <g opacity="0.6">
-              <line x1="12" y1="12" x2="20" y2="4.5" stroke-width="2.1"/>
-              <line x1="12" y1="12" x2="18.5" y2="21" stroke-width="2.1"/>
-              <circle cx="20" cy="4.5" r="3.2" fill="currentColor" stroke="none"/>
-              <circle cx="18.5" cy="21" r="3.2" fill="currentColor" stroke="none"/>
-            </g>
-            <line x1="3.5" y1="6" x2="12" y2="12" stroke-width="2.9"/>
-            <circle cx="3.5" cy="6" r="3.7" fill="currentColor" stroke="none"/>
-            <circle cx="12" cy="12" r="3.7" fill="currentColor" stroke="none"/>
-          </g>
         </svg>
       </button>
       <button id="scopebtn" aria-label="Add signal scope" title="Add signal scope">
