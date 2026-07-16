@@ -11,15 +11,16 @@
 // overview is a full-window opaque picture and is meant to cover this, so any step that sends the
 // reader there must tell them how to come back.
 //
-// Steps are plain data (see tour-steps.js) — { title, body } — so the copy can be rewritten
-// without touching any of this. A step's body is a list of parts: a string is prose, and
-// { try: '...' } is a "Do this" block. They render in the order written and scroll together,
-// because a step often has more than one thing to try and each belongs next to the prose that
-// sets it up — not parked in one fixed slot at the bottom.
+// Steps are plain data — { title, body } — so the copy can be rewritten without touching any of
+// this. A step's body is a list of parts: a string is prose, and { try: '...' } is a "Do this"
+// block. They render in the order written and scroll together, because a step often has more than
+// one thing to do and each belongs next to the prose that sets it up — not parked in one fixed
+// slot at the bottom. The copy itself comes from host/tutorial.md, via host/tutorial-md.js.
 
 'use strict';
 
 const POS_KEY = 'wcoast.tourPos';    // remembered card position: the reader parks it out of the way once
+const SIZE_KEY = 'wcoast.tourSize';  // remembered card size, once the reader has resized it themselves
 const SEEN_KEY = 'wcoast.introSeen';  // set only by "Don't show on startup" — a plain close still returns next run
 
 const readJSON = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (_e) { return null; } };
@@ -117,6 +118,17 @@ export function createTour({ steps, onExternal, isDark }) {
 
     el.appendChild(head); el.appendChild(bodyEl); el.appendChild(foot);
     document.body.appendChild(el);
+
+    // The card resizes like a window (CSS `resize`), which fires no event — so watch it. Only a
+    // USER resize is remembered: `resize` writes inline width/height, whereas the card growing or
+    // shrinking to fit a new step doesn't. Without that test, stepping between cards would save the
+    // auto height and freeze every later card at it.
+    const saved = readJSON(SIZE_KEY);
+    if (saved && saved.w > 0) { el.style.width = saved.w + 'px'; el.style.height = saved.h + 'px'; }
+    if (window.ResizeObserver) new ResizeObserver(() => {
+      if (!el.style.width && !el.style.height) return;
+      write(SIZE_KEY, JSON.stringify({ w: el.offsetWidth, h: el.offsetHeight }));
+    }).observe(el);
   };
 
   // One part of a step: prose, or a "Do this" block. The label is inline rather than a heading —
@@ -133,8 +145,11 @@ export function createTour({ steps, onExternal, isDark }) {
     const lab = document.createElement('b');
     lab.className = 'tour-try-label';
     lab.textContent = part.label || 'Do this';
+    const text = document.createElement('span');
+    text.innerHTML = part.try;               // ours, not user input — a task may carry <b> or a link
     box.appendChild(lab);
-    box.appendChild(document.createTextNode(' — ' + part.try));
+    box.appendChild(document.createTextNode(' — '));
+    box.appendChild(text);
     return box;
   };
 

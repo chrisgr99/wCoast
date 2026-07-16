@@ -109,7 +109,8 @@
        light face and a light line on a dark one — so it reads as part of the app, not a web page. */
     .tour-card { --t-face: #cfcfcf; --t-ink: #163a69; --t-dim: #5c6f8c; --t-edge: #141414;
       --t-sep: rgba(22,58,105,0.28); --t-accent: #8a5510; --t-tint: rgba(138,85,16,0.10);
-      position: fixed; z-index: 1350; width: 340px; max-height: 70vh; display: flex; flex-direction: column;
+      position: fixed; z-index: 1350; width: 340px; min-width: 220px; min-height: 130px; max-height: 90vh;
+      resize: both; overflow: hidden; display: flex; flex-direction: column;
       background: var(--t-face); color: var(--t-ink);
       border: 1.5px solid var(--t-edge); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       font: 400 9px/1.5 -apple-system, system-ui, sans-serif; user-select: none; -webkit-user-select: none; }
@@ -134,6 +135,9 @@
       border: 2px solid transparent; background-clip: content-box; }
     .tour-body::-webkit-scrollbar-thumb:hover { background: rgba(180,180,180,0.7); background-clip: content-box; }
     .tour-body a { color: var(--t-accent); }
+    .tour-p ul { margin: 4px 0 0; padding-left: 15px; }
+    .tour-p li { margin: 3px 0; }
+    .tour-p li::marker { color: var(--t-dim); }
     /* A "Do this" block sits INSIDE the scrolling body, in among the prose, because a step can carry
        several and each belongs beside the text that sets it up. */
     .tour-p + .tour-try, .tour-try + .tour-p, .tour-p + .tour-p, .tour-try + .tour-try { margin-top: 10px; }
@@ -141,7 +145,7 @@
       background: var(--t-tint); border-radius: 0 4px 4px 0; }
     .tour-try-label { color: var(--t-accent); }
     .tour-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-      padding: 8px 11px; border-top: 1px solid var(--t-sep); flex-wrap: wrap; }
+      padding: 8px 16px 8px 11px; border-top: 1px solid var(--t-sep); flex-wrap: wrap; }   /* right pad: clear of the resize grip */
     .tour-left, .tour-nav { display: flex; align-items: center; gap: 6px; }
     .tour-count { color: var(--t-dim); font-size: 8px; margin-right: 2px; }
     .tour-btn { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--t-sep);

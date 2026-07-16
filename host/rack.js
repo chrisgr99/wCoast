@@ -246,7 +246,14 @@ export class Rack {
     // wheel to horizontal) whenever the overview isn't open. It also marks the Option press as a pan, so
     // releasing Option after scrolling won't pop the thumbnail. Document capture + stopPropagation so it
     // beats every control/scope/monitor wheel; a short freeze holds the scope/monitor anchors still.
-    document.addEventListener('wheel', (e) => {
+    //
+    // It is INSTALLED ONLY WHILE OPTION IS HELD (see the Alt keydown/keyup below), and that matters for
+    // more than tidiness: a non-passive wheel listener left on `document` tells Chromium that any tick
+    // MIGHT be prevented, so it can no longer scroll on the compositor and must wait for the main thread
+    // every time — app-wide. With the cable flow loop writing DOM each frame, that wait is a visible stall
+    // before ANY scroller moves (the tutorial card, a menu). Off while Option is up = the fast path is back.
+    // The overview's own wheel is scoped the same way (see _showOverview).
+    this._panWheel = (e) => {
       if (this._ovActive || !e.altKey) return;   // overview owns its own wheel; plain scroll stays with controls
       e.preventDefault(); e.stopPropagation();
       this._optUsed = true;
@@ -257,7 +264,7 @@ export class Rack {
       this._tx -= dx * PAN_SCROLL_GAIN; this._ty -= dy * PAN_SCROLL_GAIN;
       this._clampPan();
       this._applyTransform();
-    }, { passive: false, capture: true });
+    };
     // Any pointer release may have ended a module move or a connect — refresh the overview picture if the
     // rack changed. (The carry cursor is NOT cleared here: cabling is click-to-carry, so the cord outlives
     // every release and each pull owns `grabbing-cable` from its start to its own finish.)
@@ -304,20 +311,21 @@ export class Rack {
     document.addEventListener('keydown', (e) => {
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      if (e.key === 'Alt') { this._optDown = true; this._optUsed = false; this._updateNavClass(); return; }
+      if (e.key === 'Alt') { this._optDown = true; this._optUsed = false; this._armPanWheel(true); this._updateNavClass(); return; }
       if (this._ovActive) this._cancelOverview();   // Escape or any other key → close without moving
     });
     document.addEventListener('keyup', (e) => {
       if (e.key !== 'Alt') return;
       const wasTap = this._optDown && !this._optUsed;
       this._optDown = false;
+      this._armPanWheel(false);
       if (wasTap) {
         if (this._ovActive) this._commitOverview();   // second tap → dive into the rectangle
         else this._showOverview();                    // first tap → open the navigator
       }
       this._updateNavClass();   // gesture over (unless the overview just opened)
     });
-    window.addEventListener('blur', () => { this._optDown = false; if (this._ovActive) this._cancelOverview(); this._updateNavClass(); });
+    window.addEventListener('blur', () => { this._optDown = false; this._armPanWheel(false); if (this._ovActive) this._cancelOverview(); this._updateNavClass(); });
   }
 
   // A patch endpoint resolved to a common shape.
@@ -3793,6 +3801,14 @@ export class Rack {
     this._ovDiveTimer = setTimeout(() => { this._ovDiveTimer = null; this._hideOverview(); }, VIEW_COMMIT_MS + 40);
   }
   _cancelOverview() { this._hideOverview(); }
+  // Hold the Option-pan wheel listener ONLY while Option is down. See the comment where _panWheel is
+  // defined: leaving a non-passive wheel listener on `document` costs every scroller in the app its
+  // compositor fast path. Re-adding the same function reference is a no-op, so key auto-repeat is safe.
+  _armPanWheel(on) {
+    if (on) document.addEventListener('wheel', this._panWheel, { passive: false, capture: true });
+    else document.removeEventListener('wheel', this._panWheel, { capture: true });
+  }
+
   // True for the whole of a view-navigation gesture — Option held, or the overview up. Drives the body class
   // that hides the scope/monitor leader lines (whose redraw loop is suspended, so they'd otherwise lag).
   _updateNavClass() {

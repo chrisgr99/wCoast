@@ -27,7 +27,7 @@ The modules that ship today are a West Coast-style complex oscillator, a quad lo
 - Hovering a module lights up the cables feeding it and the cables it feeds, so you can see what a change here will touch.
 - Right-click a terminal to isolate its subnet — just the cables, modules, and controls that shape the signal arriving there — so you can work on one branch of a large patch at a time. Each terminal then pulses gently in time and size with the signal passing through it.
 
-Patching itself stays direct: a left-click on a jack starts a cable, which you pull to its destination. You can also chain input terminals to share one incoming signal — a mult, like a hardware multiple — so a source can feed several inputs without a cable running back to it each time, which keeps the patch tidier. The panels are compact and consistent, keeping a lot of the instrument in view and behaving the same from module to module, in matching light and dark faceplates.
+Patching itself stays direct, and you never hold the mouse button down: left-click a terminal and the cable comes with you — hands free, so you can scroll, zoom and roam to find the far end — then left-click where it lands. (Right-click or Escape drops it.) You can also chain input terminals to share one incoming signal — a mult, like a hardware multiple — so a source can feed several inputs without a cable running back to it each time, which keeps the patch tidier. The panels are compact and consistent, keeping a lot of the instrument in view and behaving the same from module to module, in matching light and dark faceplates.
 
 ## Current state
 

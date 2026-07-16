@@ -26,7 +26,7 @@ import { createStorage } from '../host/storage.js';
 import { buildCatalogue, createMirror } from '../host/mirror.js';
 import { createAudioTrace } from '../host/audio-trace.js';
 import { createTour, tourSeen } from '../host/tour.js';
-import { TOUR_STEPS } from '../host/tour-steps.js';
+import { loadTutorial } from '../host/tutorial-md.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
 
@@ -328,7 +328,7 @@ async function boot() {
       { label: rack.isDark() ? 'Light mode' : 'Dark mode', action: () => {
         const d = !rack.isDark();
         rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
-        tour.applyTheme();     // ...and the tutorial card, which is dressed as a faceplate
+        if (tour) tour.applyTheme();   // ...and the tutorial card, which is dressed as a faceplate
         try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
       } },
       { label: 'Rows in rack', submenu: [2, 3, 4].map((n) => ({
@@ -360,9 +360,17 @@ async function boot() {
 
   // The interactive tutorial: modeless cards the reader drives with Next/Back. Opens on a first
   // run (unless "Don't show on startup" is set), and always available from Help ▸ Interactive tutorial.
-  const tour = createTour({ steps: TOUR_STEPS, onExternal: (url) => rack._openExternal(url), isDark: () => rack.isDark() });
-  rack.onTutorial = () => tour.open(0);
-  if (!tourSeen()) tour.open(0);
+  // The copy lives in host/tutorial.md — one file that is both the tutorial and a readable document.
+  // A failure here must not take the app down with it: no tutorial is survivable, a dead boot isn't.
+  let tour = null;
+  try {
+    const steps = await loadTutorial();
+    tour = createTour({ steps, onExternal: (url) => rack._openExternal(url), isDark: () => rack.isDark() });
+    rack.onTutorial = () => tour.open(0);
+    if (!tourSeen()) tour.open(0);
+  } catch (e) {
+    log('tutorial unavailable: ' + e.message);
+  }
 
   // F1 — the conventional Help key. Opens the Help menu centred in the window, so it's reachable
   // without knowing about right-click or finding the hamburger.
