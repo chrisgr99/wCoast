@@ -88,6 +88,73 @@
     .mon-muted::after { content: ''; position: absolute; left: 3px; right: 3px; top: calc(50% - 1.5px); height: 3px; background: #e22a2a; border-radius: 1px; transform: rotate(-45deg); pointer-events: none; }   /* red diagonal, upper-right to lower-left, as thick as the ring */
     .mixer-monitor-mode [data-wcoast-param^="level"] { opacity: 0.32; transition: opacity 0.15s; }   /* channels grayed while the monitor bus is the output */
 
+    /* ---- always-visible hamburger: the main menu without needing to know about right-click ----
+       Fixed chrome drawn over whatever panel corner is beneath it; the rack pans and zooms under it.
+       Below menus and the overview (which is meant to cover everything) so it never fights them. */
+    #burger { position: fixed; top: 8px; right: 8px; z-index: 1300; width: 26px; height: 26px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.45); }
+    #burger svg { width: 16px; height: 16px; fill: var(--ink); }
+    #burger:hover { background: var(--accent); }
+    #burger:hover svg { fill: var(--accent-ink); }
+
+    /* ---- getting-started tour: a MODELESS floating card (no backdrop — you must be able to work
+       while it's up). Above the scopes/monitors band, below menus and the overview. ---- */
+    /* A column: only the BODY scrolls, so the title and the buttons stay put while the prose and its
+       "Do this" blocks move together. max-height caps the card so a long step can't swallow the window. */
+    /* The card is dressed as a FACEPLATE, not as chrome: the exact colours the module panels use
+       (light face #cfcfcf with #163a69 labels; dark face #262629 with #b8b8bc), switched by .theme-dark
+       to follow View ▸ Light/Dark mode. The border matches the context menus — 1.5px, a dark line on a
+       light face and a light line on a dark one — so it reads as part of the app, not a web page. */
+    .tour-card { --t-face: #cfcfcf; --t-ink: #163a69; --t-dim: #5c6f8c; --t-edge: #141414;
+      --t-sep: rgba(22,58,105,0.28); --t-accent: #8a5510; --t-tint: rgba(138,85,16,0.10);
+      position: fixed; z-index: 1350; width: 340px; max-height: 70vh; display: flex; flex-direction: column;
+      background: var(--t-face); color: var(--t-ink);
+      border: 1.5px solid var(--t-edge); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      font: 400 9px/1.5 -apple-system, system-ui, sans-serif; user-select: none; -webkit-user-select: none; }
+    .tour-card.theme-dark { --t-face: #262629; --t-ink: #b8b8bc; --t-dim: #8a8a90; --t-edge: #d2d2d6;
+      --t-sep: rgba(184,184,188,0.24); --t-accent: #e0a353; --t-tint: rgba(224,163,83,0.10); }
+    .tour-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 11px;
+      border-bottom: 1px solid var(--t-sep); cursor: move; touch-action: none; }
+    .tour-title { flex: 1 1 auto; font-weight: 600; }
+    .tour-x { flex: none; width: 20px; height: 20px; padding: 0; background: none; border: none;
+      color: var(--t-dim); font: 400 12px/1 -apple-system, system-ui, sans-serif; cursor: pointer; border-radius: 4px; }
+    .tour-x:hover { color: var(--t-ink); background: rgba(128,128,128,0.18); }
+    /* min-height:0 lets a flex child actually shrink and scroll. The bar is styled dark on a
+       transparent track — the default macOS bar is a dazzling white slab over our panels.
+       Deliberately NO scrollbar-width/scrollbar-color: setting either makes Chromium ignore the
+       ::-webkit-scrollbar rules below and fall back to a macOS OVERLAY bar, which fades out when
+       idle — and an invisible bar means a reader can't tell the step continues below the fold. */
+    .tour-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      padding: 10px 11px; user-select: text; -webkit-user-select: text; }
+    .tour-body::-webkit-scrollbar { width: 9px; }
+    .tour-body::-webkit-scrollbar-track { background: transparent; }
+    .tour-body::-webkit-scrollbar-thumb { background: rgba(150,150,150,0.42); border-radius: 5px;
+      border: 2px solid transparent; background-clip: content-box; }
+    .tour-body::-webkit-scrollbar-thumb:hover { background: rgba(180,180,180,0.7); background-clip: content-box; }
+    .tour-body a { color: var(--t-accent); }
+    /* A "Do this" block sits INSIDE the scrolling body, in among the prose, because a step can carry
+       several and each belongs beside the text that sets it up. */
+    .tour-p + .tour-try, .tour-try + .tour-p, .tour-p + .tour-p, .tour-try + .tour-try { margin-top: 10px; }
+    .tour-try { padding: 7px 9px; border-left: 2px solid var(--t-accent);
+      background: var(--t-tint); border-radius: 0 4px 4px 0; }
+    .tour-try-label { color: var(--t-accent); }
+    .tour-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 8px 11px; border-top: 1px solid var(--t-sep); flex-wrap: wrap; }
+    .tour-left, .tour-nav { display: flex; align-items: center; gap: 6px; }
+    .tour-count { color: var(--t-dim); font-size: 8px; margin-right: 2px; }
+    .tour-btn { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--t-sep);
+      background: transparent; color: var(--t-ink); font: inherit; cursor: pointer; }
+    .tour-btn:hover:not(:disabled) { border-color: var(--t-ink); }
+    .tour-btn:disabled { opacity: 0.4; cursor: default; }
+    .tour-next { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    /* A real toggle, not an exit: it reports whether the tutorial auto-opens, and flips back off. */
+    .tour-never { display: inline-flex; align-items: center; gap: 4px; color: var(--t-dim);
+      font: inherit; font-size: 8px; cursor: pointer; user-select: none; -webkit-user-select: none; }
+    .tour-never input { width: 10px; height: 10px; margin: 0; cursor: pointer; accent-color: var(--t-accent); }
+    .tour-never:hover { color: var(--t-ink); }
+
     body.grabbing-cable, body.grabbing-cable * { cursor: var(--grip) !important; }
 
 
@@ -183,6 +250,13 @@
   </style>
 </head>
 <body>
+  <button id="burger" title="Menu" aria-label="Menu">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="4" y="6" width="16" height="2.4" rx="1"/>
+      <rect x="4" y="11" width="16" height="2.4" rx="1"/>
+      <rect x="4" y="16" width="16" height="2.4" rx="1"/>
+    </svg>
+  </button>
   <div id="rack"></div>
 
   <script type="module" src="debug/rack-app.js"></script>

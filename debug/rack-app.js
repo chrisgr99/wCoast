@@ -25,6 +25,8 @@ import { serialize, restore, validate } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
 import { buildCatalogue, createMirror } from '../host/mirror.js';
 import { createAudioTrace } from '../host/audio-trace.js';
+import { createTour, tourSeen } from '../host/tour.js';
+import { TOUR_STEPS } from '../host/tour-steps.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
 
@@ -326,6 +328,7 @@ async function boot() {
       { label: rack.isDark() ? 'Light mode' : 'Dark mode', action: () => {
         const d = !rack.isDark();
         rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
+        tour.applyTheme();     // ...and the tutorial card, which is dressed as a faceplate
         try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
       } },
       { label: 'Rows in rack', submenu: [2, 3, 4].map((n) => ({
@@ -348,6 +351,30 @@ async function boot() {
     ]);
   };
   rack.onAppMenu = openAppMenu;              // panel-pie app-menu wedge
+  // The always-visible hamburger: the same main menu, for anyone who hasn't met right-click yet
+  // (or dismissed the tour before it said so). Opens under the button, like a menu bar would.
+  document.getElementById('burger').addEventListener('click', (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    openAppMenu(Math.max(4, r.right - 190), r.bottom + 4);   // hang it INWARD from a top-right button
+  });
+
+  // The interactive tutorial: modeless cards the reader drives with Next/Back. Opens on a first
+  // run (unless "Don't show on startup" is set), and always available from Help ▸ Interactive tutorial.
+  const tour = createTour({ steps: TOUR_STEPS, onExternal: (url) => rack._openExternal(url), isDark: () => rack.isDark() });
+  rack.onTutorial = () => tour.open(0);
+  if (!tourSeen()) tour.open(0);
+
+  // F1 — the conventional Help key. Opens the Help menu centred in the window, so it's reachable
+  // without knowing about right-click or finding the hamburger.
+  // NOTE on macOS: F1 is a system brightness key unless "Use F1, F2, etc. as standard function keys"
+  // is on in System Settings ▸ Keyboard — otherwise the app never sees it and you need Fn-F1.
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'F1') return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    e.preventDefault();
+    rack.openMenu(window.innerWidth / 2, window.innerHeight / 2, rack.helpMenuItems(), { centred: true });
+  });
 
   // Standard file shortcuts (we dropped the native File menu): Cmd/Ctrl-S save,
   // Shift adds Save As; Cmd/Ctrl-O open; Cmd/Ctrl-N new.
@@ -407,41 +434,12 @@ async function boot() {
   // fit can be measured too tall.
   requestAnimationFrame(() => rack.relayout());
 
-  maybeShowIntro();
 }
 
-const README_URL = 'https://github.com/chrisgr99/wCoast/blob/main/README.md';
 
 // First run only: a small card pointing newcomers at the panel menu's Help, the jack
 // menu, and cabling. "Dismiss" closes for now (it returns next launch); "Don't show
 // this again" remembers the choice in local storage. The README link opens the browser.
-function maybeShowIntro() {
-  let seen = false;
-  try { seen = localStorage.getItem('wcoast.introSeen') === '1'; } catch (_e) { /* no storage */ }
-  if (seen) return;
-  const overlay = document.createElement('div'); overlay.className = 'confirm-overlay';
-  const box = document.createElement('div'); box.className = 'confirm-box';
-  const msg = document.createElement('div'); msg.className = 'confirm-msg';
-  msg.innerHTML = 'Welcome to wCoast.<br><br>Right-click any panel to open its menu, then choose “Help” for the quick guide, README, and getting-started notes.<br><br>Click a jack to start dragging a cable and make a connection, or right-click a jack for its Scope, Monitor, and Upstream options.<br><br><b>Important: Please turn off any browser extension that changes how pages look — such as Dark Reader or other dark-mode or colour-adjusting add-ons — for this site. wCoast has its own light and dark modes, and those extensions distort its panels.</b>';
-  const linkRow = document.createElement('div'); linkRow.style.marginTop = '10px';
-  const link = document.createElement('a');
-  link.textContent = 'Read the README'; link.href = README_URL; link.style.color = 'var(--accent)';
-  link.addEventListener('click', (e) => { e.preventDefault(); if (rack) rack._openExternal(README_URL); });
-  linkRow.appendChild(link); msg.appendChild(linkRow);
-  const btns = document.createElement('div'); btns.className = 'confirm-btns';
-  const dismiss = document.createElement('button'); dismiss.className = 'confirm-btn'; dismiss.textContent = 'Dismiss';
-  const never = document.createElement('button'); never.className = 'confirm-btn'; never.textContent = "Don't show this again";
-  btns.appendChild(dismiss); btns.appendChild(never);
-  box.appendChild(msg); box.appendChild(btns); overlay.appendChild(box); document.body.appendChild(overlay);
-  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey, true); };
-  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
-  dismiss.addEventListener('click', close);
-  never.addEventListener('click', () => { try { localStorage.setItem('wcoast.introSeen', '1'); } catch (_e) { /* no storage */ } close(); });
-  overlay.addEventListener('pointerdown', (e) => { if (e.target === overlay) close(); });
-  document.addEventListener('keydown', onKey, true);
-  dismiss.focus();
-}
-
 window.addEventListener('DOMContentLoaded', () => {
   if (window.wcoast && window.wcoast.isElectron) {
     log(`Electron — Chromium ${window.wcoast.versions.chrome}, Node ${window.wcoast.versions.node}.`);
