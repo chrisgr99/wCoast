@@ -12,8 +12,8 @@
 //   serialize(rack, mixer) -> object
 //   restore(object, rack, mixer) -> Promise<void>
 //
-// `mixer` is a small adapter for the toolbar mixer, which is a fixed patch
-// endpoint rather than a rack module:
+// `mixer` is a small adapter for the output mixer, a pinned rack module that is a
+// fixed patch endpoint (never listed among the saved modules):
 //   { key, getParams(): {id: value}, setParams({id: value}): void }
 
 'use strict';

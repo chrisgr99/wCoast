@@ -125,7 +125,7 @@ so a cord's colour tells you what it feeds. Cross-family patching is allowed
 (free patching) — an audio out into a CV in simply draws an orange (CV) cord.
 
 Every cable is **one thick, solid weight** — no thinner grades, no dashes,
-including the cord you drag — so a short stub always reads and the rack looks
+including the cord in hand — so a short stub always reads and the rack looks
 like a real patchbay.
 
 ### Direction = a dashed ring on the jack
@@ -144,22 +144,30 @@ lockstep.
 
 ### Creation surfaces
 
-1. **Drag-to-patch** on the panel (primary, and the whole pointer story). Cords
-   are stub-less: each ends in the **middle of the jack's coloured band** and
-   droops between. **Grab a cord anywhere on its port** — press a connected port
-   and drag, and that port's end lifts to be re-routed (drop on another valid
-   jack to move it, on empty space to **delete**). Press a **bare** port and a
+1. **Click-to-carry** on the panel (primary, and the whole pointer story). Cabling
+   never holds the mouse button: **click a jack, and the cord follows the pointer
+   with your hand free** until you **click again to drop** it — on a valid jack it
+   connects, on empty space it cancels (Escape or a right-click also cancel). The
+   free hand is the point: mid-pull you can still scroll, pan the view, and open
+   the overview navigator to cross the rack, none of which is possible while a
+   button is held. Holding the button and dragging deliberately does **nothing**;
+   letting go simply leaves you in the carry, so the habit corrects itself.
+   Cords are stub-less: each ends in the **middle of the jack's coloured band** and
+   droops between. **Grab a cord anywhere on its port** — click a connected port
+   and that port's end lifts to be re-routed (drop on another valid jack to move
+   it, on empty space to **delete**); the cord breaks the moment it's lifted, so
+   you hear the patch without it while you decide. Click a **bare** port and a
    fresh cord trails the pointer instead. A port can fan out to several cords, so
-   the **drag direction picks which one** you grab — the cord leaving that port
-   most nearly the way you drag; a stack of same-direction cords is teased apart
-   by first bending one aside with its mid-cord handle. Because a press on a
+   the **direction of your first move picks which one** you grab — the cord leaving
+   that port most nearly that way; a stack of same-direction cords is teased apart
+   by first bending one aside with its mid-cord handle. Because picking up a
    connected output lifts its cord rather than starting a new one, an extra
    fan-out cord is **started from the destination** (always an empty input, since
-   inputs hold one cable) and dragged back to the output. As you drag, valid
+   inputs hold one cable) and carried back to the output. While carrying, valid
    targets thicken their rings and the one under the pointer **swells with a bold
    outline in its family colour** — the "ready to receive" cue. A drop onto an
    occupied input is rejected (the cord snaps back). There is **no jack context
-   menu** — a plain click on a jack is reserved for the connection list below.
+   menu** — a right-click on a jack opens its Scope/Monitor/Upstream options.
 2. **Dictation** (parallel, no-pointer path): e.g. "connect mod oscillator out
    to carrier FM, amount forty percent" makes the same edge.
 

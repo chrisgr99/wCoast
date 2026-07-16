@@ -24,33 +24,6 @@
       height: 100vh; display: flex; flex-direction: column; overflow: hidden;
     }
 
-    /* ---- top toolbar (full width; global controls + the output mixer) ---- */
-    #toolbar {
-      position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
-      padding: 1px 12px; background: var(--rail);
-      border-top: 1px solid #fff; border-bottom: 1px solid #fff; z-index: 30;
-    }
-    #tools { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .tool-sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
-    #onoff, #hamburger, #scopebtn {
-      width: 26px; height: 26px; padding: 0; display: inline-flex; flex: none;
-      align-items: center; justify-content: center; cursor: pointer;
-      border: 1px solid var(--line); border-radius: 6px;
-    }
-    #onoff { background: var(--accent); }
-    #onoff svg { width: 14px; height: 14px; fill: var(--accent-ink); }
-    #onoff .ico-stop { display: none; }
-    #onoff.on .ico-play { display: none; }
-    #onoff.on .ico-stop { display: inline; }
-    #hamburger { background: var(--panel); }
-    #hamburger svg { width: 16px; height: 16px; fill: var(--ink); }
-    #hamburger:hover { background: var(--accent); }
-    #hamburger:hover svg { fill: var(--accent-ink); }
-    #scopebtn { background: var(--panel); color: var(--ink); }
-    #scopebtn svg { width: 20px; height: 20px; }
-    #scopebtn:hover, #scopebtn.on { background: var(--accent); color: var(--accent-ink); }
-    body.arming-scope { cursor: crosshair; }
-
     /* floating signal scopes + their callouts */
     .scope { position: fixed; z-index: 1250; background: #0d0f0c; border: 1px solid #8a8d92; border-radius: 6px;
       box-shadow: 0 6px 18px rgba(0,0,0,0.5); padding: 0; cursor: default; }
@@ -99,6 +72,9 @@
     .scope-preview { pointer-events: none; opacity: 0.8; border-style: dashed; cursor: default; }
     .scope-dot { position: fixed; z-index: 1246; width: 10.5px; height: 10.5px; background: #8a8d92; transform: translate(-50%,-50%); cursor: grab; }
     .scope-callouts { position: fixed; inset: 0; pointer-events: none; z-index: 1240; overflow: visible; }
+    /* While navigating the view (Option held, or the overview up) the loops that redraw these are suspended,
+       so the leader lines and handles would lag behind their scopes/monitors. Hide them for the gesture. */
+    body.view-navigating .scope-callouts, body.view-navigating .scope-dot { display: none; }
     .mon { position: fixed; z-index: 1250; width: 34px; height: 34px; border-radius: 50%; background: #0d0f0c; border: 1px solid #8a8d92;
       box-shadow: 0 4px 12px rgba(0,0,0,0.5); cursor: default; display: flex; align-items: center; justify-content: center; color: #cfe8d4; }
     .mon svg:not(.mon-arc) { width: 15px; height: 15px; display: block; }
@@ -112,27 +88,8 @@
     .mon-muted::after { content: ''; position: absolute; left: 3px; right: 3px; top: calc(50% - 1.5px); height: 3px; background: #e22a2a; border-radius: 1px; transform: rotate(-45deg); pointer-events: none; }   /* red diagonal, upper-right to lower-left, as thick as the ring */
     .mixer-monitor-mode [data-wcoast-param^="level"] { opacity: 0.32; transition: opacity 0.15s; }   /* channels grayed while the monitor bus is the output */
 
-    /* master group at the far right: house-style knob + horizontal VU */
-    #master-group { display: flex; align-items: center; gap: 8px; flex: none; }
-    #master-knob { width: 28px; height: 28px; }
-    #master-knob svg { display: block; width: 100%; height: 100%; }
-    .toolbar-jack { position: relative; cursor: crosshair; }
-    .toolbar-jack svg { display: block; width: 22px; height: 22px; }
-    .toolbar-jack .lbl { position: absolute; top: -2px; left: -3px; font-size: 9px; font-weight: 600; color: var(--ink-dim); line-height: 1; pointer-events: none; }
-    #master-vu.vu { display: inline-flex; gap: 2px; align-items: center; height: 12px; }
-    #master-vu.vu span { width: 3px; height: 100%; background: #56585f; border-radius: 1px; }
-
-    /* overlay for the vertical connection lines that meet the rack cords */
-    #toolbar-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; }
-
     body.grabbing-cable, body.grabbing-cable * { cursor: var(--grip) !important; }
 
-
-    /* ---- mixer control panel (floating window) ---- */
-    #mixer-panel { position: fixed; z-index: 1200; width: 520px; aspect-ratio: 250 / 174;
-      border: 2px solid #000; border-radius: 12px; overflow: hidden; cursor: move;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.55); touch-action: none; user-select: none; -webkit-user-select: none; }
-    #mixer-panel svg { display: block; width: 100%; height: 100%; }
 
     /* ---- rack (single scrolling viewport with a scaled content area) ---- */
     #rack { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; background: var(--bg); }
@@ -167,6 +124,7 @@
     .rack-overview { position: fixed; z-index: 4001; background: #14110d; }
     .rack-overview canvas { display: block; }
     .rack-overview-vp { position: absolute; left: 0; top: 0; will-change: transform; border: 2px solid var(--accent); background: rgba(224,163,83,0.10); box-sizing: border-box; pointer-events: none; }   /* positioned by transform so a move is a GPU composite, not a repaint over the dimmed backdrop */
+    .rack-overview-cable { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }   /* a cable in hand, redrawn over the frozen picture so the pull stays visible while you navigate */
     .rack-ghost {
       position: absolute; top: 0; pointer-events: none; z-index: 25;   /* above the dragged module (z 20) so the drop outline shows even when dragging right, over the original */
       border: 2px dashed var(--accent); border-radius: 4px; background: rgba(224,163,83,0.12);
@@ -212,7 +170,7 @@
     /* ---- patch cables (SVG overlay; pointer-transparent) ---- */
     .rack-cables { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 12; overflow: visible; }
     .rack-cable { fill: none; stroke-linecap: round; opacity: 0.95; }
-    .rack-cable-temp { opacity: 0.95; }   /* dragged cord looks like a real thick cable — no dash, no fade */
+    .rack-cable-temp { opacity: 0.95; }   /* the cord in hand looks like a real thick cable — no dash, no fade */
     /* ---- radial pie menus (right-click) ---- */
     .pie-overlay { position: fixed; inset: 0; z-index: 3000; cursor: none; }
     .pie-svg { position: fixed; overflow: visible; filter: drop-shadow(0 2px 7px rgba(0,0,0,0.35)); }
@@ -222,38 +180,9 @@
     .pie-icon { position: fixed; transform: translate(-50%,-50%); pointer-events: none; color: var(--ink); line-height: 0; }
     .pie-icon svg { width: 13px; height: 13px; display: block; fill: currentColor; }
     .pie-cursor { position: fixed; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.5); background: #bfbfbf; pointer-events: none; }
-    #toolbar { display: none; }   /* toolbar retired; controls moved to the panel pie + app menu */
   </style>
 </head>
 <body>
-  <div id="toolbar">
-    <button id="hamburger" title="Menu" aria-label="Menu">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="4" y="6" width="16" height="2.4" rx="1"/>
-        <rect x="4" y="11" width="16" height="2.4" rx="1"/>
-        <rect x="4" y="16" width="16" height="2.4" rx="1"/>
-      </svg>
-    </button>
-    <div id="tools">
-      <button id="onoff" aria-label="Sound on/off" title="Sound on/off">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <polygon class="ico-play" points="7,5 19,12 7,19"/>
-          <rect class="ico-stop" x="6" y="6" width="12" height="12" rx="2"/>
-        </svg>
-      </button>
-      <button id="scopebtn" aria-label="Add signal scope" title="Add signal scope">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="5" width="18" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
-          <path d="M5 13 Q8 7 11 13 T17 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
-      </button>
-    </div>
-    <div id="master-group">
-      <div id="master-knob"></div>
-      <div id="master-vu" class="vu" aria-hidden="true"></div>
-    </div>
-    <svg id="toolbar-lines" aria-hidden="true"></svg>
-  </div>
   <div id="rack"></div>
 
   <script type="module" src="debug/rack-app.js"></script>

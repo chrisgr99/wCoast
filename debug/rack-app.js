@@ -2,13 +2,11 @@
 //
 // Wires the module registry, the audio host, the Rack, and the output Mixer
 // together. The mixer is a pinned rack module (bottom row) — its channel jacks
-// and master fader live on its own faceplate, NOT on the toolbar. The mixer IS
-// the output — a module only makes sound once its output is patched into a mixer
-// channel; the master gain feeds your two outputs. Global controls (app menu,
-// start/stop, show-network) are reached from the panel pie and the app menu; the
-// top toolbar is retired (hidden from the layout so the modules fill the window),
-// its remaining wiring left in place for now. Every per-parameter module control
-// lives on the module faceplates.
+// and master fader live on its own faceplate. The mixer IS the output — a module
+// only makes sound once its output is patched into a mixer channel; the master
+// gain feeds your two outputs. Global controls (app menu, start/stop,
+// show-network) are reached from the panel pie and the app menu. Every
+// per-parameter module control lives on the module faceplates.
 
 import { ModuleRegistry } from '../host/registry.js';
 import { SynthHost } from '../host/host.js';
@@ -23,42 +21,12 @@ import fnDescriptor from '../modules/function-gen-281t/descriptor.js';
 import { create as fnCreate } from '../modules/function-gen-281t/factory.js';
 import galleryDescriptor from '../modules/gallery/descriptor.js';
 import { create as galleryCreate } from '../modules/gallery/factory.js';
-import { parsePanel, attachControlInteraction, showValue } from '../host/panel-loader.js';
 import { serialize, restore, validate } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
 import { buildCatalogue, createMirror } from '../host/mirror.js';
 import { createAudioTrace } from '../host/audio-trace.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
-
-// The toolbar master knob: the house blue-ring knob (dark theme) as a self-
-// contained SVG, tagged data-wcoast-param="master" so the panel loader binds it
-// and gives it the scroll-flywheel — the same control the module panels use.
-function masterKnobSvg() {
-  const ink = '#b8b8bc', ringStroke = '#6fa8d6', capStroke = '#b8b8bc';
-  const cap0 = '#3a3d43', cap1 = '#4c5058', cap2 = '#5a5f67', cap3 = '#6b7079';
-  const cx = 8, cy = 8, r = 5, cap = +(r * 0.72).toFixed(2), N = 7, angMin = -150, angMax = 150;
-  const a0 = angMin * Math.PI / 180, a1 = angMax * Math.PI / 180;
-  let ticks = '';
-  for (let k = 0; k < N; k++) {
-    const a = a0 + (k / (N - 1)) * (a1 - a0);
-    const x1 = (cx + Math.sin(a) * (r + 0.3)).toFixed(2), y1 = (cy - Math.cos(a) * (r + 0.3)).toFixed(2);
-    const x2 = (cx + Math.sin(a) * (r + 1.0)).toFixed(2), y2 = (cy - Math.cos(a) * (r + 1.0)).toFixed(2);
-    ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${ink}" stroke-width="0.3"/>`;
-  }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="1 1 14 14">
-    <defs>
-      <filter id="mkShadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0.47" dy="0.59" stdDeviation="0.47" flood-color="#000" flood-opacity=".28"/></filter>
-      <radialGradient id="mkCap"><stop offset="0" stop-color="${cap0}"/><stop offset="0.4" stop-color="${cap1}"/><stop offset="0.62" stop-color="${cap2}"/><stop offset="1" stop-color="${cap3}"/></radialGradient>
-      <radialGradient id="mkRing"><stop offset="0" stop-color="#1688cc"/><stop offset="0.55" stop-color="#006da8"/><stop offset="1" stop-color="#003d62"/></radialGradient>
-    </defs>
-    <g data-wcoast-param="master" data-wcoast-cx="${cx}" data-wcoast-cy="${cy}" data-wcoast-angle-min="${angMin}" data-wcoast-angle-max="${angMax}">
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#mkRing)" stroke="${ringStroke}" stroke-width="0.355" filter="url(#mkShadow)"/>${ticks}
-      <circle cx="${cx}" cy="${cy}" r="${cap}" fill="url(#mkCap)" stroke="${capStroke}" stroke-width="0.2366"/>
-      <line x1="${cx}" y1="${cy}" x2="${cx}" y2="${(cy - cap).toFixed(2)}" stroke="${ink}" stroke-width="0.55" data-wcoast-role="indicator"/>
-    </g>
-  </svg>`;
-}
 
 const registry = new ModuleRegistry();
 registry.register({ descriptor: oscDescriptor, create: oscCreate });
@@ -126,7 +94,6 @@ async function boot() {
   let dirty = false, patchName = null, mirror = null, booted = false;
   rack = new Rack(document.getElementById('rack'), {
     host, moduleTypes: MODULE_TYPES, rowCount: 2, dark: darkMode, onChange: () => onEdit(),
-    onScopeArm: (on) => document.getElementById('scopebtn').classList.toggle('on', on),
   });
   rack.relayout();
 
@@ -136,9 +103,6 @@ async function boot() {
   const mixRec = await rack.addModule(mixerDescriptor.id, rack.rowCount - 1, 0, { pinned: true, key: 'mixer' });
   mixer = { instanceId: mixRec.instanceId, instance: mixRec.instance };
   trace = createAudioTrace({ ctx: audioCtx, rack, mixer: mixer.instance });
-
-  // Controls.
-  const onoff = document.getElementById('onoff');
 
   // Unsaved-changes tracking (state declared above the rack). Any knob, switch,
   // cable, or mixer change dirties the patch; loading or saving cleans it. The
@@ -150,33 +114,18 @@ async function boot() {
   // Any patch edit: mark dirty and re-project the mirror.
   function onEdit() { markDirty(); autosaveSession(); if (mirror) mirror.project(); }
 
-  // Master level: a house-style KNOB (a one-knob panel run through the panel loader,
-  // so it gets the exact look and the scroll-flywheel) mirrors the mixer module's
-  // master param — both drive the panel fader and the audio. The On/Off toggle
-  // gates the output through the master MUTE, so it silences without changing level.
+  // Master level lives on the mixer module's own faceplate; this is just the last read of
+  // it, kept for the AI mirror's `master` field. Re-read it whenever the fader may have
+  // moved without us (a bulk reset, a patch restore).
   let masterValue = Number(mixRec.values.get('master'));
-  const knobHost = document.getElementById('master-knob');
-  knobHost.innerHTML = masterKnobSvg();
-  const { controls: masterControls } = parsePanel(knobHost.querySelector('svg'),
-    { params: [{ id: 'master', curve: 'gainDb', min: 0, max: 1, default: 0.7 }], ports: [] });
-  const masterKnob = masterControls.get('master');
-  const syncToolbarMaster = () => { masterValue = Number(mixRec.values.get('master')); showValue(masterKnob, masterValue); };
-  attachControlInteraction(masterKnob, {
-    get: () => masterValue,
-    set: (v) => { masterValue = Math.max(0, Math.min(1, v)); showValue(masterKnob, masterValue); rack.applyParam(mixRec, 'master', masterValue); },
-  });
-  // "Add scope" arm: next drag off a port drops a probe there; disarms after one.
-  document.getElementById('scopebtn').addEventListener('click', () => rack.toggleScopeArm());
-  syncToolbarMaster();
+  const syncMaster = () => { masterValue = Number(mixRec.values.get('master')); };
 
-  // Overall sound is ONE state (`started`), shared by the toolbar On/Off button, the
-  // panel-pie sound wedge, and the mixer's master-enable lamp — all move together
-  // through setSound. The output is gated by the master MUTE (silences without changing
+  // Overall sound is ONE state (`started`), shared by the panel-pie sound wedge and the
+  // mixer's master-enable lamp — both move together through setSound. The output is gated by the master MUTE (silences without changing
   // level); the audio context resumes on the first enable. The LED/lamp being lit means
   // sound is on.
   const setSound = (on) => {
     started = on;
-    onoff.classList.toggle('on', on);
     if (on) audioCtx.resume();
     rack.applyParam(mixRec, 'masterMute', on ? 'on' : 'off');
     updateTrace();
@@ -189,7 +138,6 @@ async function boot() {
     if (on) audioCtx.resume();
     rack.applyParam(mixRec, 'masterMute', on ? 'on' : 'off');
   };
-  onoff.addEventListener('click', () => setSound(!started));
   rack.setSound = setSound;                     // latch overall sound on/off
   rack.soundPeek = soundPeek;                   // momentary audition (sound-wedge hover)
   rack.setTransport = setSound;                 // compat alias
@@ -197,18 +145,17 @@ async function boot() {
   rack.isPlaying = () => started;
   rack.applyParam(mixRec, 'masterMute', started ? 'on' : 'off');   // lamp matches the (off) start state
 
-  // After a bulk control reset (clear-patch command, and its undo/redo) the rack has
-  // moved the mixer's own params, but the toolbar master knob is a separate mirror and
-  // the master mute must track the On/Off button — reconcile both here.
+  // After a bulk control reset (clear-patch command, and its undo/redo) the rack has moved
+  // the mixer's own params, so re-read the master level, and the master mute must track the
+  // latched sound state — reconcile both here.
   rack.onControlsReset = () => {
-    syncToolbarMaster();
+    syncMaster();
     rack.applyParam(mixRec, 'masterMute', started ? 'on' : 'off');
   };
 
   // --- VU meters -------------------------------------------------------------
   // One rAF loop reads the mixer instance's per-channel + master RMS and lights
-  // the pre-drawn LED rings (fill the ring when lit, clear it when not), plus the
-  // toolbar's horizontal master meter.
+  // the pre-drawn LED rings (fill the ring when lit, clear it when not).
   const vuColumns = [...mixRec.panel.svg.querySelectorAll('[data-wcoast-role="vu"],[data-wcoast-role="vuMaster"],[data-wcoast-role="vuMonitor"]')].map((g) => ({
     chan: g.getAttribute('data-wcoast-chan'),
     segs: [...g.querySelectorAll('[data-wcoast-seg]')].sort(
@@ -219,11 +166,6 @@ async function boot() {
   // tracks perceived loudness (a linear meter crowds everything at the top).
   const VU_FLOOR_DB = -48;
   const vuScale = (rms) => { if (rms <= 0) return 0; const db = 20 * Math.log10(rms); return Math.max(0, Math.min(1, (db - VU_FLOOR_DB) / -VU_FLOOR_DB)); };
-
-  const masterVuEl = document.getElementById('master-vu');
-  const TB_SEGS = 16;
-  const tbSegs = [];
-  if (masterVuEl) for (let i = 0; i < TB_SEGS; i++) { const s = document.createElement('span'); masterVuEl.appendChild(s); tbSegs.push(s); }
 
   // Master PEAK reader (not RMS): peak is what makes a signal "too loud", so an ear
   // monitor auto-levels against the loudest PEAK the main output has actually reached.
@@ -239,8 +181,6 @@ async function boot() {
       const lit = Math.round(vuScale(level) * n);
       for (let i = 0; i < n; i++) col.segs[i].setAttribute('fill', i < lit ? vuColour(i, n) : 'none');
     }
-    const mLit = Math.round(vuScale(lv.master) * TB_SEGS);
-    for (let i = 0; i < tbSegs.length; i++) tbSegs[i].style.background = i < mLit ? vuColour(i, TB_SEGS) : '';
     requestAnimationFrame(paintVU);
   }
   requestAnimationFrame(paintVU);
@@ -365,8 +305,7 @@ async function boot() {
     return { ok: true };
   }
 
-  // The toolbar hamburger — and the panel pie's app-menu wedge — open the File menu,
-  // reusing the rack's pop-up menu.
+  // The panel pie's app-menu wedge opens the File menu, reusing the rack's pop-up menu.
   // Hierarchical menu: the top level shows File / Edit / View; hovering (or clicking) a
   // heading opens its submenu, Electron-style.
   const openAppMenu = (x, y) => {
@@ -408,10 +347,6 @@ async function boot() {
       { label: 'Help', submenu: rack.helpMenuItems() },
     ]);
   };
-  document.getElementById('hamburger').addEventListener('click', (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    openAppMenu(r.left, r.bottom + 4);
-  });
   rack.onAppMenu = openAppMenu;              // panel-pie app-menu wedge
 
   // Standard file shortcuts (we dropped the native File menu): Cmd/Ctrl-S save,
@@ -446,7 +381,7 @@ async function boot() {
       // Require at least one module — a module-less session is boot-transient junk,
       // not a patch worth resuming; fall through to the default instead.
       if (v.ok && obj.modules && obj.modules.length) {
-        await restore(obj, rack, mixerIO); syncToolbarMaster(); resumed = true;
+        await restore(obj, rack, mixerIO); syncMaster(); resumed = true;
         // Re-adopt the file this session was editing, so File > Save writes back to it (not a fresh prompt).
         try { const n = await storage.adoptLast(); if (n) patchName = n; } catch (_e) { /* fileless resume */ }
       }
@@ -467,9 +402,9 @@ async function boot() {
   // ensure it's enabled so the running patch is always mirrored.
   if (mirror.available() && !mirror.isEnabled()) { try { await mirror.setEnabled(true); } catch (_e) { /* ignore */ } updateTrace(); }
 
-  // Re-fit once after the toolbar has claimed its final height. In Electron the
-  // ready-to-show gate means this is already correct; a bare browser settles its
-  // flex layout a beat later, so the boot-time fit can be measured too tall.
+  // Re-fit once the layout has settled. In Electron the ready-to-show gate means this is
+  // already correct; a bare browser settles its flex layout a beat later, so the boot-time
+  // fit can be measured too tall.
   requestAnimationFrame(() => rack.relayout());
 
   maybeShowIntro();

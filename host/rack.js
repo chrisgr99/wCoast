@@ -76,6 +76,7 @@ const VIEW_ZOOM_MAX = 8;
 const PAN_SCROLL_GAIN = 2;   // Option-scroll pans this many px per px of scroll (2× so it keeps up)
 const VIEW_EASE_MS = 500;
 const VIEW_COMMIT_MS = 1000;   // overview commit glides old→new view over this long
+const OVERVIEW_INSET = 40;     // px the overview picture is held off the window edge — a landing strip for the pointer
 const VIEW_EASE = 'cubic-bezier(0, 0.55, 0.45, 1)';   // easeOutCirc — instant start, gentle deceleration
 const SCOPE_HANDLE = 10.5;     // grab-handle size (3/4 of the old 14px dot): a rounded tab — semicircle edge kissing the loop,
                                // slightly-rounded outer corners, filled in the callout colour. Also the shortest the loop→viewer line may get.
@@ -144,7 +145,6 @@ export class Rack {
     this.moduleTypes = opts.moduleTypes;
     this.onChange = opts.onChange || (() => {});
     this.onSelect = opts.onSelect || (() => {});   // module the pointer entered (deixis)
-    this.onScopeArm = opts.onScopeArm || (() => {});  // "add scope" armed/disarmed (for the toolbar button)
     // Panel-pie hooks into app-level actions the rack doesn't own (set by rack-app).
     this.onAppMenu = opts.onAppMenu || (() => {});    // open the app (File) menu at (x,y)
     this.onTransport = opts.onTransport || (() => {}); // toggle start/stop sound
@@ -194,13 +194,8 @@ export class Rack {
     this._tempCable = null;    // live cord element while dragging a new/regrabbed cable
     this._dragEdgeId = null;   // edge whose end is being dragged (hidden meanwhile)
     this._highlights = null;   // candidate rings thickened during a drag
-    this._gripTimer = null;    // pending (delayed) grab cursor
     this._contentWmm = 0;
     this._contentHmm = 0;
-    this.mixer = null;         // LEGACY/UNUSED: the old toolbar output mixer. The mixer
-                               // is a pinned rack module now (setMixer is never called),
-                               // so `this.mixer` stays null and its branches are dead.
-    this._toolbarCords = [];   // legacy: cords to the old toolbar mixer (unused)
 
     // The connection layer: the netlist + audio wiring (host/patchbay.js), and
     // an SVG overlay the cords are drawn onto (pointer-transparent, so it never
@@ -237,8 +232,11 @@ export class Rack {
         this._swallowClick = false;
       }
     }, true);
-    // View navigation is the overview navigator, opened by the Command key (see the keydown handler below);
-    // there is no scroll-to-pan. Plain scroll is left entirely to the control under the pointer.
+    // A press while Option is held means the hold was used for something else — grabbing a jack to pull a
+    // cable, say — so it's not a tap: releasing Option must NOT pop the overview up mid-pull.
+    document.addEventListener('pointerdown', () => { if (this._optDown) this._optUsed = true; }, true);
+    // View navigation is the overview navigator, opened by an Option tap (see the keydown handler below).
+    // Plain scroll is left entirely to the control under the pointer; Option+scroll pans the view.
     // Double-click a panel BACKGROUND (not a control — those reset themselves) glides back to fit-to-window.
     this.container.addEventListener('dblclick', (e) => {
       if (e.target.closest && e.target.closest('[data-wcoast-param]')) return;
@@ -251,7 +249,7 @@ export class Rack {
     document.addEventListener('wheel', (e) => {
       if (this._ovActive || !e.altKey) return;   // overview owns its own wheel; plain scroll stays with controls
       e.preventDefault(); e.stopPropagation();
-      this._optScrolled = true;
+      this._optUsed = true;
       this._panBusyUntil = performance.now() + 300;
       this.content.style.transition = '';
       let dx = e.deltaX, dy = e.deltaY;
@@ -260,15 +258,11 @@ export class Rack {
       this._clampPan();
       this._applyTransform();
     }, { passive: false, capture: true });
-    // (Legacy: the old toolbar-mixer cords tracked scroll here; `this.mixer` is
-    // always null now, so this is a no-op.)
-    this.container.addEventListener('scroll', () => { if (this.mixer) this._drawCables(); });
-    // Any pointer release ends a cable drag; clear the grip cursor (and cancel a
-    // pending grip so a quick click never flashes it).
+    // Any pointer release may have ended a module move or a connect — refresh the overview picture if the
+    // rack changed. (The carry cursor is NOT cleared here: cabling is click-to-carry, so the cord outlives
+    // every release and each pull owns `grabbing-cable` from its start to its own finish.)
     document.addEventListener('pointerup', () => {
-      if (this._gripTimer) { clearTimeout(this._gripTimer); this._gripTimer = null; }
-      document.body.classList.remove('grabbing-cable');
-      this._scheduleOverviewBuild();   // any drag/connect/move ends here → refresh the overview picture if it changed
+      this._scheduleOverviewBuild();
     }, true);
     // A cable body is click-through, so it fires no hover events of its own.
     // Detect a hovered cable by proximity and reveal its middle reshape handle.
@@ -303,74 +297,31 @@ export class Rack {
       e.preventDefault();
       this._isolateSubnet(hov.key, hov.portId, dir);
     });
-    // OPTION is the view-navigation modifier. Holding it turns the wheel into a pan (Option-scroll below);
-    // a clean Option TAP — press and release without scrolling — opens the overview navigator. So the
-    // thumbnail only appears on release, leaving Option+scroll free to move the view while held. Inside the
-    // overview: move to aim, scroll to resize, click to commit; Escape / any other key / a blur cancels.
+    // OPTION is the view-navigation modifier, and a clean TAP of it TOGGLES the overview: press-and-release
+    // once to open it, again to dive into the orange rectangle. Nothing happens until RELEASE, which leaves
+    // Option+scroll free to pan the live view while held — and a scroll during the hold marks it as a
+    // pan gesture, so the tap is suppressed (no open, no commit). Escape / any other key / a blur cancels.
     document.addEventListener('keydown', (e) => {
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      if (e.key === 'Alt') { if (!this._ovActive) { this._optDown = true; this._optScrolled = false; } return; }
+      if (e.key === 'Alt') { this._optDown = true; this._optUsed = false; this._updateNavClass(); return; }
       if (this._ovActive) this._cancelOverview();   // Escape or any other key → close without moving
     });
     document.addEventListener('keyup', (e) => {
       if (e.key !== 'Alt') return;
-      const wasTap = this._optDown && !this._optScrolled;
+      const wasTap = this._optDown && !this._optUsed;
       this._optDown = false;
-      if (wasTap && !this._ovActive) this._showOverview();   // clean tap (no pan) → open the navigator
+      if (wasTap) {
+        if (this._ovActive) this._commitOverview();   // second tap → dive into the rectangle
+        else this._showOverview();                    // first tap → open the navigator
+      }
+      this._updateNavClass();   // gesture over (unless the overview just opened)
     });
-    window.addEventListener('blur', () => { this._optDown = false; if (this._ovActive) this._cancelOverview(); });
+    window.addEventListener('blur', () => { this._optDown = false; if (this._ovActive) this._cancelOverview(); this._updateNavClass(); });
   }
 
-  // LEGACY / UNUSED. Registered the old toolbar output mixer as a patch endpoint
-  // back when the mixer's jacks lived on the toolbar. The mixer is a pinned rack
-  // module now and this is never called; kept only until the dead `this.mixer`
-  // branches are stripped out.
-  setMixer(mixer) {
-    this.mixer = mixer;
-    for (const [portId, svg] of mixer.jacks) {
-      const el = (svg.closest && svg.closest('.toolbar-jack')) || svg;
-      // data-jack-* lets a dropped cord hit-test this jack. The mixer end of a
-      // cord has no stub, so pressing a connected mixer jack GRABS its cord (drag
-      // off to move or delete); an empty jack starts a new one. A plain click is
-      // reserved for the connection list. A small move threshold separates them.
-      el.dataset.jackKey = this.mixer.key;
-      el.dataset.jackPort = portId;
-      el.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        e.preventDefault();
-        const startX = e.clientX, startY = e.clientY;
-        let started = false;
-        const cleanup = () => {
-          document.removeEventListener('pointermove', onMove);
-          document.removeEventListener('pointerup', onUp);
-        };
-        const onMove = (ev) => {
-          if (started || Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
-          started = true;
-          cleanup();
-          // Same rule as a module jack: drag along a cord grabs it, a fresh direction (or an
-          // empty jack) pulls a new one. See _grabDecision.
-          const dir = unit(ev.clientX - startX, ev.clientY - startY);
-          const grab = this._grabDecision(this.mixer.key, portId, dir);
-          if (grab) this._startRegrab(e, grab.edge, grab.grabbedEnd);
-          else this._startCable(e, this.mixer.key, portId);
-        };
-        const onUp = () => { cleanup(); };   // a clean click does nothing
-        document.addEventListener('pointermove', onMove);
-        document.addEventListener('pointerup', onUp);
-      });
-    }
-    this._drawCables();
-  }
-
-  // A patch endpoint (module or mixer) resolved to a common shape.
+  // A patch endpoint resolved to a common shape.
   _ep(key, portId) {
-    if (this.mixer && key === this.mixer.key) {
-      const meta = this.host.registry.portById(this.mixer.descriptorId, portId);
-      return meta ? { key, portId, instance: this.mixer.instance, descriptorId: this.mixer.descriptorId, meta } : null;
-    }
     const rec = this.records.get(key);
     const port = rec && rec.panel.ports.get(portId);
     return port ? { key, portId, instance: rec.instance, descriptorId: rec.descriptorId, meta: port.meta, rec } : null;
@@ -503,7 +454,7 @@ export class Rack {
   connectPatch(from, to) { return this._tryConnect(from, to); }
   redrawCables() { this._drawCables(); }
   reconcileLinks() { this._reconcileLinks(); }   // public: patch-io calls this after restoring wiring
-  // Open the shared pop-up menu at (x, y) — reused by the toolbar hamburger.
+  // Open the shared pop-up menu at (x, y) — reused by the panel pie's app-menu wedge.
   openMenu(x, y, items) { this._openMenu(x, y, items); }
 
   // The rendered height of a module at default zoom (zoom 1), in px — used to
@@ -546,7 +497,7 @@ export class Rack {
   relayout() {
     const vpH = this.container.clientHeight || 600;
     const vpW = this.container.clientWidth || 800;
-    // No top/bottom padding — the first row sits flush under the toolbar; rows
+    // No top/bottom padding — the first row sits flush with the top of the window; rows
     // are separated only by ROW_GAP_MM (0 = touching).
     const contentHmm = this.rowCount * PANEL_H_MM + (this.rowCount - 1) * ROW_GAP_MM;
     const fit = vpH / contentHmm;           // fill the viewport height at zoom 1
@@ -584,6 +535,7 @@ export class Rack {
     this.content.style.transformOrigin = '0 0';
     this.content.style.transform = `translate(${r2(this._tx)}px, ${r2(this._ty)}px) scale(${r2(this.zoom)})`;
     this._reprojectViewers();   // scopes/monitors live outside the transform, so move+scale them to match
+    if (this._viewMovedHook) this._viewMovedHook();   // a cable in hand re-anchors to the pointer (see _startLinkRegrab)
   }
 
   // Scopes/monitors float in screen space (outside the transformed content), so move + scale them to ride
@@ -627,16 +579,18 @@ export class Rack {
     if (port) { const mm = this._clientToMm(r.left, r.top); v.offMmX = mm.x - port.x; v.offMmY = mm.y - port.y; }
   }
 
-  // Keep at least a slice of the rack on screen so a pan/zoom can't strand you in empty space — but stay
-  // LOOSE, so zooming near an edge is free to pull the rack away from that edge (no pinning, no drift).
+  // Keep the window FULL of rack: an edge of the rack can never pull away from the matching window edge and
+  // leave a strip showing nothing. So panning right can't drag the rack's left edge inward, and so on. The
+  // window's content box must stay inside the rack: tx ∈ [vpW - cw, 0], ty ∈ [vpH - ch, 0]. (When the rack
+  // is somehow narrower/shorter than the window, that collapses to 0 — pinned to the top-left, which is the
+  // only gap we can't help.)
   _clampPan() {
     const vpW = this.container.clientWidth || 0, vpH = this.container.clientHeight || 0;
     if (vpW <= 0 || vpH <= 0) return;   // not laid out yet — don't clamp against a zero viewport
     const cw = (this._contentWmm || 0) * this.pxPerMm * this.zoom;
     const ch = (this._contentHmm || 0) * this.pxPerMm * this.zoom;
-    const M = 120;   // keep at least this much of the rack on screen
-    this._tx = Math.min(vpW - M, Math.max(M - cw, this._tx));
-    this._ty = Math.min(vpH - M, Math.max(M - ch, this._ty));
+    this._tx = Math.min(0, Math.max(vpW - cw, this._tx));
+    this._ty = Math.min(0, Math.max(vpH - ch, this._ty));
   }
 
   _placeEl(rec) {
@@ -650,22 +604,7 @@ export class Rack {
   // A jack's anchor is in panel-viewBox mm; convert to content mm (which the
   // overlay's viewBox uses, so cords line up at any zoom). Everything is mm here
   // and the overlay is px-sized in _drawCables, so a zoom needs no path rework.
-  // A toolbar mixer jack's position projected into content mm (it lives above
-  // the rack, so its content y is negative; the cord is clipped at the seam and
-  // the toolbar line covers the rest).
-  _mixerJackPosMm(portId) {
-    const svg = this.mixer && this.mixer.jacks.get(portId);
-    if (!svg) return null;
-    const r = svg.getBoundingClientRect();
-    // Emerge from the middle of the coloured ring (hole r=4.4, outer r=10 in the
-    // 24-unit jack) on its lower edge, so the cord blends into the jack.
-    const ringScreen = r.height * (7.2 / 24);
-    const p = this._clientToMm(r.left + r.width / 2, r.top + r.height / 2 + ringScreen);
-    return { x: p.x, y: p.y, r: 1.2, ring: 1.2 };
-  }
-
   _jackPosMm(key, portId) {
-    if (this.mixer && key === this.mixer.key) return this._mixerJackPosMm(portId);
     const rec = this.records.get(key);
     if (!rec) return null;
     const port = rec.panel.ports.get(portId);
@@ -763,13 +702,8 @@ export class Rack {
       this.cables.appendChild(p);
       return p;
     };
-    this._toolbarCords = [];
     for (const e of this.patchbay.list()) {
       if (e.id === this._dragEdgeId) continue; // hidden while its end is being dragged
-      if (this.mixer && (e.src.key === this.mixer.key || e.dst.key === this.mixer.key)) {
-        this._drawMixerEdge(e, wmm, mk);
-        continue;
-      }
       const g = this._cordGeom(e);
       if (!g) continue;
       const color = STYLE_COLOR[e.style] || STYLE_COLOR.control;
@@ -830,25 +764,6 @@ export class Rack {
       this._tempCable.setAttribute('stroke-width', r2(wmm));
       this.cables.appendChild(this._tempCable);
     }
-    this._drawToolbarCords();
-  }
-
-  // A cord to a toolbar mixer jack. We compute ONE cord from the jack (T, above
-  // the seam) to the module (M), and draw the SAME path in both overlays: the
-  // rack overlay clips it below the seam, the toolbar overlay clips it above —
-  // so it's one continuous curve with no kink where they meet.
-  _drawMixerEdge(e, wmm, mk) {
-    const mixerEnd = e.src.key === this.mixer.key ? 'src' : 'dst';
-    const moduleEnd = mixerEnd === 'src' ? 'dst' : 'src';
-    const other = e[moduleEnd];
-    const T = this._mixerJackPosMm(e[mixerEnd].portId);
-    const M = this._jackPosMm(other.key, other.portId);
-    if (!T || !M) return;
-    const color = STYLE_COLOR[e.style] || STYLE_COLOR.control;
-    const op = this._cableOpacity(e);
-    const path = this._toolbarCordPath(T, M, wmm);
-    mk(path, color, wmm, op, null);                    // rack part (clipped below the seam)
-    this._toolbarCords.push({ path, color, wmm, opacity: op });   // toolbar part (same path, clipped above)
   }
 
   // A cable is faint (one-third opaque) by default; the cables of the module
@@ -891,7 +806,6 @@ export class Rack {
     const cr = this.cables.getBoundingClientRect(), s = this.pxPerMm || 1;
     const set = new Set();
     for (const e of this.patchbay.list()) {
-      if (this.mixer && (e.src.key === this.mixer.key || e.dst.key === this.mixer.key)) continue;   // mixer cords drawn elsewhere
       const g = this._cordGeom(e);
       if (!g) continue;
       const chord = Math.hypot(g.pB.x - g.pA.x, g.pB.y - g.pA.y);
@@ -913,7 +827,6 @@ export class Rack {
     const thr = 8 / ((this.pxPerMm || 1) * this.zoom);
     let best = null, bestD = thr;
     for (const e of this.patchbay.list()) {
-      if (this.mixer && (e.src.key === this.mixer.key || e.dst.key === this.mixer.key)) continue;
       const g = this._cordGeom(e);
       if (!g) continue;
       let prev = g.pA;
@@ -948,43 +861,6 @@ export class Rack {
     const near = this._nearestCable(this._clientToMm(ev.clientX, ev.clientY));
     const id = near ? near.id : null;
     if (id !== this._hoverCableEdgeId) { this._hoverCableEdgeId = id; this._drawCables(); }
-  }
-
-  // Rack cord for a toolbar edge. It leaves T straight down, PAST the seam by a
-  // fixed drop, so at the seam the cord is vertical — tangent to the toolbar
-  // line — before it curves to M's rim aiming at M's centre.
-  _toolbarCordPath(T, M, w) {
-    const u = unit(M.x - T.x, M.y - T.y);           // T -> M
-    const p3 = { x: M.x - u.x * M.ring, y: M.y - u.y * M.ring };   // middle of M's coloured band
-    const drop = Math.max(0, -T.y) + 10;            // clear the seam (y=0) vertically
-    const c1 = { x: T.x, y: T.y + drop };
-    const h = Math.max(8, Math.hypot(p3.x - c1.x, p3.y - c1.y) * 0.4);
-    const c2 = { x: p3.x - u.x * h, y: p3.y - u.y * h };  // radial into M
-    return `M${r2(T.x)},${r2(T.y)} C${r2(c1.x)},${r2(c1.y)} ${r2(c2.x)},${r2(c2.y)} ${r2(p3.x)},${r2(p3.y)}`;
-  }
-
-  // Draw the toolbar half of each mixer cord: the SAME content-mm path, in a
-  // group transformed so content mm maps to toolbar screen px. The overlay clips
-  // it at the seam (toolbar bottom); the rack overlay draws the rest — so the two
-  // halves are one continuous curve.
-  _drawToolbarCords() {
-    if (!this.mixer || !this.mixer.linesSvg) return;
-    const svg = this.mixer.linesSvg;
-    svg.textContent = '';
-    if (!this._toolbarCords.length) return;
-    const cr = this.content.getBoundingClientRect();
-    const tb = this.mixer.toolbarEl.getBoundingClientRect();
-    const g = document.createElementNS(SVG_NS, 'g');
-    g.setAttribute('transform', `translate(${r2(cr.left - tb.left)},${r2(cr.top - tb.top)}) scale(${r2(this.pxPerMm)})`);
-    for (const c of this._toolbarCords) {
-      const p = document.createElementNS(SVG_NS, 'path');
-      p.setAttribute('d', c.path); p.setAttribute('fill', 'none');
-      p.setAttribute('stroke', c.color); p.setAttribute('stroke-width', r2(c.wmm));
-      p.setAttribute('stroke-linecap', 'round');
-      if (c.opacity != null) p.style.opacity = String(c.opacity);
-      g.appendChild(p);
-    }
-    svg.appendChild(g);
   }
 
   // ---- drag-to-patch ----
@@ -1026,64 +902,28 @@ export class Rack {
     return `M${r2(p0.x)},${r2(p0.y)} L${r2(p3.x)},${r2(p3.y)}`;
   }
 
-  // Show the cable-grab cursor, but only after a short delay — so a quick click
-  // never flashes it, while a real drag (held past the delay) gets it. The pending
-  // timer is cancelled on pointerup.
-  _gripCursor() {
-    if (this._gripTimer) clearTimeout(this._gripTimer);
-    this._gripTimer = setTimeout(() => {
-      this._gripTimer = null;
-      document.body.classList.add('grabbing-cable');
-    }, 150);
-  }
-
-  // Jack pointerdown (LEFT button only — the menu opens on a RIGHT click). The FIRST move
-  // off the jack decides, by its DIRECTION, whether to grab an existing cord (drag along
-  // its line — _grabDecision) or pull a new one (a fresh direction, or an empty jack). A
-  // plain click (press-release, no move) doesn't commit: it ARMS the same decision, made on
-  // the first move afterwards, then carried STICKY (no button held) until you click a jack.
-  // stopPropagation keeps the press from starting a module drag. `key` is a rack module or
-  // the mixer.
+  // Jack pointerdown (LEFT button only — the menu opens on a RIGHT click). Cabling is CLICK-TO-CARRY and
+  // nothing else: the press commits to nothing, and on RELEASE it arms a pick whose new-vs-grab choice is
+  // made by the first move afterwards (_armStickyPick), then carried with no button held until you click to
+  // drop. Holding the button and dragging deliberately does NOT pull a cord — it can't be made to work with
+  // view navigation (Option-scroll pan and the overview both need a free hand mid-pull), and one model beats
+  // two that behave differently. A press-drag-release still lands you in the carry, from wherever you let go.
+  // stopPropagation keeps the press from starting a module drag. `key` is a rack module or the mixer.
   _onJackPointerDown(e, key, portId) {
     e.stopPropagation();
     if (e.button !== 0) return;
     e.preventDefault();
-    // "Add scope" armed: press a port and drag off; on release a scope drops there,
-    // probing this port. Never touches the cable logic.
-    if (this._scopeArm) { this._placeScope(e, key, portId); return; }
-    const startX = e.clientX, startY = e.clientY;
-    const TH = 6;                       // px of movement that means "drag", not "click" (trackball-tolerant)
-    let dragging = false;
-    const cleanup = () => {
-      document.removeEventListener('pointermove', onMove);
+    const onUp = (ev) => {
       document.removeEventListener('pointerup', onUp);
+      this._armStickyPick(key, portId, ev.clientX, ev.clientY);
     };
-    const onMove = (ev) => {
-      if (dragging) return;
-      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) >= TH) {
-        dragging = true;
-        cleanup();
-        // The move direction decides: along an existing cord grabs it (re-route its end),
-        // a fresh direction (or an empty jack) pulls a new cord. See _grabDecision.
-        const dir = unit(ev.clientX - startX, ev.clientY - startY);
-        const grab = this._grabDecision(key, portId, dir);
-        if (grab && grab.edge.link) this._startLinkRegrab(e, grab.edge, grab.linkEnd, false);
-        else if (grab) this._startRegrab(e, grab.edge, grab.grabbedEnd);
-        else this._startCable(e, key, portId);
-      }
-    };
-    // A clean click (no drag) commits to nothing yet: it ARMS a sticky pick whose new-vs-grab
-    // choice is made by the first move afterwards (_armStickyPick). It fires on release, so a
-    // press that became a drag is already a cable and never reaches here.
-    const onUp = (ev) => { cleanup(); this._armStickyPick(key, portId, ev.clientX, ev.clientY); };
-    document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
   }
 
-  // After a plain click on a jack, wait for the first pointer move and THEN decide, by its
-  // direction, whether to carry an existing cord or a new one — both STICKY (no button held,
-  // dropped by a later click). Before that first move a fresh click, a right-click, or Escape
-  // cancels the armed pick, so a mis-click leaves nothing behind.
+  // After a click on a jack, wait for the first pointer move and THEN decide, by its direction,
+  // whether to carry an existing cord or a new one — either way with no button held, dropped by a
+  // later click. Before that first move a fresh click, a right-click, or Escape cancels the armed
+  // pick, so a mis-click leaves nothing behind.
   _armStickyPick(key, portId, cx, cy) {
     const TH = 6;
     const cleanup = () => {
@@ -1097,7 +937,7 @@ export class Rack {
       cleanup();
       const dir = unit(ev.clientX - cx, ev.clientY - cy);
       const grab = this._grabDecision(key, portId, dir);
-      if (grab && grab.edge.link) this._startLinkRegrab(null, grab.edge, grab.linkEnd, true, ev.clientX, ev.clientY);
+      if (grab && grab.edge.link) this._startLinkRegrab(grab.edge, grab.linkEnd, ev.clientX, ev.clientY);
       else if (grab) this._startStickyRegrab(grab.edge, grab.grabbedEnd, ev.clientX, ev.clientY);
       else this._startStickyCable(key, portId, ev.clientX, ev.clientY);
     };
@@ -1109,58 +949,11 @@ export class Rack {
     document.addEventListener('keydown', onKey, true);
   }
 
-  // Start a NEW cable by dragging from a jack. A live straight cord trails the
-  // pointer; on release over an opposite-direction jack it connects (the patchbay
-  // orients output->input). Anything can patch into anything (DESIGN §2), so every
-  // opposite-direction jack is a candidate regardless of domain.
-  _startCable(e, key, portId) {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    this._gripCursor();
-    const ep = this._ep(key, portId);
-    const a = this._jackPosMm(key, portId);
-    if (!ep || !a) return;
-    const meta = ep.meta;
-    const wmm = CABLE_PX / (this._fit || 1);
-    const tmp = document.createElementNS(SVG_NS, 'path');
-    tmp.setAttribute('class', 'rack-cable rack-cable-temp');
-    tmp.setAttribute('stroke', STYLE_COLOR[domainStyle(meta.domain)]);
-    tmp.setAttribute('stroke-width', r2(wmm));
-    this._tempCable = tmp;
-    this.cables.appendChild(tmp);
-    // Dragging FROM an input can also drop on another FED input to MULT it (share its signal).
-    const originIsInput = meta.dir === 'in';
-    this._highlightCandidates(meta.dir === 'out' ? 'in' : 'out', null, originIsInput);
 
-    const wantDir = meta.dir === 'out' ? 'in' : 'out';
-    const onMove = (ev) => {
-      const m = this._clientToMm(ev.clientX, ev.clientY);
-      tmp.setAttribute('d', this._cordPath(a, a.r, m, 0, wmm));
-      this._armTarget(this._jackNear(ev.clientX, ev.clientY), wantDir, null, { key, portId }, originIsInput);
-    };
-    const onUp = (ev) => {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-      tmp.remove();
-      this._tempCable = null;
-      this._disarmTarget();
-      this._clearHighlights();
-      const drop = this._jackNear(ev.clientX, ev.clientY);
-      if (drop && (drop.key === key && drop.portId === portId)) {
-        /* released back on the origin jack: it was really a click — do nothing */
-      } else if (drop) {
-        this._recordCableAdd(this._tryConnect({ key, portId }, drop));
-      }
-    };
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
-  }
-
-  // Sticky (click-to-pick-up, click-to-drop) cabling: a plain click on a jack starts a
-  // cord that FOLLOWS the cursor with NO button held — so you can scroll, zoom, and
-  // roam freely to find the target instead of dragging the whole way. A second LEFT
-  // click drops it: on a jack it connects, elsewhere it cancels. Escape or a right
-  // click also cancel. Coexists with press-drag cabling.
+  // Click-to-pick-up, click-to-drop cabling — the ONE way a cord is pulled. A click on a
+  // jack starts a cord that FOLLOWS the cursor with NO button held, so you can scroll, zoom
+  // and roam freely to find the target. A second LEFT click drops it: on a jack it connects,
+  // elsewhere it cancels. Escape or a right click also cancel.
   _startStickyCable(key, portId, cx, cy) {
     const ep = this._ep(key, portId);
     const a = this._jackPosMm(key, portId);
@@ -1184,104 +977,45 @@ export class Rack {
       this._armTarget(this._jackNear(clientX, clientY), wantDir, null, { key, portId }, originIsInput);
     };
     track(cx, cy);
-    const onMove = (ev) => track(ev.clientX, ev.clientY);
-    const onScroll = () => track(lastX, lastY);   // keep the end under the cursor after a scroll with no move
+    this._ovCable = { pos: a, color: STYLE_COLOR[domainStyle(meta.domain)], wmm };   // so the overview can draw the pull over its picture
+    // While the overview is up the pointer aims the frame, not the cable — so don't redraw the (hidden) cable,
+    // but DO keep following the pointer, so the dive re-arms the cable where the pointer actually ended up.
+    const onMove = (ev) => { if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; } track(ev.clientX, ev.clientY); };
+    // The VIEW can move with the cable in hand (Option-scroll pan, or the overview's dive). The free end is
+    // anchored in rack space, so it would slide off the pointer — re-arm it at the last pointer position on
+    // every view move (see _applyTransform) and it stays glued there.
+    const onScroll = () => track(lastX, lastY);
     const finish = () => {
+      this._viewMovedHook = null; this._ovCable = null;
       document.removeEventListener('pointermove', onMove, true);
       document.removeEventListener('pointerdown', onDrop, true);
       document.removeEventListener('contextmenu', onCtx, true);
       document.removeEventListener('keydown', onKey, true);
-      this.container.removeEventListener('scroll', onScroll, true);
       tmp.remove(); this._tempCable = null;
       this._disarmTarget(); this._clearHighlights();
       document.body.classList.remove('grabbing-cable');
     };
     const onDrop = (ev) => {
+      if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }   // the click aims the overview's frame, not the cable — but note the pointer, so the dive re-arms there
       if (ev.button !== 0) return;   // right-click is handled by onCtx; middle is ignored
       ev.preventDefault(); ev.stopPropagation();
       const drop = this._jackNear(ev.clientX, ev.clientY);
       finish();
       if (drop && !(drop.key === key && drop.portId === portId)) this._recordCableAdd(this._tryConnect({ key, portId }, drop));
     };
-    const onCtx = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); };   // right click cancels (no pie)
-    const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); finish(); } };
+    const onCtx = (ev) => { if (this._ovActive) return; ev.preventDefault(); ev.stopPropagation(); finish(); };   // right click cancels (no pie)
+    const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); } };
     document.addEventListener('pointermove', onMove, true);
     document.addEventListener('pointerdown', onDrop, true);
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', onKey, true);
-    this.container.addEventListener('scroll', onScroll, true);
+    this._viewMovedHook = onScroll;
   }
 
 
-  // Re-route an existing cable: grabbed at one of its ports (grabbedEnd), drag that
-  // end to another valid port to move it, or onto nothing to delete. Fixed end stays.
-  _startRegrab(ev, edge, grabbedEnd) {
-    if (ev.button !== 0) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    this._gripCursor();
-    const fixed = grabbedEnd === 'src' ? edge.dst : edge.src;
-    const grabbed = grabbedEnd === 'src' ? edge.src : edge.dst;
-    const fixedEp = this._ep(fixed.key, fixed.portId);
-    const fixedPos = this._jackPosMm(fixed.key, fixed.portId);
-    if (!fixedEp || !fixedPos) return;
-    const fixedMeta = fixedEp.meta;
-    const wantDir = fixedMeta.dir === 'out' ? 'in' : 'out';
-    const wmm = CABLE_PX / (this._fit || 1);
-    const savedBow = edge.bow;
-    const origSnap = this._edgeSnapshot(edge);   // for undo of a move/remove
 
-    // Break the connection IMMEDIATELY, so pulling a cord off a terminal mutes its
-    // effect the moment you drag it — you hear the patch WITHOUT it while you decide
-    // where (or whether) to re-drop it. Dropping it back on its port restores it (depth
-    // comes from the input's own knob; bow is carried over).
-    this.patchbay.disconnect(edge);
-    this._drawCables();
-    const reconnect = (jp) => {
-      const e = this._tryConnect({ key: fixed.key, portId: fixed.portId }, jp);
-      if (e && savedBow != null && jp.key === grabbed.key && jp.portId === grabbed.portId) { e.bow = savedBow; this._drawCables(); }
-    };
-
-    const tmp = document.createElementNS(SVG_NS, 'path');
-    tmp.setAttribute('class', 'rack-cable rack-cable-temp');
-    tmp.setAttribute('stroke', STYLE_COLOR[domainStyle(fixedMeta.domain)]);
-    tmp.setAttribute('stroke-width', r2(wmm));
-    this._tempCable = tmp;
-    this.cables.appendChild(tmp);
-    this._highlightCandidates(wantDir);
-
-    const onMove = (e2) => {
-      const m = this._clientToMm(e2.clientX, e2.clientY);
-      tmp.setAttribute('d', this._cordPath(fixedPos, fixedPos.r, m, 0, wmm));
-      this._armTarget(this._jackNear(e2.clientX, e2.clientY), wantDir, null, null);   // origin null: the cord is already disconnected, so its OWN port is a valid re-drop and should arm
-    };
-    const onUp = (e2) => {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-      tmp.remove();
-      this._tempCable = null;
-      this._disarmTarget();
-      this._clearHighlights();
-      const drop = this._jackNear(e2.clientX, e2.clientY);
-      const droppedBack = drop && drop.key === grabbed.key && drop.portId === grabbed.portId;
-      const candidate = drop && this._isCandidate(drop, wantDir);
-      const occupied = candidate && wantDir === 'in' && this.patchbay.inputOccupied(drop.key, drop.portId, null);
-      if (droppedBack || (candidate && occupied)) {
-        reconnect(grabbed);                              // dropped back, or target taken → put it back (no net change, no undo)
-      } else if (candidate) {
-        const ne = this._tryConnect({ key: fixed.key, portId: fixed.portId }, drop);   // reconnect to the new port (a move)
-        if (ne) { const ns = this._edgeSnapshot(ne); this._pushUR({ undo: () => { this._removeCable(ns); this._restoreCable(origSnap); }, redo: () => { this._removeCable(origSnap); this._restoreCable(ns); } }); }
-      } else {
-        this._reconcileLinks(); this._drawCables(); this.onChange();   // dropped on nothing → broken; links on the freed input fall away
-        this._pushUR({ undo: () => this._restoreCable(origSnap), redo: () => this._removeCable(origSnap) });   // pull-off removal
-      }
-    };
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
-  }
-
-  // Sticky re-route: the button-up twin of _startRegrab. The grabbed end of an existing cord
-  // FOLLOWS the cursor with no button held (scroll/zoom/roam freely); a later LEFT click drops
+  // Re-route an existing cord: the grabbed end FOLLOWS the cursor with no button held
+  // (scroll/zoom/roam freely to find the target); a later LEFT click drops
   // it — on a valid jack it moves there, on empty space it disconnects (leaves it broken). The
   // cord is broken the instant it's picked up, so you audition the patch without it while you
   // decide. Right-click or Escape ABORTS and restores the original connection (no net change).
@@ -1316,14 +1050,19 @@ export class Rack {
       this._armTarget(this._jackNear(clientX, clientY), wantDir, null, null);   // origin null: the cord is already off, so its own port re-arms
     };
     track(cx, cy);
-    const onMove = (ev) => track(ev.clientX, ev.clientY);
+    this._ovCable = { pos: fixedPos, color: STYLE_COLOR[domainStyle(fixedMeta.domain)], wmm };   // so the overview can draw the pull over its picture
+    // While the overview is up the pointer aims the frame, not the cable — don't redraw the (hidden) cable,
+    // but DO keep following the pointer, so the dive re-arms it where the pointer actually ended up.
+    const onMove = (ev) => { if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; } track(ev.clientX, ev.clientY); };
+    // The VIEW can move with the cable in hand (Option-scroll pan, or the overview's dive) — re-arm at the
+    // last pointer position on every view move (see _applyTransform) so the end stays glued to the pointer.
     const onScroll = () => track(lastX, lastY);
     const finish = () => {
+      this._viewMovedHook = null; this._ovCable = null;
       document.removeEventListener('pointermove', onMove, true);
       document.removeEventListener('pointerdown', onDrop, true);
       document.removeEventListener('contextmenu', onCtx, true);
       document.removeEventListener('keydown', onKey, true);
-      this.container.removeEventListener('scroll', onScroll, true);
       tmp.remove(); this._tempCable = null;
       this._disarmTarget(); this._clearHighlights();
       document.body.classList.remove('grabbing-cable');
@@ -1334,6 +1073,7 @@ export class Rack {
       this._drawCables();
     };
     const onDrop = (ev) => {
+      if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }   // the click aims the overview's frame, not the cable — but note the pointer, so the dive re-arms there
       if (ev.button !== 0) return;   // right-click is handled by onCtx; middle is ignored
       ev.preventDefault(); ev.stopPropagation();
       const drop = this._jackNear(ev.clientX, ev.clientY);
@@ -1351,20 +1091,20 @@ export class Rack {
         this._pushUR({ undo: () => this._restoreCable(origSnap), redo: () => this._removeCable(origSnap) });
       }
     };
-    const onCtx = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); restore(); };   // right-click aborts → restore
-    const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); finish(); restore(); } };   // Escape aborts → restore
+    const onCtx = (ev) => { if (this._ovActive) return; ev.preventDefault(); ev.stopPropagation(); finish(); restore(); };   // right-click aborts → restore
+    const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); restore(); } };   // Escape aborts → restore
     document.addEventListener('pointermove', onMove, true);
     document.addEventListener('pointerdown', onDrop, true);
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', onKey, true);
-    this.container.addEventListener('scroll', onScroll, true);
+    this._viewMovedHook = onScroll;
   }
 
   // Grab a LINK (mult) cord and pull it: it hangs from the ANCHOR input it taps (link.to), and the
-  // shared-input end follows the cursor. Drop it on another empty input to re-target the share, back
-  // on nothing to remove it (dependents fall away). `sticky` picks the no-button-held twin. The
-  // cord is broken immediately so you hear the patch without it while you decide.
-  _startLinkRegrab(e, edge, linkEnd, sticky, cx, cy) {
+  // shared-input end follows the cursor with no button held. Click another empty input to re-target the
+  // share, click nothing to remove it (dependents fall away). The cord is broken immediately so you hear
+  // the patch without it while you decide.
+  _startLinkRegrab(edge, linkEnd, cx, cy) {
     const anchor = { key: edge.link.key, portId: edge.link.portId };   // the tapped input (A)
     const dstRef = { key: edge.dst.key, portId: edge.dst.portId };     // the sharing input (B)
     const grabAnchor = linkEnd === 'anchor';   // grabbed the A end (re-tap) vs the B end (re-share)
@@ -1383,65 +1123,61 @@ export class Rack {
     this._tempCable = tmp; this.cables.appendChild(tmp);
     // Re-tap targets a FED input (a new signal to share); re-share targets an EMPTY input.
     if (grabAnchor) this._highlightFedInputs(dstRef.key, dstRef.portId); else this._highlightCandidates('in');
-    if (sticky) document.body.classList.add('grabbing-cable');
+    document.body.classList.add('grabbing-cable');
 
     const armAt = (clientX, clientY) => {
-      tmp.setAttribute('d', this._cordPath(fixedPos, fixedPos.r, this._clientToMm(clientX, clientY), 0, wmm));
-      if (grabAnchor) this._armTarget(this._jackNear(clientX, clientY), 'out', null, dstRef, true);   // linkMode arms fed inputs
-      else this._armTarget(this._jackNear(clientX, clientY), 'in', null, anchor);
+    tmp.setAttribute('d', this._cordPath(fixedPos, fixedPos.r, this._clientToMm(clientX, clientY), 0, wmm));
+    if (grabAnchor) this._armTarget(this._jackNear(clientX, clientY), 'out', null, dstRef, true);   // linkMode arms fed inputs
+    else this._armTarget(this._jackNear(clientX, clientY), 'in', null, anchor);
     };
     const teardown = () => {
-      tmp.remove(); this._tempCable = null; this._disarmTarget(); this._clearHighlights();
-      if (sticky) document.body.classList.remove('grabbing-cable');
+    tmp.remove(); this._tempCable = null; this._disarmTarget(); this._clearHighlights();
+    document.body.classList.remove('grabbing-cable');
     };
     const pushMove = (ne) => { const ns = this._edgeSnapshot(ne); this._pushUR({ undo: () => { this._removeCable(ns); this._restoreCable(origSnap); }, redo: () => { this._removeCable(origSnap); this._restoreCable(ns); } }); };
     const remove = () => {
-      this._reconcileLinks(); this._drawCables(); this.onChange();   // dropped on nothing → removed (dependents fall away)
-      this._pushUR({ undo: () => this._restoreCable(origSnap), redo: () => this._removeCable(origSnap) });
+    this._reconcileLinks(); this._drawCables(); this.onChange();   // dropped on nothing → removed (dependents fall away)
+    this._pushUR({ undo: () => this._restoreCable(origSnap), redo: () => this._removeCable(origSnap) });
     };
     const commit = (drop) => {
-      if (grabAnchor) {
-        // re-tap: drop on another FED input; the sharing input B stays
-        const fed = drop && this._isLinkTarget(drop) && !(drop.key === dstRef.key && drop.portId === dstRef.portId);
-        if (fed) { const ne = this._tryConnect(drop, dstRef); if (ne) pushMove(ne); else this._restoreCable(origSnap); }
-        else remove();
-      } else {
-        // re-share: drop on an EMPTY input; the tapped input A stays
-        const empty = drop && this._isCandidate(drop, 'in') && !this.patchbay.inputOccupied(drop.key, drop.portId, null)
-          && !(drop.key === anchor.key && drop.portId === anchor.portId);
-        if (empty) { const ne = this._tryConnect(anchor, drop); if (ne) pushMove(ne); else this._restoreCable(origSnap); }
-        else remove();
-      }
+    if (grabAnchor) {
+      // re-tap: drop on another FED input; the sharing input B stays
+      const fed = drop && this._isLinkTarget(drop) && !(drop.key === dstRef.key && drop.portId === dstRef.portId);
+      if (fed) { const ne = this._tryConnect(drop, dstRef); if (ne) pushMove(ne); else this._restoreCable(origSnap); }
+      else remove();
+    } else {
+      // re-share: drop on an EMPTY input; the tapped input A stays
+      const empty = drop && this._isCandidate(drop, 'in') && !this.patchbay.inputOccupied(drop.key, drop.portId, null)
+        && !(drop.key === anchor.key && drop.portId === anchor.portId);
+      if (empty) { const ne = this._tryConnect(anchor, drop); if (ne) pushMove(ne); else this._restoreCable(origSnap); }
+      else remove();
+    }
     };
 
-    if (sticky) {
-      let lastX = cx, lastY = cy;
-      const track = (x, y) => { lastX = x; lastY = y; armAt(x, y); };
-      track(cx, cy);
-      // While the overview navigator is up (Command held mid-pull), the pointer aims the viewport, not the
-      // cable: freeze the cable and let neither a move nor a click-to-drop nor Escape act on it.
-      const onMove = (ev) => { if (this._ovActive) return; track(ev.clientX, ev.clientY); };
-      const onScroll = () => track(lastX, lastY);
-      const finish = () => {
-        document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerdown', onDrop, true);
-        document.removeEventListener('contextmenu', onCtx, true); document.removeEventListener('keydown', onKey, true);
-        this.container.removeEventListener('scroll', onScroll, true); teardown();
-      };
-      const onDrop = (ev) => { if (this._ovActive) return; if (ev.button !== 0) return; ev.preventDefault(); ev.stopPropagation(); const drop = this._jackNear(ev.clientX, ev.clientY); finish(); commit(drop); };
-      const onCtx = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); this._restoreCable(origSnap); };
-      const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); this._restoreCable(origSnap); } };
-      document.addEventListener('pointermove', onMove, true); document.addEventListener('pointerdown', onDrop, true);
-      document.addEventListener('contextmenu', onCtx, true); document.addEventListener('keydown', onKey, true);
-      this.container.addEventListener('scroll', onScroll, true);
-    } else {
-      if (e) this._gripCursor();
-      const onMove = (ev) => armAt(ev.clientX, ev.clientY);
-      const onUp = (ev) => {
-        document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
-        const drop = this._jackNear(ev.clientX, ev.clientY); teardown(); commit(drop);
-      };
-      document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
-    }
+    let lastX = cx, lastY = cy;
+    const track = (x, y) => { lastX = x; lastY = y; armAt(x, y); };
+    track(cx, cy);
+    this._ovCable = { pos: fixedPos, color: STYLE_COLOR[edge.style] || STYLE_COLOR.control, wmm };   // so the overview can draw the pull over its picture
+    // While the overview navigator is up (Option tapped mid-pull), the pointer aims the frame, not the
+    // cable: don't redraw the (hidden) cable, and let neither a click-to-drop nor Escape act on it. Keep
+    // FOLLOWING the pointer though, so the dive re-arms the cable where the pointer actually ended up.
+    const onMove = (ev) => { if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; } track(ev.clientX, ev.clientY); };
+    // The VIEW can move while the cable is in hand (Option-scroll pan, or the overview's dive). The cable's
+    // free end is anchored in rack space, so it would slide away from the pointer — re-arm it at the last
+    // pointer position on every view move (see _applyTransform), and it stays glued to the pointer.
+    const onScroll = () => track(lastX, lastY);
+    this._viewMovedHook = onScroll;
+    const finish = () => {
+      this._viewMovedHook = null; this._ovCable = null;
+      document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerdown', onDrop, true);
+      document.removeEventListener('contextmenu', onCtx, true); document.removeEventListener('keydown', onKey, true);
+      teardown();
+    };
+    const onDrop = (ev) => { if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; } if (ev.button !== 0) return; ev.preventDefault(); ev.stopPropagation(); const drop = this._jackNear(ev.clientX, ev.clientY); finish(); commit(drop); };
+    const onCtx = (ev) => { if (this._ovActive) return; ev.preventDefault(); ev.stopPropagation(); finish(); this._restoreCable(origSnap); };
+    const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); this._restoreCable(origSnap); } };
+    document.addEventListener('pointermove', onMove, true); document.addEventListener('pointerdown', onDrop, true);
+    document.addEventListener('contextmenu', onCtx, true); document.addEventListener('keydown', onKey, true);
   }
 
   // A jack is a valid drop target if it faces opposite the fixed end. Domain is
@@ -1560,9 +1296,8 @@ export class Rack {
     return { edge, grabbedEnd };
   }
 
-  // The SVG element of a jack (rack module or mixer), for the receive-cue enlarge.
+  // The SVG element of a jack, for the receive-cue enlarge.
   _jackElement(key, portId) {
-    if (this.mixer && key === this.mixer.key) return this.mixer.jacks.get(portId) || null;
     const rec = this.records.get(key);
     const port = rec && rec.panel.ports.get(portId);
     return port ? port.element : null;
@@ -2093,9 +1828,10 @@ export class Rack {
       const t = now || performance.now();
       const dt = Math.min(0.05, (t - this._flowLast) / 1000);
       this._flowLast = t;
-      // The overview is a frozen picture over everything — skip the per-frame cable-dash/opacity DOM work
-      // (invisible behind it) so it doesn't steal main-thread time from tracking the pointer.
-      if (this._ovActive) { this._flowRaf = requestAnimationFrame(tick); return; }
+      // Suspended for the whole of a view-navigation gesture — while Option is held (so Option-scroll pans
+      // smoothly) and while the frozen overview is up (where this work is invisible anyway). It's the
+      // per-frame cable-dash/opacity DOM writes that otherwise steal main-thread time from the pointer.
+      if (this._ovActive || this._optDown) { this._flowRaf = requestAnimationFrame(tick); return; }
       if (this._isolateNet) {
         this._tickIsolate(dt);   // isolate: per-terminal breathe + per-cable signal-driven crawl
       } else {
@@ -2123,13 +1859,11 @@ export class Rack {
   }
 
   // ---- floating signal scopes (transient probes) ----
-  // A small oscilloscope you attach to a port to watch its signal. Armed from the
-  // toolbar, then a drag off a port drops one there. Auto-ranging (no controls);
+  // A small oscilloscope you attach to a port to watch its signal — added from the port's
+  // right-click menu, which carries one out to where you click. Auto-ranging (no controls);
   // it auto-switches between a triggered audio waveform and a scrolling history for
   // slow CV/envelopes/gates. Callout: a ring around the port + a line to the scope.
   // Not part of the patch — never serialized.
-  setScopeArm(on) { this._scopeArm = !!on; document.body.classList.toggle('arming-scope', this._scopeArm); this.onScopeArm(this._scopeArm); }
-  toggleScopeArm() { this.setScopeArm(!this._scopeArm); }
 
   // Where a click-shown viewer (scope / ear monitor) lands: immediately RIGHT of the
   // menu, vertically centred on the pointer, so the middle of its left edge sits as
@@ -2261,51 +1995,6 @@ export class Rack {
       this._scopeOv = svg;
     }
     return this._scopeOv;
-  }
-
-  // Armed drag off a port: track to a drop point, drop a scope probing this port.
-  // Mouse-down on a port while armed: loop the port and drag out a scope-sized frame
-  // (with its callout) so you can see where the scope will land; it appears there on
-  // release.
-  // Drag a scope frame out and drop it. mode 'down' places it on the next pointer
-  // RELEASE (dragged out with a button held); mode 'up' places it on the next
-  // CLICK (hovered out of the pie with no button, tool now follows the cursor).
-  _placeScope(e, key, portId, mode = 'down') {
-    let cx = e.clientX, cy = e.clientY;
-    const ov = this._scopeOverlay();
-    const col = this.dark ? '#ffffff' : '#000000';
-    const ring = document.createElementNS(SVG_NS, 'circle'); ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', col); ring.setAttribute('stroke-width', '1.8'); ov.appendChild(ring);
-    const line = document.createElementNS(SVG_NS, 'line'); line.setAttribute('stroke', col); line.setAttribute('stroke-width', '1.8'); ov.appendChild(line);
-    const frame = document.createElement('div'); frame.className = 'scope scope-preview';
-    frame.style.width = '246px'; frame.style.height = '80px'; document.body.appendChild(frame);
-    const jel = this._jackElement(key, portId);
-    const place = (fx, fy) => {
-      frame.style.left = Math.round(fx) + 'px'; frame.style.top = Math.round(fy) + 'px';
-      if (!jel) return;
-      const jr = this._jackClientRect(jel);   // the terminal itself, NOT its wider hit-pad
-      const px = jr.left + jr.width / 2, py = jr.top + jr.height / 2, rr = Math.max(jr.width, jr.height) / 2 + 3;
-      ring.setAttribute('cx', r2(px)); ring.setAttribute('cy', r2(py)); ring.setAttribute('r', r2(rr));
-      const fr = frame.getBoundingClientRect();
-      const ex = px < fr.left + fr.width / 2 ? fr.left : fr.right, ey = py < fr.top + fr.height / 2 ? fr.top : fr.bottom;
-      const u = unit(ex - px, ey - py);
-      line.setAttribute('x1', r2(px + u.x * rr)); line.setAttribute('y1', r2(py + u.y * rr));
-      line.setAttribute('x2', r2(ex)); line.setAttribute('y2', r2(ey));
-    };
-    place(cx, cy);
-    const onMove = (ev) => { cx = ev.clientX; cy = ev.clientY; place(cx, cy); };
-    const finish = () => {
-      document.removeEventListener('pointermove', onMove, true);
-      document.removeEventListener('pointerup', onUp, true);
-      document.removeEventListener('pointerdown', onClick, true);
-      ring.remove(); line.remove(); frame.remove();
-      this._createScope(key, portId, cx, cy);
-      this.setScopeArm(false);   // one scope per arm
-    };
-    const onUp = () => finish();
-    const onClick = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); };
-    document.addEventListener('pointermove', onMove, true);
-    if (mode === 'up') document.addEventListener('pointerdown', onClick, true);
-    else document.addEventListener('pointerup', onUp, true);
   }
 
   _createScope(key, portId, x, y, showCallout = true) {
@@ -2453,8 +2142,9 @@ export class Rack {
       const t = now || performance.now();
       const dt = this._scopeLast ? Math.min(0.05, (t - this._scopeLast) / 1000) : 0.016;
       this._scopeLast = t;
-      // Frozen overview on top — skip scope drawing (invisible behind it) to keep the pointer tracking snappy.
-      if (this._ovActive) { this._scopeRaf = requestAnimationFrame(tick); return; }
+      // Suspended for the whole navigation gesture — Option held, or the frozen overview up — so scope
+      // drawing can't steal main-thread time from panning / tracking the pointer.
+      if (this._ovActive || this._optDown) { this._scopeRaf = requestAnimationFrame(tick); return; }
       const k = 1 - Math.exp(-dt / SCOPE_FADE_TAU);
       for (const sc of this._scopes) {
         // One-shot autoset: frame the signal once it's present (or give up after the budget),
@@ -3346,7 +3036,7 @@ export class Rack {
   _startMonPulse() {
     if (this._monPulseRaf) return;
     const tick = () => {
-      if (this._ovActive) { this._monPulseRaf = requestAnimationFrame(tick); return; }   // paused behind the frozen overview
+      if (this._ovActive || this._optDown) { this._monPulseRaf = requestAnimationFrame(tick); return; }   // paused for the whole navigation gesture
       let any = false;
       for (const m of this._monitors) {
         if (!m.el.classList.contains('mon-live')) continue;
@@ -3678,8 +3368,6 @@ export class Rack {
     document.addEventListener('pointerup', onUp);
   }
 
-  // Orient the two jacks into (output -> input) and make the edge. Either end
-  // may be a module or the toolbar mixer.
   // The edge feeding an input (or null). Every edge — real or link — records the ROOT source
   // output as its src, so this edge's src IS the actual signal, even when it's itself a link.
   _incomingEdge(key, portId) {
@@ -3831,8 +3519,13 @@ export class Rack {
     const H0 = Math.max((this._contentHmm || 0) * pxmm, rackBottomPx);
     const winW = this.container.clientWidth || 0, winH = this.container.clientHeight || 0;
     if (W0 <= 0 || H0 <= 0 || winW <= 0 || winH <= 0) return null;
-    const cS = Math.min(winW / W0, winH / H0);   // fit the WHOLE content (incl. margins + probes) into the window
-    const ovW = W0 * cS, ovH = H0 * cS;          // fills the tighter dimension; the other letterboxes
+    // Fit the WHOLE content (incl. margins + probes) into the window, but hold it off the glass by a small
+    // inset. The grab clamp already puts every frame position within reach with the pointer on the picture,
+    // so this inset becomes a landing strip: the pointer stays on OUR window even jammed into a corner (or
+    // overshooting a little), which keeps click-to-accept working instead of hitting the app behind.
+    const inset = Math.min(OVERVIEW_INSET, winW * 0.06, winH * 0.06);
+    const cS = Math.min((winW - 2 * inset) / W0, (winH - 2 * inset) / H0);
+    const ovW = W0 * cS, ovH = H0 * cS;          // fills the tighter dimension (less the inset); the other letterboxes
     const mmC = pxmm * cS;                                  // overview px per mm
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const cv = document.createElement('canvas');
@@ -3913,14 +3606,32 @@ export class Rack {
     const el = document.createElement('div'); el.className = 'rack-overview'; el.style.display = 'none';
     const cv = document.createElement('canvas');
     const vp = document.createElement('div'); vp.className = 'rack-overview-vp';
-    el.appendChild(cv); el.appendChild(vp);
+    // A cable in hand is drawn LAST, over both the picture and the frame, so the pull stays legible while you aim.
+    const cs = document.createElementNS(SVG_NS, 'svg'); cs.setAttribute('class', 'rack-overview-cable');
+    const cp = document.createElementNS(SVG_NS, 'path'); cp.setAttribute('class', 'rack-cable rack-cable-temp');
+    cs.appendChild(cp);
+    el.appendChild(cv); el.appendChild(vp); el.appendChild(cs);
     document.body.appendChild(el);
-    this._ovEl = el; this._ovCanvasEl = cv; this._ovRectEl = vp;
+    this._ovEl = el; this._ovCanvasEl = cv; this._ovRectEl = vp; this._ovCableSvg = cs; this._ovCablePath = cp;
+  }
+
+  // Draw the cable in hand across the frozen picture: it hangs from its fixed jack (a stable mm position in
+  // the rack) and its free end follows the pointer, so while you aim the frame you can still see what you're
+  // holding and where it came from. The SVG's viewBox is the rack in mm, matching the cables' own space, so
+  // the same _cordPath geometry is reused and scales to the picture (thinner, exactly like the drawn cables).
+  _drawOverviewCable(clientX, clientY) {
+    const bm = this._ovBitmap, c = this._ovCable;
+    if (!bm || !c || !this._ovCablePath || !this._ovOrigin) return;
+    const pxmm = this.pxPerMm || 1;
+    const mx = (clientX - this._ovOrigin.left) / bm.cS / pxmm, my = (clientY - this._ovOrigin.top) / bm.cS / pxmm;
+    this._ovCablePath.setAttribute('d', this._cordPath(c.pos, c.pos.r, { x: mx, y: my }, 0, c.wmm));
   }
 
   _showOverview() {
     if (this._ovActive) return;
+    if (this._ovDiveTimer) this._hideOverview();   // a dive still finishing → reset it and open fresh
     this._ovActive = true;
+    this._updateNavClass();
     this._ensureOverviewEl();
     this._ovBackdrop.style.display = 'block';
     this._ovEl.style.display = 'block';
@@ -3955,6 +3666,19 @@ export class Rack {
     const tl = { x: -this._tx / this.zoom, y: -this._ty / this.zoom };   // the current view's top-left (base px)
     const clamped = this._updateOverviewRect(tl);
     this._ovGrab = { x: clamped.x - Lov.x, y: clamped.y - Lov.y };   // grab at the clamped start → drags rigidly
+    // A cable in hand: size the overlay to the picture, in the rack's own mm space, and hang it from its jack.
+    if (this._ovCableSvg) {
+      const c = this._ovCable;
+      this._ovCableSvg.style.display = c ? 'block' : 'none';
+      if (c) {
+        const pxmm = this.pxPerMm || 1;
+        this._ovCableSvg.setAttribute('viewBox', `0 0 ${r2(bm.ovW / bm.cS / pxmm)} ${r2(bm.ovH / bm.cS / pxmm)}`);
+        this._ovCableSvg.style.width = bm.ovW + 'px'; this._ovCableSvg.style.height = bm.ovH + 'px';
+        this._ovCablePath.setAttribute('stroke', c.color);
+        this._ovCablePath.setAttribute('stroke-width', r2(c.wmm));
+        if (p) this._drawOverviewCable(p.x, p.y);
+      }
+    }
   }
 
 
@@ -3989,26 +3713,46 @@ export class Rack {
     return this._ovLastTl;
   }
 
-  // Rigid grab: the frame drags one-for-one with the pointer. After each move the grab is RE-ANCHORED to
-  // where the frame actually landed (its clamped top-left), so at an edge there's no over-travel: the
-  // instant the pointer moves back toward open space — with room to go — the frame moves with it.
+  // Rigid grab: the frame drags one-for-one with the pointer. Two things keep that honest:
+  //  - the grab is RE-ANCHORED to where the frame actually landed, so shoving it into an edge leaves no
+  //    over-travel — move back toward open space and it comes with you at once;
+  //  - the grab is CLAMPED to the frame's own size, so the pointer is always somewhere inside the frame.
+  //    Without that, a frame that opened far from the pointer is held at arm's length and the pointer runs
+  //    off the window (where we stop getting moves) before the frame reaches the far edge. With it, every
+  //    frame position is reachable with the pointer still on the picture.
   _overviewMove(e) {
     if (!this._ovActive || !this._ovBitmap) return;
-    const cS = this._ovBitmap.cS;
+    const bm = this._ovBitmap, cS = bm.cS;
     const Lx = (e.clientX - this._ovOrigin.left) / cS, Ly = (e.clientY - this._ovOrigin.top) / cS;
-    const clamped = this._updateOverviewRect({ x: Lx + this._ovGrab.x, y: Ly + this._ovGrab.y });
-    this._ovGrab = { x: clamped.x - Lx, y: clamped.y - Ly };
+    const vpW = bm.winW / this._ovZoom, vpH = bm.winH / this._ovZoom;
+    const hold = (g, span) => Math.max(-span, Math.min(0, g));   // pointer stays within the frame
+    const clamped = this._updateOverviewRect({ x: Lx + hold(this._ovGrab.x, vpW), y: Ly + hold(this._ovGrab.y, vpH) });
+    this._ovGrab = { x: hold(clamped.x - Lx, vpW), y: hold(clamped.y - Ly, vpH) };
+    this._drawOverviewCable(e.clientX, e.clientY);   // a cable in hand trails the pointer across the picture
   }
-  // Scroll resizes the viewport (down shrinks/zooms in, up enlarges/zooms out), clamped to [1 module, whole
-  // picture]; the frame stays where it is.
+  // Scroll resizes the viewport, clamped to [1 module, whole picture]. Direction follows the ZOOM, not the
+  // frame: scroll UP shrinks the frame, because a smaller frame is a closer view — up means zoom in, as it
+  // does everywhere else. It resizes ABOUT THE POINTER — the pointer keeps its fractional spot in the frame — which is
+  // what lets you move and resize at the same time: both this and _overviewMove work off the live pointer,
+  // so interleaved wheel and move events compose instead of fighting. A scroll while Option is held marks
+  // the hold as a gesture, so releasing it won't be read as a tap.
   _overviewWheel(e) {
-    if (!this._ovActive) return;
+    if (!this._ovActive || !this._ovBitmap) return;
     e.preventDefault(); e.stopPropagation();
-    this._ovZoom = this._clampOverviewZoom(this._ovZoom * Math.exp(e.deltaY * 0.0015));
-    if (this._ovLastTl) this._updateOverviewRect(this._ovLastTl);
+    if (this._optDown) this._optUsed = true;
+    const bm = this._ovBitmap, cS = bm.cS;
+    const Lx = (e.clientX - this._ovOrigin.left) / cS, Ly = (e.clientY - this._ovOrigin.top) / cS;
+    const oldW = bm.winW / this._ovZoom, oldH = bm.winH / this._ovZoom;
+    const fx = oldW ? -this._ovGrab.x / oldW : 0.5, fy = oldH ? -this._ovGrab.y / oldH : 0.5;   // pointer's fraction of the frame
+    this._ovZoom = this._clampOverviewZoom(this._ovZoom * Math.exp(-e.deltaY * 0.0015));   // up (deltaY<0) → more zoom → smaller frame
+    const newW = bm.winW / this._ovZoom, newH = bm.winH / this._ovZoom;
+    const hold = (g, span) => Math.max(-span, Math.min(0, g));
+    this._ovGrab = { x: -fx * newW, y: -fy * newH };   // same fraction at the new size → grows/shrinks about the pointer
+    const clamped = this._updateOverviewRect({ x: Lx + this._ovGrab.x, y: Ly + this._ovGrab.y });
+    this._ovGrab = { x: hold(clamped.x - Lx, newW), y: hold(clamped.y - Ly, newH) };
   }
-  // A click in (or on) the overview commits, same as releasing Command. stopImmediatePropagation so a
-  // cable-pull's own pointerdown-to-drop (added earlier, so it'd fire first) can't drop mid-navigation.
+  // A click accepts the current framing and dives in, same as a second Option tap. Swallowed either way so
+  // it can't reach the rack sitting behind the frozen picture.
   _overviewDown(e) {
     if (!this._ovActive) return;
     e.preventDefault(); e.stopPropagation();
@@ -4016,28 +3760,59 @@ export class Rack {
     this._commitOverview();
   }
 
+  // Dive in: drop the real view at its destination instantly (invisible under the picture), then scale the
+  // frozen picture so the orange rectangle's region grows to fill the window, fading it out over the tail so
+  // it hands off to the crisp real view. Scaling a bitmap is a pure GPU transform, so the dive stays smooth.
   _commitOverview() {
     if (!this._ovActive) return;
     const bm = this._ovBitmap, r = this._ovRect;
-    this._hideOverview();   // thumbnail + dim vanish, so you watch the real view glide there
-    if (!bm || !r) return;
+    this._endOverviewSession();   // stop tracking + let the loops resume; the picture stays up for the dive
+    if (!bm || !r || !this._ovEl) { this._hideOverview(); return; }
     const cbx = (r.rx + r.rw / 2) / bm.cS, cby = (r.ry + r.rh / 2) / bm.cS;   // rect centre → base px
     this.zoom = this._ovZoom;
     this._tx = bm.winW / 2 - cbx * this.zoom;
     this._ty = bm.winH / 2 - cby * this.zoom;
     this._clampPan();
-    // Glide from the old view to the picked one over ~1s (scopes/monitors ride along and reproject onto ports).
-    this._setView(this.zoom, this._tx, this._ty, true, VIEW_COMMIT_MS);
+    this.content.style.transition = '';
+    this._applyTransform();   // instant — and unseen, beneath the picture
+    const crect = this.container.getBoundingClientRect();
+    const scale = bm.winW / r.rw;                                  // blow the rectangle up to fill the window
+    const dx = crect.left - this._ovOrigin.left - r.rx * scale;    // ...and land its top-left on the window's
+    const dy = crect.top - this._ovOrigin.top - r.ry * scale;
+    this._ovRectEl.style.display = 'none';                         // the frame has done its job
+    const fade = Math.round(VIEW_COMMIT_MS * 0.3), delay = VIEW_COMMIT_MS - fade;
+    this._ovEl.style.transformOrigin = '0 0';
+    this._ovEl.style.transition = `transform ${VIEW_COMMIT_MS}ms ${VIEW_EASE}, opacity ${fade}ms linear ${delay}ms`;
+    this._ovBackdrop.style.transition = `opacity ${fade}ms linear ${delay}ms`;
+    void this._ovEl.offsetWidth;   // flush, so the transition runs from where it sits now
+    this._ovEl.style.transform = `translate(${r2(dx)}px, ${r2(dy)}px) scale(${r2(scale)})`;
+    this._ovEl.style.opacity = '0';
+    this._ovBackdrop.style.opacity = '0';
+    clearTimeout(this._ovDiveTimer);
+    this._ovDiveTimer = setTimeout(() => { this._ovDiveTimer = null; this._hideOverview(); }, VIEW_COMMIT_MS + 40);
   }
   _cancelOverview() { this._hideOverview(); }
-  _hideOverview() {
-    if (!this._ovActive) return;
+  // True for the whole of a view-navigation gesture — Option held, or the overview up. Drives the body class
+  // that hides the scope/monitor leader lines (whose redraw loop is suspended, so they'd otherwise lag).
+  _updateNavClass() {
+    document.body.classList.toggle('view-navigating', !!(this._optDown || this._ovActive));
+  }
+  // Stop the interaction (handlers off, animation loops free to resume) without touching the picture.
+  _endOverviewSession() {
     this._ovActive = false;
-    if (this._ovEl) this._ovEl.style.display = 'none';
-    if (this._ovBackdrop) this._ovBackdrop.style.display = 'none';
+    this._updateNavClass();
     document.removeEventListener('pointermove', this._ovMove, true);
     document.removeEventListener('wheel', this._ovWheel, { capture: true });
     document.removeEventListener('pointerdown', this._ovDown, true);
+  }
+  // Hide + fully reset the picture (also ends a dive still in flight).
+  _hideOverview() {
+    this._endOverviewSession();
+    clearTimeout(this._ovDiveTimer); this._ovDiveTimer = null;
+    if (this._ovEl) { this._ovEl.style.display = 'none'; this._ovEl.style.transition = ''; this._ovEl.style.transform = ''; this._ovEl.style.opacity = ''; }
+    if (this._ovBackdrop) { this._ovBackdrop.style.display = 'none'; this._ovBackdrop.style.transition = ''; this._ovBackdrop.style.opacity = ''; }
+    if (this._ovRectEl) this._ovRectEl.style.display = '';
+    if (this._ovCableSvg) { this._ovCableSvg.style.display = 'none'; this._ovCablePath.removeAttribute('d'); }
   }
 
   // ---- placement: push-right collision (all in mm) ----
@@ -4120,7 +3895,7 @@ export class Rack {
       attachControlInteraction(b, {
         get: () => rec.values.get(b.id),
         // The master enable and the transport are one state: route the lamp through
-        // setSound so toggling it here also flips the pie/toolbar (and vice versa).
+        // setSound so toggling it here also flips the pie's sound wedge (and vice versa).
         set: (val) => { if (isMasterEnable) this.setSound(val === 'on'); else this._setParam(rec, b.id, val); },
       }, { hitGrowMm: btnGrow.get(b.id) || 0 });
       b.group.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -4340,9 +4115,8 @@ export class Rack {
 
   // ---- control (knob/switch) reset, used by the clear-patch command ----
   // Every module is reset, the pinned mixer included. onControlsReset lets the host
-  // resync its toolbar mirrors (master knob) and reconcile the master mute with the
-  // On/Off transport, so resetting masterMute can't leave the audio and button out of
-  // step.
+  // re-read the mixer's master level and reconcile the master mute with the latched sound
+  // state, so resetting masterMute can't leave the audio and the lamp out of step.
   _paramSnapshotAll() {
     const out = [];
     for (const rec of this.records.values()) out.push({ key: rec.key, values: new Map(rec.values) });
@@ -4384,7 +4158,7 @@ export class Rack {
     if (!type) return;
     const before = new Map(rec.values);
     for (const p of type.descriptor.params) if (rec.values.get(p.id) !== p.default) this._setParam(rec, p.id, p.default);
-    if (this.onControlsReset) this.onControlsReset();   // resync toolbar mirrors (mixer master)
+    if (this.onControlsReset) this.onControlsReset();   // re-read the mixer's master level
     const after = new Map(rec.values);
     let changed = false; for (const [id, v] of after) if (before.get(id) !== v) { changed = true; break; }
     if (!changed) return;
