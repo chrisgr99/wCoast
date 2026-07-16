@@ -68,6 +68,15 @@ const SCOPE_GRID_ZERO = 'rgba(150,190,150,0.9)';   // the grid's green-grey, bri
 const CALLOUT_OPACITY = 1;     // loop, line, and grab handle are OPAQUE — the muted border colour already reads as secondary
 const CALLOUT_COLOR = '#8a8d92';        // DARK mode: loop/line/handle in the scope's border grey (the .scope border) — reads as part of the frame on dark panels
 const CALLOUT_COLOR_LIGHT = '#5a5d62';  // LIGHT mode: a darker grey — the callout floats over LIGHT panels, where the border grey has no contrast
+const TITLE_BAND_MM = 5;                // a panel drags only by this-wide left-edge title band; a press further right doesn't move it
+// View navigation: Command-scroll pans; Command-click opens the overview navigator (a whole-rack picture)
+// to zoom + jump. VIEW_ZOOM_MAX caps magnification. VIEW_EASE(_MS) is used only by resetZoom's glide back
+// to the fit-to-window home view (View ▸ Fit to window, or double-click a panel background).
+const VIEW_ZOOM_MAX = 8;
+const PAN_SCROLL_GAIN = 2;   // Option-scroll pans this many px per px of scroll (2× so it keeps up)
+const VIEW_EASE_MS = 500;
+const VIEW_COMMIT_MS = 1000;   // overview commit glides old→new view over this long
+const VIEW_EASE = 'cubic-bezier(0, 0.55, 0.45, 1)';   // easeOutCirc — instant start, gentle deceleration
 const SCOPE_HANDLE = 10.5;     // grab-handle size (3/4 of the old 14px dot): a rounded tab — semicircle edge kissing the loop,
                                // slightly-rounded outer corners, filled in the callout colour. Also the shortest the loop→viewer line may get.
 // Compact base64 for a saved frozen-scope trace (Float32 samples) in the patch JSON.
@@ -151,7 +160,15 @@ export class Rack {
     for (let i = 0; i < this.rowCount; i++) this.rows.push([]);
     this.records = new Map();     // key -> record
     this.pxPerMm = 1;
-    this.zoom = 1;
+    this.zoom = 1;           // magnification, applied as a CSS transform on the content (not by rescaling the layout)
+    this._tx = 0; this._ty = 0;   // pan offset (px) of that transform — can be negative, so zoom can pin any point
+    this._easing = false;         // true mid-glide: freezes scope-anchor recompute so the animating position can't corrupt it
+    this._easeTimer = null;
+    this._lastPointer = null;     // last pointer pos over the rack — where the overview opens / frames
+    this._ovActive = false; this._ovBitmap = null; this._ovEl = null;   // overview navigator (hold Option)
+    this._ovMove = this._overviewMove.bind(this);
+    this._ovWheel = this._overviewWheel.bind(this);
+    this._ovDown = this._overviewDown.bind(this);
     this._hoverRec = null;   // module under the pointer
     this._cableCur = new Map();   // edge id -> current (eased) { body, dash } opacity, animated toward _cableTgt in the flow loop
     this._cableTgt = new Map();   // edge id -> target { body, dash } opacity set each _drawCables
@@ -220,9 +237,28 @@ export class Rack {
         this._swallowClick = false;
       }
     }, true);
-    // Pinch / ctrl-wheel to zoom (capture phase, so it beats a knob's wheel).
-    this.container.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) this._onPinch(e);
+    // View navigation is the overview navigator, opened by the Command key (see the keydown handler below);
+    // there is no scroll-to-pan. Plain scroll is left entirely to the control under the pointer.
+    // Double-click a panel BACKGROUND (not a control — those reset themselves) glides back to fit-to-window.
+    this.container.addEventListener('dblclick', (e) => {
+      if (e.target.closest && e.target.closest('[data-wcoast-param]')) return;
+      this.resetZoom();
+    });
+    // Option + scroll pans the main view (deltaX horizontal, deltaY vertical; Shift routes a vertical-only
+    // wheel to horizontal) whenever the overview isn't open. It also marks the Option press as a pan, so
+    // releasing Option after scrolling won't pop the thumbnail. Document capture + stopPropagation so it
+    // beats every control/scope/monitor wheel; a short freeze holds the scope/monitor anchors still.
+    document.addEventListener('wheel', (e) => {
+      if (this._ovActive || !e.altKey) return;   // overview owns its own wheel; plain scroll stays with controls
+      e.preventDefault(); e.stopPropagation();
+      this._optScrolled = true;
+      this._panBusyUntil = performance.now() + 300;
+      this.content.style.transition = '';
+      let dx = e.deltaX, dy = e.deltaY;
+      if (e.shiftKey && dx === 0) { dx = dy; dy = 0; }
+      this._tx -= dx * PAN_SCROLL_GAIN; this._ty -= dy * PAN_SCROLL_GAIN;
+      this._clampPan();
+      this._applyTransform();
     }, { passive: false, capture: true });
     // (Legacy: the old toolbar-mixer cords tracked scroll here; `this.mixer` is
     // always null now, so this is a no-op.)
@@ -232,11 +268,16 @@ export class Rack {
     document.addEventListener('pointerup', () => {
       if (this._gripTimer) { clearTimeout(this._gripTimer); this._gripTimer = null; }
       document.body.classList.remove('grabbing-cable');
+      this._scheduleOverviewBuild();   // any drag/connect/move ends here → refresh the overview picture if it changed
     }, true);
     // A cable body is click-through, so it fires no hover events of its own.
     // Detect a hovered cable by proximity and reveal its middle reshape handle.
     // Same pass: fade any cable that's covering the control the pointer is over.
-    this.container.addEventListener('pointermove', (e) => { this._updateCableHover(e); this._updateControlCableFade(e); this._updateNetOrigin(e); });
+    this.container.addEventListener('pointermove', (e) => {
+      this._lastPointer = { x: e.clientX, y: e.clientY };   // where the overview opens / frames
+      if (this._ovActive) return;   // navigating the overview — skip the rack's per-move cable/net hover work
+      this._updateCableHover(e); this._updateControlCableFade(e); this._updateNetOrigin(e);
+    });
     this.container.addEventListener('pointerleave', () => {
       let redraw = false;
       if (this._hoverCableEdgeId !== null) { this._hoverCableEdgeId = null; redraw = true; }
@@ -262,6 +303,23 @@ export class Rack {
       e.preventDefault();
       this._isolateSubnet(hov.key, hov.portId, dir);
     });
+    // OPTION is the view-navigation modifier. Holding it turns the wheel into a pan (Option-scroll below);
+    // a clean Option TAP — press and release without scrolling — opens the overview navigator. So the
+    // thumbnail only appears on release, leaving Option+scroll free to move the view while held. Inside the
+    // overview: move to aim, scroll to resize, click to commit; Escape / any other key / a blur cancels.
+    document.addEventListener('keydown', (e) => {
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.key === 'Alt') { if (!this._ovActive) { this._optDown = true; this._optScrolled = false; } return; }
+      if (this._ovActive) this._cancelOverview();   // Escape or any other key → close without moving
+    });
+    document.addEventListener('keyup', (e) => {
+      if (e.key !== 'Alt') return;
+      const wasTap = this._optDown && !this._optScrolled;
+      this._optDown = false;
+      if (wasTap && !this._ovActive) this._showOverview();   // clean tap (no pan) → open the navigator
+    });
+    window.addEventListener('blur', () => { this._optDown = false; if (this._ovActive) this._cancelOverview(); });
   }
 
   // LEGACY / UNUSED. Registered the old toolbar output mixer as a patch endpoint
@@ -340,27 +398,43 @@ export class Rack {
   // Only the PERMANENT ones (a temporary pie peek has showCallout === false). Endpoints
   // are module keys, which patch-io remaps to the fresh session keys on restore.
   serializeProbes() {
-    const at = (el) => ({ x: Math.round(parseFloat(el.style.left) || 0), y: Math.round(parseFloat(el.style.top) || 0) });
+    // Store each probe's home as an offset IN MM FROM ITS PORT (view-independent), so it reopens on the
+    // right spot regardless of the zoom/pan at save or load time — saving an absolute screen position was
+    // why probes came back displaced. Fall back to absolute px only if the port is somehow gone.
+    const offOf = (v) => {
+      const port = this._jackPosMm(v.key, v.portId);
+      if (port) { const r = v.el.getBoundingClientRect(); const mm = this._clientToMm(r.left, r.top); return { offX: r2(mm.x - port.x), offY: r2(mm.y - port.y) }; }
+      return { x: Math.round(parseFloat(v.el.style.left) || 0), y: Math.round(parseFloat(v.el.style.top) || 0) };
+    };
     const out = [];
     for (const sc of this._scopes) {
       if (sc.showCallout === false || !sc.key) continue;
-      const p = { kind: 'scope', module: sc.key, port: sc.portId, ...at(sc.el), w: sc.cssW, h: sc.cssH, vIdx: sc.vIdx, tIdx: sc.tIdx, vOffset: r2(sc.vOffset || 0), hOffset: r2(sc.hOffset || 0), grid: sc.gridOn ? 1 : 0, trigger: !!sc.trigger, trigLevel: r2(sc.trigLevel || 0), frozen: !!sc.frozen };
+      const p = { kind: 'scope', module: sc.key, port: sc.portId, ...offOf(sc), w: sc.cssW, h: sc.cssH, vIdx: sc.vIdx, tIdx: sc.tIdx, vOffset: r2(sc.vOffset || 0), hOffset: r2(sc.hOffset || 0), grid: sc.gridOn ? 1 : 0, trigger: !!sc.trigger, trigLevel: r2(sc.trigLevel || 0), frozen: !!sc.frozen };
       // A FROZEN scope also stores the paused trace, so the exact captured shape reopens with it.
       if (sc.frozen) this._saveFrozenTrace(sc, p);
       out.push(p);
     }
     for (const m of this._monitors) {
       if (m.showCallout === false || !m.key) continue;
-      out.push({ kind: 'monitor', module: m.key, port: m.portId, ...at(m.el), vol: r2(m.vol), muted: !!m.muted });
+      out.push({ kind: 'monitor', module: m.key, port: m.portId, ...offOf(m), vol: r2(m.vol), muted: !!m.muted });
     }
     return out;
   }
   // Recreate probes (called after modules + wiring exist, so an input probe finds its
   // feeding cord). Monitors restore their saved level rather than auto-levelling.
   restoreProbes(probes) {
+    // Turn the saved port-relative mm back into a screen position at the CURRENT view, so the probe lands
+    // exactly on its port. (Older patches only have absolute px — use that as-is.)
+    const rect = this.container.getBoundingClientRect();
+    const s = (this.pxPerMm || 1) * this.zoom;
+    const screenOf = (p) => {
+      const port = this._jackPosMm(p.module, p.port);
+      if (port && p.offX != null) return { x: rect.left + this._tx + (port.x + p.offX) * s, y: rect.top + this._ty + (port.y + p.offY) * s };
+      return { x: p.x || 60, y: p.y || 60 };
+    };
     for (const p of probes || []) {
       if (!p || !p.module || !p.port) continue;
-      const x = p.x || 60, y = p.y || 60;
+      const { x, y } = screenOf(p);
       if (p.kind === 'scope') {
         const sc = this._createScope(p.module, p.port, x, y);
         if (!sc) continue;
@@ -384,6 +458,7 @@ export class Rack {
         if (m && p.muted) this._toggleMonMute(m);
       }
     }
+    this._scheduleOverviewBuild();   // a freshly loaded patch → build the overview picture ahead of the first open
   }
   // Capture a frozen scope's displayed trace into the probe record. A triggerable (wave) scope draws
   // from the raw sample RING, so save the window it shows plus trigger/pan headroom; a slow (roll)
@@ -476,7 +551,10 @@ export class Rack {
     const contentHmm = this.rowCount * PANEL_H_MM + (this.rowCount - 1) * ROW_GAP_MM;
     const fit = vpH / contentHmm;           // fill the viewport height at zoom 1
     this._fit = fit;                        // px-per-mm at zoom 1 (for cord thickness)
-    this.pxPerMm = fit * this.zoom;
+    this.pxPerMm = fit;                     // BASE scale — the layout is drawn at zoom 1; the CSS transform below applies the zoom
+    // No native scrollbars at all: pan and zoom are a CSS transform on the content, so nothing overflows
+    // the (clipped) viewport in a way that would raise a bar.
+    this.container.style.overflow = 'hidden';
     const s = this.pxPerMm;
 
     let maxRightMm = 0;
@@ -494,7 +572,71 @@ export class Rack {
       el.style.width = (contentWmm * s) + 'px';
     }
     for (const rec of this.records.values()) this._placeEl(rec);
+    this._clampPan();
+    this._applyTransform();
     this._drawCables();
+    this._scheduleOverviewBuild();   // module layout / window size changed → refresh the overview picture
+  }
+
+  // Apply the current zoom + pan as one CSS transform on the content (origin top-left). The layout under
+  // it is drawn at base scale, so this scales AND positions the whole rack at once.
+  _applyTransform() {
+    this.content.style.transformOrigin = '0 0';
+    this.content.style.transform = `translate(${r2(this._tx)}px, ${r2(this._ty)}px) scale(${r2(this.zoom)})`;
+    this._reprojectViewers();   // scopes/monitors live outside the transform, so move+scale them to match
+  }
+
+  // Scopes/monitors float in screen space (outside the transformed content), so move + scale them to ride
+  // along with the zoomed scene. Their home is stored RELATIVE TO THE PORT they hang off (offMm, in mm),
+  // so the position derives from _jackPosMm — which follows the module and never round-trips through the
+  // scope's own pixel-rounded screen position. That's what stops them walking off during pan/zoom.
+  _reprojectViewers() {
+    if (!this._scopes && !this._monitors) return;
+    const rect = this.container.getBoundingClientRect();
+    const s = this.pxPerMm || 1;
+    const place = (v) => {
+      let ax = v.ax, ay = v.ay;
+      const port = v.offMmX != null ? this._jackPosMm(v.key, v.portId) : null;
+      if (port) { ax = (port.x + v.offMmX) * s; ay = (port.y + v.offMmY) * s; }   // port-relative → stable
+      if (ax == null) return;   // no anchor yet (created before its first frame) → leave it
+      v.el.style.left = r2(rect.left + this._tx + ax * this.zoom) + 'px';
+      v.el.style.top = r2(rect.top + this._ty + ay * this.zoom) + 'px';
+      v.el.style.transformOrigin = '0 0';
+      v.el.style.transform = `scale(${r2(this.zoom)})`;   // always a scale (even 1) so an eased glide can interpolate it
+      v.ax = ax; v.ay = ay;   // keep the base-px anchor in sync for anything else that reads it
+    };
+    if (this._scopes) for (const sc of this._scopes) place(sc);
+    if (this._monitors) for (const m of this._monitors) place(m);
+  }
+  // The scene-anchor (content-base px) of a viewer at a given screen position — stored so it reprojects.
+  _viewerAnchor(clientX, clientY) {
+    const rect = this.container.getBoundingClientRect();
+    return { ax: (clientX - rect.left - this._tx) / this.zoom, ay: (clientY - rect.top - this._ty) / this.zoom };
+  }
+  // Capture a viewer's home from where it sits right now — as an offset in mm from its PORT — so however
+  // it was moved (created, dragged, carried, restored) the home stays correct with no need to touch those
+  // paths. FROZEN while the view is transforming: reading the mid-move, pixel-rounded position then would
+  // let a tiny error accumulate every frame, which is exactly what displaced the scopes and monitors.
+  _anchorViewer(v) {
+    if (this._easing || (this._panBusyUntil && performance.now() < this._panBusyUntil)) return;   // mid-glide/pan: re-reading the moving position would corrupt the anchor
+    if (!v.el) return;
+    const r = v.el.getBoundingClientRect();   // scale origin is 0,0, so this top-left is the un-scaled position
+    const a = this._viewerAnchor(r.left, r.top);
+    v.ax = a.ax; v.ay = a.ay;
+    const port = this._jackPosMm(v.key, v.portId);
+    if (port) { const mm = this._clientToMm(r.left, r.top); v.offMmX = mm.x - port.x; v.offMmY = mm.y - port.y; }
+  }
+
+  // Keep at least a slice of the rack on screen so a pan/zoom can't strand you in empty space — but stay
+  // LOOSE, so zooming near an edge is free to pull the rack away from that edge (no pinning, no drift).
+  _clampPan() {
+    const vpW = this.container.clientWidth || 0, vpH = this.container.clientHeight || 0;
+    if (vpW <= 0 || vpH <= 0) return;   // not laid out yet — don't clamp against a zero viewport
+    const cw = (this._contentWmm || 0) * this.pxPerMm * this.zoom;
+    const ch = (this._contentHmm || 0) * this.pxPerMm * this.zoom;
+    const M = 120;   // keep at least this much of the rack on screen
+    this._tx = Math.min(vpW - M, Math.max(M - cw, this._tx));
+    this._ty = Math.min(vpH - M, Math.max(M - ch, this._ty));
   }
 
   _placeEl(rec) {
@@ -539,8 +681,8 @@ export class Rack {
   }
 
   _clientToMm(clientX, clientY) {
-    const r = this.content.getBoundingClientRect();
-    const s = this.pxPerMm || 1;
+    const r = this.content.getBoundingClientRect();   // already reflects the zoom+pan transform
+    const s = (this.pxPerMm || 1) * this.zoom;         // ...so screen px per mm is base × zoom
     return { x: (clientX - r.left) / s, y: (clientY - r.top) / s };
   }
 
@@ -768,7 +910,7 @@ export class Rack {
   // Nearest module-to-module cable to a point (mm), within a small pixel radius,
   // or null. Samples each cord's cubic and measures point-to-segment distance.
   _nearestCable(m) {
-    const thr = 8 / (this.pxPerMm || 1);
+    const thr = 8 / ((this.pxPerMm || 1) * this.zoom);
     let best = null, bestD = thr;
     for (const e of this.patchbay.list()) {
       if (this.mixer && (e.src.key === this.mixer.key || e.dst.key === this.mixer.key)) continue;
@@ -1276,16 +1418,18 @@ export class Rack {
       let lastX = cx, lastY = cy;
       const track = (x, y) => { lastX = x; lastY = y; armAt(x, y); };
       track(cx, cy);
-      const onMove = (ev) => track(ev.clientX, ev.clientY);
+      // While the overview navigator is up (Command held mid-pull), the pointer aims the viewport, not the
+      // cable: freeze the cable and let neither a move nor a click-to-drop nor Escape act on it.
+      const onMove = (ev) => { if (this._ovActive) return; track(ev.clientX, ev.clientY); };
       const onScroll = () => track(lastX, lastY);
       const finish = () => {
         document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerdown', onDrop, true);
         document.removeEventListener('contextmenu', onCtx, true); document.removeEventListener('keydown', onKey, true);
         this.container.removeEventListener('scroll', onScroll, true); teardown();
       };
-      const onDrop = (ev) => { if (ev.button !== 0) return; ev.preventDefault(); ev.stopPropagation(); const drop = this._jackNear(ev.clientX, ev.clientY); finish(); commit(drop); };
+      const onDrop = (ev) => { if (this._ovActive) return; if (ev.button !== 0) return; ev.preventDefault(); ev.stopPropagation(); const drop = this._jackNear(ev.clientX, ev.clientY); finish(); commit(drop); };
       const onCtx = (ev) => { ev.preventDefault(); ev.stopPropagation(); finish(); this._restoreCable(origSnap); };
-      const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); finish(); this._restoreCable(origSnap); } };
+      const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); this._restoreCable(origSnap); } };
       document.addEventListener('pointermove', onMove, true); document.addEventListener('pointerdown', onDrop, true);
       document.addEventListener('contextmenu', onCtx, true); document.addEventListener('keydown', onKey, true);
       this.container.addEventListener('scroll', onScroll, true);
@@ -1323,7 +1467,7 @@ export class Rack {
   _highlightFedInputs(exceptKey, exceptPort) {
     this._clearHighlights();
     this._highlights = [];
-    const delta = 2 / (this.pxPerMm || 1);
+    const delta = 2 / ((this.pxPerMm || 1) * this.zoom);
     for (const rec of this.records.values()) {
       for (const [portId, port] of rec.panel.ports) {
         if (port.meta.dir !== 'in' || !this._incomingEdge(rec.key, portId)) continue;
@@ -1340,7 +1484,7 @@ export class Rack {
   _highlightCandidates(wantDir, exceptEdge, linkMode) {
     this._clearHighlights();
     this._highlights = [];
-    const delta = 2 / (this.pxPerMm || 1);   // 2 screen px expressed in panel mm
+    const delta = 2 / ((this.pxPerMm || 1) * this.zoom);   // 2 screen px expressed in panel mm
     const swell = (rec, portId, port) => {
       const ring = port.element.querySelector('circle');   // the outer coloured ring
       if (!ring) return;
@@ -1949,6 +2093,9 @@ export class Rack {
       const t = now || performance.now();
       const dt = Math.min(0.05, (t - this._flowLast) / 1000);
       this._flowLast = t;
+      // The overview is a frozen picture over everything — skip the per-frame cable-dash/opacity DOM work
+      // (invisible behind it) so it doesn't steal main-thread time from tracking the pointer.
+      if (this._ovActive) { this._flowRaf = requestAnimationFrame(tick); return; }
       if (this._isolateNet) {
         this._tickIsolate(dt);   // isolate: per-terminal breathe + per-cable signal-driven crawl
       } else {
@@ -2306,6 +2453,8 @@ export class Rack {
       const t = now || performance.now();
       const dt = this._scopeLast ? Math.min(0.05, (t - this._scopeLast) / 1000) : 0.016;
       this._scopeLast = t;
+      // Frozen overview on top — skip scope drawing (invisible behind it) to keep the pointer tracking snappy.
+      if (this._ovActive) { this._scopeRaf = requestAnimationFrame(tick); return; }
       const k = 1 - Math.exp(-dt / SCOPE_FADE_TAU);
       for (const sc of this._scopes) {
         // One-shot autoset: frame the signal once it's present (or give up after the budget),
@@ -2318,10 +2467,11 @@ export class Rack {
           else if (this.host.ctx.state === 'running' && --sc.autosetBudget <= 0) sc.autosetPending = false;
         }
         this._fadeInStep(sc, k);
+        this._anchorViewer(sc);   // keep its scene-anchor current, so it reprojects with the zoom
         this._drawScope(sc); if (!sc.regrabbing) this._updateCallout(sc);
         if ((sc.valMode === 'freq' || sc.valMode === 'peak') && sc.valuesEl && sc.valuesEl.classList.contains('show')) this._refreshScopeValues(sc);   // live CPS / min-mean-max
       }
-      for (const m of this._monitors) { this._fadeInStep(m, k); if (!m.regrabbing) this._updateCallout(m); }
+      for (const m of this._monitors) { this._fadeInStep(m, k); this._anchorViewer(m); if (!m.regrabbing) this._updateCallout(m); }
       this._scopeRaf = requestAnimationFrame(tick);
     };
     this._scopeRaf = requestAnimationFrame(tick);
@@ -3196,6 +3346,7 @@ export class Rack {
   _startMonPulse() {
     if (this._monPulseRaf) return;
     const tick = () => {
+      if (this._ovActive) { this._monPulseRaf = requestAnimationFrame(tick); return; }   // paused behind the frozen overview
       let any = false;
       for (const m of this._monitors) {
         if (!m.el.classList.contains('mon-live')) continue;
@@ -3612,18 +3763,281 @@ export class Rack {
     }
   }
 
-  _onPinch(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = this.container.getBoundingClientRect();
-    const px = e.clientX - rect.left, py = e.clientY - rect.top;
-    const cx = this.container.scrollLeft + px, cy = this.container.scrollTop + py;
-    const old = this.pxPerMm;
-    this.zoom = Math.max(0.4, Math.min(8, this.zoom * Math.exp(-e.deltaY * 0.01)));
-    this.relayout();
-    const ratio = this.pxPerMm / old;
-    this.container.scrollLeft = cx * ratio - px;
-    this.container.scrollTop = cy * ratio - py;
+  // Back to the fit-to-height home view (zoom 1) with no pan — from a double-click or the View menu.
+  // Glide back to the fit-to-window home view (View ▸ Fit to window, or double-click a panel background).
+  resetZoom() { this._setView(1, 0, 0, true); }
+
+  // The single view-apply entry point. eased=true glides to (zoom,tx,ty) with a snappy ease-out — one
+  // GPU-composited transition, so the real rack animates smoothly and re-sharpens only at the end;
+  // eased=false snaps instantly (1:1 pan). Scopes/monitors ride along with a matching transition.
+  _setView(zoom, tx, ty, eased, dur = VIEW_EASE_MS) {
+    this.zoom = zoom; this._tx = tx; this._ty = ty;
+    const ctr = eased ? `transform ${dur}ms ${VIEW_EASE}` : '';
+    const vtr = eased ? `left ${dur}ms ${VIEW_EASE}, top ${dur}ms ${VIEW_EASE}, transform ${dur}ms ${VIEW_EASE}` : '';
+    this.content.style.transition = ctr;
+    const setV = (v) => { if (v.el) v.el.style.transition = vtr; };
+    this._scopes.forEach(setV); this._monitors.forEach(setV);
+    this._easing = eased;
+    // Drop the module drop-shadows for the duration of the glide BEFORE applying the transform, so the
+    // compositor never has to rasterise them to start the animation — this is what makes it move at once.
+    if (eased) document.body.classList.add('view-easing');
+    this._applyTransform();   // sets transform + reprojects viewers → with the transitions set, they animate to target
+    clearTimeout(this._easeTimer);
+    if (eased) {
+      this._easeTimer = setTimeout(() => {
+        this._easing = false; this._easeTimer = null;
+        document.body.classList.remove('view-easing');
+        this.content.style.transition = '';
+        const clr = (v) => { if (v.el) v.el.style.transition = ''; };
+        this._scopes.forEach(clr); this._monitors.forEach(clr);
+      }, dur + 40);
+    }
+  }
+
+  // ===== Overview navigator =====
+  // Command-click a panel to pop up a small real picture of the whole rack, centred on the pointer, with a
+  // rectangle marking a viewport (defaulting to a two-panel-tall zoom under the pointer); move the pointer
+  // to aim it, scroll to resize it (zoom), click to jump there. All the interaction is on the cheap picture,
+  // so it stays instant; the real view moves once, on commit — through _applyTransform, so scopes/monitors
+  // reproject onto their ports.
+
+  // Rasterise one module faceplate SVG to an <img> at (wPx×hPx). Async (the SVG data-URL must decode).
+  _rasterizeSvg(svg, wPx, hPx) {
+    return new Promise((resolve) => {
+      try {
+        const clone = svg.cloneNode(true);
+        clone.setAttribute('width', wPx); clone.setAttribute('height', hPx);
+        const xml = new XMLSerializer().serializeToString(clone);
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+      } catch (_e) { resolve(null); }
+    });
+  }
+
+  // Build the off-screen bitmap of the whole rack: real module faces, cables, scopes (with their traces),
+  // and monitor rings, sized to half the window height at the rack's true proportions. Returns null if
+  // the rack isn't laid out yet. Async because the module faces rasterise via image decode.
+  async _buildOverviewBitmap() {
+    const pxmm = this.pxPerMm || 1;
+    // Extent in base px — modules AND any scope/monitor that sticks out past the last panel, so the picture
+    // (and the viewport's right/bottom limits) include them and they can be zoomed into.
+    let rackRightPx = 0, rackBottomPx = 0;
+    for (const rec of this.records.values()) rackRightPx = Math.max(rackRightPx, (rec.x + (rec.panelWmm || 0)) * pxmm);
+    const probeExtent = (v) => { if (v.ax != null && v.el) { rackRightPx = Math.max(rackRightPx, v.ax + (v.el.offsetWidth || 0)); rackBottomPx = Math.max(rackBottomPx, v.ay + (v.el.offsetHeight || 0)); } };
+    this._scopes.forEach(probeExtent); this._monitors.forEach(probeExtent);
+    const W0 = Math.max((this._contentWmm || 0) * pxmm, rackRightPx);   // widen to include stuck-out probes
+    const H0 = Math.max((this._contentHmm || 0) * pxmm, rackBottomPx);
+    const winW = this.container.clientWidth || 0, winH = this.container.clientHeight || 0;
+    if (W0 <= 0 || H0 <= 0 || winW <= 0 || winH <= 0) return null;
+    const cS = Math.min(winW / W0, winH / H0);   // fit the WHOLE content (incl. margins + probes) into the window
+    const ovW = W0 * cS, ovH = H0 * cS;          // fills the tighter dimension; the other letterboxes
+    const mmC = pxmm * cS;                                  // overview px per mm
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(ovW * dpr); cv.height = Math.round(ovH * dpr);
+    const cx = cv.getContext('2d'); cx.scale(dpr, dpr);
+    cx.fillStyle = '#14110d'; cx.fillRect(0, 0, ovW, ovH);
+    // modules
+    const jobs = [];
+    for (const rec of this.records.values()) {
+      const svg = rec.el.querySelector('svg'); if (!svg) continue;
+      const dx = rec.x * mmC, dy = rec.row * (PANEL_H_MM + ROW_GAP_MM) * mmC;
+      const dw = (rec.panelWmm || 0) * mmC, dh = PANEL_H_MM * mmC;
+      jobs.push(this._rasterizeSvg(svg, Math.max(1, Math.round((rec.panelWmm || 1) * pxmm)), Math.max(1, Math.round(PANEL_H_MM * pxmm)))
+        .then((img) => { if (img) cx.drawImage(img, dx, dy, dw, dh); }));
+    }
+    await Promise.all(jobs);
+    // cables (thin coloured beziers, in mm space)
+    if (this.patchbay) {
+      cx.lineWidth = 1.5;
+      for (const e of this.patchbay.list()) {
+        const g = this._cordGeom(e); if (!g) continue;
+        cx.strokeStyle = STYLE_COLOR[e.style] || STYLE_COLOR.control;
+        cx.beginPath();
+        cx.moveTo(g.pA.x * mmC, g.pA.y * mmC);
+        cx.bezierCurveTo(g.c1.x * mmC, g.c1.y * mmC, g.c2.x * mmC, g.c2.y * mmC, g.pB.x * mmC, g.pB.y * mmC);
+        cx.stroke();
+      }
+    }
+    // scopes (trace canvas + frame) and monitors (rings), at their scene anchors (base px)
+    for (const sc of this._scopes) {
+      if (sc.ax == null || !sc.el) continue;
+      const x = sc.ax * cS, y = sc.ay * cS, w = (sc.el.offsetWidth || 0) * cS, h = (sc.el.offsetHeight || 0) * cS;
+      cx.fillStyle = '#0d0f0c'; cx.fillRect(x, y, w, h);
+      if (sc.canvas) { try { cx.drawImage(sc.canvas, x, y, w, h); } catch (_e) { /* not ready */ } }
+      cx.strokeStyle = '#8a8d92'; cx.lineWidth = 1; cx.strokeRect(x, y, w, h);
+    }
+    for (const m of this._monitors) {
+      if (m.ax == null || !m.el) continue;
+      const r = ((m.el.offsetWidth || 0) * cS) / 2;
+      cx.beginPath(); cx.arc(m.ax * cS + r, m.ay * cS + r, Math.max(1, r), 0, Math.PI * 2);
+      cx.fillStyle = '#0d0f0c'; cx.fill(); cx.strokeStyle = '#8a8d92'; cx.lineWidth = 1; cx.stroke();
+    }
+    return { canvas: cv, ovW, ovH, cS, winW, winH, rackRightPx, sig: this._ovSignature() };
+  }
+
+  // Rebuild the bitmap in the background; swap it in (and repaint if the overview is up) when ready.
+  _refreshOverview() {
+    this._buildOverviewBitmap().then((bm) => { if (bm) { this._ovBitmap = bm; if (this._ovActive) this._paintOverview(); } });
+  }
+  // Build the picture AHEAD of the user needing it — on a patch load and after any change — so opening the
+  // overview is instant. Debounced (coalesces bursts) and only rebuilds when the signature actually moved;
+  // never while the overview is open (that would steal main-thread time from tracking the pointer).
+  _scheduleOverviewBuild() {
+    clearTimeout(this._ovBuildTimer);
+    this._ovBuildTimer = setTimeout(() => {
+      this._ovBuildTimer = null;
+      if (this._ovActive) return;
+      if (this._ovBitmap && this._ovBitmap.sig === this._ovSignature()) return;
+      this._refreshOverview();
+    }, 250);
+  }
+  // A cheap fingerprint of everything the picture depends on — window size, module layout, cable count,
+  // probe positions. If it's unchanged we DON'T rebuild on open (rebuilding rasterises every panel and
+  // would hog the main thread just as you start moving, making the rectangle catch up in steps).
+  _ovSignature() {
+    let sig = (this.container.clientWidth || 0) + 'x' + (this.container.clientHeight || 0) + '|';
+    for (const rec of this.records.values()) sig += rec.key + ':' + rec.x + ',' + rec.row + ',' + (rec.panelWmm || 0) + ';';
+    sig += 'c' + (this.patchbay ? this.patchbay.list().length : 0) + '|';
+    for (const sc of this._scopes) sig += 's' + Math.round(sc.ax || 0) + ',' + Math.round(sc.ay || 0) + ',' + (sc.el ? sc.el.offsetWidth : 0) + ';';
+    for (const m of this._monitors) sig += 'm' + Math.round(m.ax || 0) + ',' + Math.round(m.ay || 0) + ';';
+    return sig;
+  }
+
+  _ensureOverviewEl() {
+    if (this._ovEl) return;
+    const back = document.createElement('div'); back.className = 'rack-overview-backdrop'; back.style.display = 'none';
+    document.body.appendChild(back); this._ovBackdrop = back;
+    const el = document.createElement('div'); el.className = 'rack-overview'; el.style.display = 'none';
+    const cv = document.createElement('canvas');
+    const vp = document.createElement('div'); vp.className = 'rack-overview-vp';
+    el.appendChild(cv); el.appendChild(vp);
+    document.body.appendChild(el);
+    this._ovEl = el; this._ovCanvasEl = cv; this._ovRectEl = vp;
+  }
+
+  _showOverview() {
+    if (this._ovActive) return;
+    this._ovActive = true;
+    this._ensureOverviewEl();
+    this._ovBackdrop.style.display = 'block';
+    this._ovEl.style.display = 'block';
+    document.addEventListener('pointermove', this._ovMove, true);
+    document.addEventListener('wheel', this._ovWheel, { passive: false, capture: true });
+    document.addEventListener('pointerdown', this._ovDown, true);
+    if (this._ovBitmap) {
+      this._paintOverview();   // show the cached picture instantly
+      if (this._ovBitmap.sig !== this._ovSignature()) this._refreshOverview();   // only rebuild if the rack actually changed
+    } else {
+      this._buildOverviewBitmap().then((bm) => { if (bm && this._ovActive) { this._ovBitmap = bm; this._paintOverview(); } });
+    }
+  }
+
+  // Draw the whole-rack fit picture centred in the window, then start the orange frame on EXACTLY the view
+  // the window is showing now (its zoom + position) — so it reads as "you are here" (on a rack that fully
+  // fits, the frame fills the picture). Grab the pointer at that offset so the frame then drags one-for-one.
+  _paintOverview() {
+    const bm = this._ovBitmap; if (!bm || !this._ovEl) return;
+    const crect = this.container.getBoundingClientRect();
+    const ovLeft = crect.left + (bm.winW - bm.ovW) / 2, ovTop = crect.top + (bm.winH - bm.ovH) / 2;
+    this._ovEl.style.left = r2(ovLeft) + 'px'; this._ovEl.style.top = r2(ovTop) + 'px';
+    this._ovEl.style.width = bm.ovW + 'px'; this._ovEl.style.height = bm.ovH + 'px';
+    const dc = this._ovCanvasEl;
+    dc.width = bm.canvas.width; dc.height = bm.canvas.height;
+    dc.style.width = bm.ovW + 'px'; dc.style.height = bm.ovH + 'px';
+    dc.getContext('2d').drawImage(bm.canvas, 0, 0);
+    this._ovOrigin = { left: ovLeft, top: ovTop };
+    this._ovZoom = this._clampOverviewZoom(this.zoom);       // the current view's magnification
+    const p = this._lastPointer;
+    const Lov = p ? { x: (p.x - ovLeft) / bm.cS, y: (p.y - ovTop) / bm.cS } : { x: bm.ovW / (2 * bm.cS), y: bm.ovH / (2 * bm.cS) };
+    const tl = { x: -this._tx / this.zoom, y: -this._ty / this.zoom };   // the current view's top-left (base px)
+    const clamped = this._updateOverviewRect(tl);
+    this._ovGrab = { x: clamped.x - Lov.x, y: clamped.y - Lov.y };   // grab at the clamped start → drags rigidly
+  }
+
+
+  // Clamp the overview zoom so the viewport is never SMALLER than one module tall and never LARGER than the
+  // whole picture (rack plus any stuck-out probes) tall.
+  _clampOverviewZoom(z) {
+    const bm = this._ovBitmap, s = this.pxPerMm || 1;
+    const winH = (bm && bm.winH) || this.container.clientHeight || 0;
+    const zMax = Math.min(VIEW_ZOOM_MAX, winH / (PANEL_H_MM * s));   // viewport ≥ 1 module tall
+    const pictureH = bm ? bm.ovH / bm.cS : (this._contentHmm || 0) * s;   // full picture height (incl. probes), base px
+    const zMin = Math.max(1, pictureH > 0 ? winH / pictureH : 1);   // viewport ≤ whole picture tall
+    return Math.max(zMin, Math.min(zMax, z));
+  }
+
+  // Size + place the viewport from its TOP-LEFT {x,y} (base px), sized to _ovZoom. Right edge can't pass the
+  // rightmost module/probe; it stays within the picture vertically.
+  // Returns the CLAMPED top-left {x,y} (base px) it actually placed — callers re-anchor the grab to it.
+  _updateOverviewRect(tl) {
+    const bm = this._ovBitmap; if (!bm || !this._ovRectEl || !tl) return tl;
+    const vpW = bm.winW / this._ovZoom, vpH = bm.winH / this._ovZoom;   // viewport size, base px
+    const rw = vpW * bm.cS, rh = vpH * bm.cS, pictureH = bm.ovH / bm.cS;
+    const leftC = Math.max(0, Math.min(bm.rackRightPx - vpW, tl.x));   // right ≤ rightmost module/probe
+    const topC = Math.max(0, Math.min(pictureH - vpH, tl.y));          // within the picture vertically
+    this._ovLastTl = { x: leftC, y: topC };
+    const rx = leftC * bm.cS, ry = topC * bm.cS;
+    this._ovRectEl.style.transform = `translate(${r2(rx)}px, ${r2(ry)}px)`;   // move by transform → GPU composite
+    if (rw !== this._ovRectW || rh !== this._ovRectH) {   // size only changes on a resize — skip the layout on a plain move
+      this._ovRectEl.style.width = r2(rw) + 'px'; this._ovRectEl.style.height = r2(rh) + 'px';
+      this._ovRectW = rw; this._ovRectH = rh;
+    }
+    this._ovRect = { rx, ry, rw, rh };
+    return this._ovLastTl;
+  }
+
+  // Rigid grab: the frame drags one-for-one with the pointer. After each move the grab is RE-ANCHORED to
+  // where the frame actually landed (its clamped top-left), so at an edge there's no over-travel: the
+  // instant the pointer moves back toward open space — with room to go — the frame moves with it.
+  _overviewMove(e) {
+    if (!this._ovActive || !this._ovBitmap) return;
+    const cS = this._ovBitmap.cS;
+    const Lx = (e.clientX - this._ovOrigin.left) / cS, Ly = (e.clientY - this._ovOrigin.top) / cS;
+    const clamped = this._updateOverviewRect({ x: Lx + this._ovGrab.x, y: Ly + this._ovGrab.y });
+    this._ovGrab = { x: clamped.x - Lx, y: clamped.y - Ly };
+  }
+  // Scroll resizes the viewport (down shrinks/zooms in, up enlarges/zooms out), clamped to [1 module, whole
+  // picture]; the frame stays where it is.
+  _overviewWheel(e) {
+    if (!this._ovActive) return;
+    e.preventDefault(); e.stopPropagation();
+    this._ovZoom = this._clampOverviewZoom(this._ovZoom * Math.exp(e.deltaY * 0.0015));
+    if (this._ovLastTl) this._updateOverviewRect(this._ovLastTl);
+  }
+  // A click in (or on) the overview commits, same as releasing Command. stopImmediatePropagation so a
+  // cable-pull's own pointerdown-to-drop (added earlier, so it'd fire first) can't drop mid-navigation.
+  _overviewDown(e) {
+    if (!this._ovActive) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    this._commitOverview();
+  }
+
+  _commitOverview() {
+    if (!this._ovActive) return;
+    const bm = this._ovBitmap, r = this._ovRect;
+    this._hideOverview();   // thumbnail + dim vanish, so you watch the real view glide there
+    if (!bm || !r) return;
+    const cbx = (r.rx + r.rw / 2) / bm.cS, cby = (r.ry + r.rh / 2) / bm.cS;   // rect centre → base px
+    this.zoom = this._ovZoom;
+    this._tx = bm.winW / 2 - cbx * this.zoom;
+    this._ty = bm.winH / 2 - cby * this.zoom;
+    this._clampPan();
+    // Glide from the old view to the picked one over ~1s (scopes/monitors ride along and reproject onto ports).
+    this._setView(this.zoom, this._tx, this._ty, true, VIEW_COMMIT_MS);
+  }
+  _cancelOverview() { this._hideOverview(); }
+  _hideOverview() {
+    if (!this._ovActive) return;
+    this._ovActive = false;
+    if (this._ovEl) this._ovEl.style.display = 'none';
+    if (this._ovBackdrop) this._ovBackdrop.style.display = 'none';
+    document.removeEventListener('pointermove', this._ovMove, true);
+    document.removeEventListener('wheel', this._ovWheel, { capture: true });
+    document.removeEventListener('pointerdown', this._ovDown, true);
   }
 
   // ---- placement: push-right collision (all in mm) ----
@@ -3745,7 +4159,7 @@ export class Rack {
     // The vertical title up the left edge: right-click it for the delete pie.
     const title = svg.querySelector('.module-title');
     if (title) {
-      title.style.cursor = 'context-menu';
+      title.style.cursor = 'grab';   // the title is the drag handle now (right-click still opens its pie)
       title.addEventListener('contextmenu', (e) => this._onTitleContextMenu(e, rec));
     }
   }
@@ -3780,7 +4194,13 @@ export class Rack {
     // pointer location in _updateNetOrigin (container-level), so it never depends on which control or
     // panel gap the pointer happens to be over.
     el.addEventListener('pointerenter', () => { this._hoverRec = rec; this.onSelect(rec); this._drawCables(); });
-    el.addEventListener('pointerleave', () => { if (this._hoverRec === rec) { this._hoverRec = null; this._drawCables(); } });
+    el.addEventListener('pointerleave', () => { el.style.cursor = ''; if (this._hoverRec === rec) { this._hoverRec = null; this._drawCables(); } });
+    // A grab (hand) cursor over the left title band signals it's the drag handle; the rest of the
+    // faceplate stays default, and a control keeps its own cursor (a child's overrides this one).
+    el.addEventListener('pointermove', (e) => {
+      const inBand = (e.clientX - el.getBoundingClientRect().left) <= TITLE_BAND_MM * this.pxPerMm;
+      el.style.cursor = inBand ? 'grab' : '';
+    });
 
     this.records.set(rec.key, rec);
     this.rows[rowIndex].push(rec);
@@ -4024,15 +4444,46 @@ export class Rack {
     this.onChange();
   }
 
+  // Drag anywhere on a panel BACKGROUND (not its title band) to pan the window — both axes, so you can
+  // pan vertically too when zoomed in (there's no vertical scrollbar). A press with no drag just leaves
+  // isolate mode, exactly as a plain faceplate click did before.
+  _startPan(e) {
+    const sx = e.clientX, sy = e.clientY;
+    const tx0 = this._tx, ty0 = this._ty;
+    let moved = false;
+    const onMove = (ev) => {
+      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return;
+      if (!moved) { moved = true; document.body.classList.add('panning'); }
+      this._tx = tx0 + (ev.clientX - sx);   // the rack follows the pointer 1:1
+      this._ty = ty0 + (ev.clientY - sy);
+      this._clampPan();
+      this._applyTransform();
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.body.classList.remove('panning');
+      if (!moved && this._isolateNet) this._exitIsolate();
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }
+
   // ---- drag (left button, from the faceplate background) ----
   _startDrag(e, rec) {
     if (e.button !== 0) return;
     this._hideAllScopeValues();   // a click on a panel background also dismisses any open scope settings box
+    // A panel moves ONLY by its left-edge title band; pressing anywhere else on the faceplate does not
+    // drag it. (Controls stop their own pointerdown, so this only ever sees faceplate/title presses.)
+    if ((e.clientX - rec.el.getBoundingClientRect().left) > TITLE_BAND_MM * this.pxPerMm) {
+      this._startPan(e);   // drag the panel background to pan the window; a plain click still leaves isolate
+      return;
+    }
     e.preventDefault();
-    const s = this.pxPerMm;
+    const s = this.pxPerMm, sz = s * this.zoom;   // s = base px/mm (for content children); sz = SCREEN px/mm (for client coords)
     const startX = e.clientX, startY = e.clientY;
     const rect0 = this._rowEls[rec.row].getBoundingClientRect();
-    const grabDx = e.clientX - (rect0.left + rec.x * s);
+    const grabDx = e.clientX - (rect0.left + rec.x * sz);
     let moved = false;
     let dropRow = rec.row, dropX = rec.x;
     const ghost = this._ensureGhost();
@@ -4044,7 +4495,7 @@ export class Rack {
       dropRow = this._rowFromY(ev.clientY);
       const rEl = this._rowEls[dropRow];
       const rRect = rEl.getBoundingClientRect();
-      dropX = Math.max(0, (ev.clientX - rRect.left - grabDx) / s);
+      dropX = Math.max(0, (ev.clientX - rRect.left - grabDx) / sz);
       rEl.appendChild(ghost);
       ghost.style.display = 'block';
       ghost.style.left = (dropX * s) + 'px';
@@ -4086,7 +4537,7 @@ export class Rack {
   // ---- context menus ----
   _xUnderCursor(rowEl, clientX) {
     const rRect = rowEl.getBoundingClientRect();
-    return Math.max(0, (clientX - rRect.left) / this.pxPerMm);
+    return Math.max(0, (clientX - rRect.left) / (this.pxPerMm * this.zoom));
   }
 
   _onRowContextMenu(e, rowIndex) {

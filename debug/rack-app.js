@@ -389,6 +389,10 @@ async function boot() {
         rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
         try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
       } },
+      { label: 'Rows in rack', submenu: [2, 3, 4].map((n) => ({
+        label: String(n), checkFn: () => rack.rowCount === n, action: () => rack.setRowCount(n),
+      })) },
+      { label: 'Fit to window', action: () => rack.resetZoom() },
     ];
     rack.openMenu(x, y, [
       // Engine sits at the very top. Its push-button glyph shows PRESSED while sound runs, so
