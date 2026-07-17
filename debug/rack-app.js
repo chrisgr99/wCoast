@@ -93,7 +93,9 @@ async function boot() {
   // Unsaved-changes state, declared BEFORE the rack: its onChange fires during
   // relayout and the mixer addModule below, calling onEdit -> markDirty, which
   // reads `dirty` — so `dirty` must already be initialized (no temporal dead zone).
-  let dirty = false, patchName = null, mirror = null, booted = false;
+  // `menuStateTimer` is here for exactly the same reason: onEdit/markClean also push the native
+  // menu's state, and pushMenuState is hoisted while a `let` beside it would not be.
+  let dirty = false, patchName = null, mirror = null, booted = false, menuStateTimer = null;
   rack = new Rack(document.getElementById('rack'), {
     host, moduleTypes: MODULE_TYPES, rowCount: 2, dark: darkMode, onChange: () => onEdit(),
   });
@@ -112,9 +114,9 @@ async function boot() {
   function updateTitle() { document.title = `Wcoast — ${patchName || 'untitled'}${dirty ? ' •' : ''}`; }
   function setPatchName(n) { patchName = n; updateTitle(); if (mirror) mirror.project(); }
   function markDirty() { if (dirty) return; dirty = true; updateTitle(); window.wcoast?.patch?.setDirty?.(true); }
-  function markClean() { dirty = false; updateTitle(); window.wcoast?.patch?.setDirty?.(false); if (mirror) mirror.project(); }
+  function markClean() { dirty = false; updateTitle(); window.wcoast?.patch?.setDirty?.(false); if (mirror) mirror.project(); pushMenuState(); }
   // Any patch edit: mark dirty and re-project the mirror.
-  function onEdit() { markDirty(); autosaveSession(); if (mirror) mirror.project(); }
+  function onEdit() { markDirty(); autosaveSession(); if (mirror) mirror.project(); pushMenuState(); }
 
   // Master level lives on the mixer module's own faceplate; this is just the last read of
   // it, kept for the AI mirror's `master` field. Re-read it whenever the fader may have
@@ -322,6 +324,49 @@ async function boot() {
     return { ok: true };
   }
 
+  // The commands the two menus share. Both the in-window menu and the native one call THESE, so
+  // there is one implementation of each and they can't drift apart.
+  const toggleDark = () => {
+    const d = !rack.isDark();
+    rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
+    if (tour) tour.applyTheme();   // ...and the tutorial card, which is dressed as a faceplate
+    try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
+    pushMenuState();
+  };
+  const setRows = (n) => { rack.setRowCount(n); pushMenuState(); };
+
+  // Keep the native menu's state honest: what's undoable, which mode, which patches. Debounced,
+  // because this fires on every edit and the main process rebuilds the menu bar from it.
+  function pushMenuState() {
+    const m = window.wcoast && window.wcoast.menu;
+    if (!m) return;                       // browser: there is no native menu
+    clearTimeout(menuStateTimer);
+    menuStateTimer = setTimeout(async () => {
+      menuStateTimer = null;
+      let recent = [];
+      try { recent = await storage.recent(); } catch (_e) { /* none */ }
+      m.setState({ dark: rack.isDark(), rows: rack.rowCount, canUndo: rack.canUndo(), canRedo: rack.canRedo(), recent });
+    }, 200);
+  }
+
+  // The native menu names an action; the renderer runs the same function the in-window menu does.
+  if (window.wcoast && window.wcoast.menu) {
+    const actions = {
+      new: () => newPatch(), open: () => openPatch(), save: () => savePatch(), saveAs: () => saveAsPatch(),
+      openRecent: (id) => openRecent(id),
+      undo: () => { rack.undo(); pushMenuState(); },
+      redo: () => { rack.redo(); pushMenuState(); },
+      clearAll: () => rack.confirmDeleteAllCables(),
+      toggleDark: () => toggleDark(),
+      setRows: (n) => setRows(n),
+      fitToWindow: () => rack.resetZoom(),
+      // Run the same items the in-window Help menu offers, rather than restating their URLs here.
+      readme: () => { const it = rack.helpMenuItems().find((i) => i.label === 'README'); if (it) it.action(); },
+      tutorial: () => { if (rack.onTutorial) rack.onTutorial(); },
+    };
+    window.wcoast.menu.onAction(({ action, arg }) => { const fn = actions[action]; if (fn) fn(arg); });
+  }
+
   // The panel pie's app-menu wedge opens the File menu, reusing the rack's pop-up menu.
   // Hierarchical menu: the top level shows File / Edit / View; hovering (or clicking) a
   // heading opens its submenu, Electron-style.
@@ -346,14 +391,9 @@ async function boot() {
     ];
     // View (Dark/Light mode is self-describing: the label names the mode it switches to).
     const view = [
-      { label: rack.isDark() ? 'Light mode' : 'Dark mode', action: () => {
-        const d = !rack.isDark();
-        rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
-        if (tour) tour.applyTheme();   // ...and the tutorial card, which is dressed as a faceplate
-        try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
-      } },
+      { label: rack.isDark() ? 'Light mode' : 'Dark mode', action: () => toggleDark() },
       { label: 'Rows in rack', submenu: [2, 3, 4].map((n) => ({
-        label: String(n), checkFn: () => rack.rowCount === n, action: () => rack.setRowCount(n),
+        label: String(n), checkFn: () => rack.rowCount === n, action: () => setRows(n),
       })) },
       { label: 'Fit to window', action: () => rack.resetZoom() },
     ];
@@ -408,9 +448,10 @@ async function boot() {
     rack.openMenu(window.innerWidth / 2, window.innerHeight / 2, rack.helpMenuItems(), { centred: true });
   });
 
-  // Standard file shortcuts (we dropped the native File menu): Cmd/Ctrl-S save,
-  // Shift adds Save As; Cmd/Ctrl-O open; Cmd/Ctrl-N new.
+  // Standard shortcuts, for the BROWSER only: in Electron the native menu carries the same
+  // accelerators and would fire alongside these.
   window.addEventListener('keydown', (e) => {
+    if (window.wcoast && window.wcoast.isElectron) return;
     if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
     const k = e.key.toLowerCase();
     if (k === 's') { e.preventDefault(); if (e.shiftKey) saveAsPatch(); else savePatch(); }
@@ -465,6 +506,7 @@ async function boot() {
   // already correct; a bare browser settles its flex layout a beat later, so the boot-time
   // fit can be measured too tall.
   requestAnimationFrame(() => rack.relayout());
+  pushMenuState();   // seed the native menu now the rack, storage and tutorial all exist
 
 }
 

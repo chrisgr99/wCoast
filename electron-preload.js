@@ -29,6 +29,12 @@ contextBridge.exposeInMainWorld('wcoast', {
     read: (p) => ipcRenderer.invoke('patch:read', p),
     setDirty: (v) => ipcRenderer.send('patch:dirty', v),
   },
+  // The native application menu. The renderer owns both the state it shows and the commands it
+  // fires, so this is only a wire: push state up, take actions back down.
+  menu: {
+    setState: (s) => ipcRenderer.send('menu:state', s),
+    onAction: (cb) => ipcRenderer.on('menu:action', (_e, payload) => cb(payload)),
+  },
   // AI patch mirror. status/setEnabled/reveal round-trip; write projects files.
   mirror: {
     status: () => ipcRenderer.invoke('mirror:status'),

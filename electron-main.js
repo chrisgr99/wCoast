@@ -120,16 +120,85 @@ function registerPatchIpc() {
   });
 }
 
-// Minimal application menu: keep the app menu (Quit/About) and Edit (so
-// dictation and copy/paste survive), but no File menu — file actions live only
-// in the in-window hamburger.
-function applyMinimalMenu() {
+// The application menu mirrors the in-window one, where a Mac user expects to find it. Engine is
+// the one item that doesn't come along: it's the instrument's power, it belongs on the panel with
+// everything else you play, and its hover-to-audition has no meaning in a native menu.
+//
+// The commands all live in the RENDERER, so every item just names an action and sends it there —
+// which keeps ONE implementation of New/Open/Undo/Dark mode, driven from either menu.
+let menuState = { dark: true, rows: 2, canUndo: false, canRedo: false, recent: [] };
+let menuSig = null;
+
+function menuSend(action, arg) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('menu:action', { action, arg });
+}
+
+function applyAppMenu() {
+  const s = menuState;
   const template = [
     ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
-    { role: 'editMenu' },
+    {
+      label: 'File',
+      submenu: [
+        { label: 'New', accelerator: 'CmdOrCtrl+N', click: () => menuSend('new') },
+        { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => menuSend('open') },
+        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => menuSend('save') },
+        { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => menuSend('saveAs') },
+        ...(s.recent.length ? [
+          { type: 'separator' },
+          { label: 'Open Recent', submenu: s.recent.map((f) => ({ label: f.name, click: () => menuSend('openRecent', f.id) })) },
+        ] : []),
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        // The patch's undo, not the text field's — this is what Cmd-Z means in an instrument. The
+        // clipboard roles stay below so macOS dictation and copy/paste keep working.
+        { label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: s.canUndo, click: () => menuSend('undo') },
+        { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', enabled: s.canRedo, click: () => menuSend('redo') },
+        { type: 'separator' },
+        { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
+        { type: 'separator' },
+        // `&&` renders one literal '&' — a lone '&' in an Electron menu label is a mnemonic marker
+        // and gets eaten, so a single ampersand here would show as "Clear Connections  Controls…".
+        { label: 'Clear Connections && Controls…', click: () => menuSend('clearAll') },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label: s.dark ? 'Light Mode' : 'Dark Mode', click: () => menuSend('toggleDark') },
+        { label: 'Rows in Rack', submenu: [2, 3, 4].map((n) => ({ label: String(n), type: 'radio', checked: s.rows === n, click: () => menuSend('setRows', n) })) },
+        { label: 'Fit to Window', click: () => menuSend('fitToWindow') },
+      ],
+    },
     { role: 'windowMenu' },
+    {
+      role: 'help',
+      submenu: [
+        { label: 'README', click: () => menuSend('readme') },
+        { label: 'Interactive Tutorial', click: () => menuSend('tutorial') },
+        { label: 'Reference — coming soon', enabled: false },
+      ],
+    },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+function registerMenuIpc() {
+  // The renderer owns the state the menu displays (what's undoable, which mode, which patches). It
+  // pushes on change; we rebuild only when something actually differs, because this fires on every
+  // edit and rebuilding the whole menu bar per knob-turn would be daft.
+  ipcMain.on('menu:state', (_e, s) => {
+    if (!s) return;
+    const next = { ...menuState, ...s };
+    const sig = JSON.stringify(next);
+    if (sig === menuSig) return;
+    menuSig = sig;
+    menuState = next;
+    applyAppMenu();
+  });
 }
 
 // --- Crash safety net (borrowed from the GXW main process) ---
@@ -303,7 +372,8 @@ app.whenReady().then(async () => {
   try { await session.defaultSession.clearCache(); } catch (_e) { /* best effort */ }
   registerPatchIpc();
   initMirror(() => mainWindow);
-  applyMinimalMenu();
+  registerMenuIpc();
+  applyAppMenu();
   applyDockIcon();
   createWindow();
 });
