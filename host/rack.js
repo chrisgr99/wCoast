@@ -1458,10 +1458,18 @@ export class Rack {
     const link = (map, a, b) => { if (!map.has(a)) map.set(a, new Set()); map.get(a).add(b); };
     const pair = edges.map((e) => ({ e, s: this._sectionKey(e.src.key, e.src.portId), d: this._sectionKey(e.dst.key, e.dst.portId) }));
     for (const { s, d } of pair) { link(fwd, s, d); link(bwd, d, s); }
-    // A whole-module origin (no ':section') seeds from EVERY section node of that module, so hovering a
-    // sectioned module's non-channel area (the mixer's MON/MSTR region) lights all its channels' nets.
+    // Seed the net. A specific section (m0:A) seeds itself. A whole-module origin seeds EVERY section
+    // of that module — its connected sub-sections AND its own controls' sections, wired or not — so a
+    // module with no cables, or an unpatched band like a quad's clock/sum row, still seeds itself and
+    // stays lit when you hover it, instead of dimming along with everything else. (Before, seeds came
+    // only from EDGES, so anything unconnected never seeded and the hovered thing didn't brighten.)
     const nodes = new Set(); for (const { s, d } of pair) { nodes.add(s); nodes.add(d); }
-    const seeds = origin.includes(':') ? [origin] : [...nodes].filter((k) => k === origin || k.startsWith(origin + ':'));
+    const seeds = new Set([origin]);
+    if (!origin.includes(':')) {
+      for (const k of nodes) if (k.startsWith(origin + ':')) seeds.add(k);
+      const rec = this.records.get(origin);
+      if (rec && rec.panel && rec.panel.controls) for (const b of rec.panel.controls.values()) seeds.add(this._controlSectionKey(rec, b));
+    }
     const closure = (starts, adj) => {
       const seen = new Set(starts), stack = [...starts];
       while (stack.length) { for (const n of (adj.get(stack.pop()) || [])) if (!seen.has(n)) { seen.add(n); stack.push(n); } }
@@ -1471,7 +1479,7 @@ export class Rack {
     const net = new Set();
     for (const { e, s, d } of pair) if (down.has(s) || up.has(d)) net.add(e.id);
     const sections = new Set([...down, ...up]);   // every section the net touches (for the control-dim)
-    return { edges: net, sections };
+    return { edges: net, sections, seeds };       // seeds = the sections you're DIRECTLY on (kept fully lit)
   }
 
   // ---- isolate a terminal's UPSTREAM (from its pie's "view subnet" wedge) ----
@@ -1535,7 +1543,7 @@ export class Rack {
   // and — debounced, so a quick sweep doesn't thrash audio taps — swell the ports on the lit cables.
   _rebuildHoverFocus() {
     const cn = this._netOrigin ? this._computeNet(this._netOrigin) : null;
-    this._setHoverHalos(cn ? cn.sections : null);   // instant target change; the opacity eases in the loop
+    this._setHoverHalos(cn ? cn.sections : null, cn ? cn.seeds : null);   // instant target change; the opacity eases in the loop
     if (this._swellTimer) { clearTimeout(this._swellTimer); this._swellTimer = null; }
     if (!cn) { this._clearHoverSwells(); return; }
     const edges = cn.edges;
@@ -1559,13 +1567,18 @@ export class Rack {
     this._haloEase.clear();
   }
   // Set each control's dim TARGET (0.46 off-chain, 1 on-chain); the flow loop eases opacity toward it
-  // over ~1s. `sections` null = nothing hovered → everything eases back to full.
-  _setHoverHalos(sections) {
+  // over ~1s. `sections` null = nothing hovered → everything eases back to full. `seeds` = the sections
+  // you're directly hovering: their controls stay fully lit even when inert, because you asked to focus
+  // HERE — the inert-control dimming (an unpatched CV attenuator) only makes sense downstream, where the
+  // question is "does this reach the terminal", not on the thing under the pointer.
+  _setHoverHalos(sections, seeds) {
     for (const rec of this.records.values()) {
       if (!rec.panel || !rec.panel.controls) continue;
       for (const b of rec.panel.controls.values()) {
-        const inNet = !sections || sections.has(this._controlSectionKey(rec, b));
-        const gate = (inNet && sections) ? this._controlGatePort(rec, b) : null;
+        const secKey = this._controlSectionKey(rec, b);
+        const inNet = !sections || sections.has(secKey);
+        const onFocus = seeds && seeds.has(secKey);   // directly hovered → never gate-dimmed
+        const gate = (inNet && sections && !onFocus) ? this._controlGatePort(rec, b) : null;
         const lit = inNet && !(gate && !this._portOccupied(rec.key, gate));
         const target = lit ? 1 : 0.46;
         let h = this._haloEase.get(b.group);
