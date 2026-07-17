@@ -1,24 +1,20 @@
 # wCoast — Interactive tutorial
 
 <!--
-This file is BOTH the document you are reading and the exact copy the app shows in its tutorial
-cards. Editing it here changes the tutorial; there is no build step.
+This file is BOTH the document you are reading and the exact copy the app shows in its tutorial cards. Editing it here changes the tutorial; there is no build step.
 
 Format (parsed by host/tutorial-md.js):
   ## Heading         starts a card; the heading becomes the card's title
   paragraph          a paragraph — write it on ONE line, the card wraps it
   - item             consecutive items become one bulleted list
   > **Do this** — …  a "Do this" block; the bold text is its label
-Inline: **bold**, *italic*, [text](url), `code`. Text above the first ## is preamble for a human
-reader and never reaches the app.
 
-House style: the reader already knows modular synthesis, so don't teach the basics — map their
-instincts onto this interface and flag the things with no hardware equivalent (knobs that don't
-drag, cables carried without a button, scroll that never moves the view). No sales pitch: they've
-read the README and they're already here. One card per heading, each a complete covering of it.
+Inline: **bold**, *italic*, [text](url), `code`. Text above the first ## is preamble for a human reader and never reaches the app.
+
+House style: the reader has probably used a software modular before, and they all differ in interface and terminology — so the job is to map, not to teach. One card per heading, each a complete covering of it. No sales pitch; they've read the README.
 -->
 
-This is the tutorial wCoast shows in its floating cards, on a first run and from Help ▸ Interactive tutorial. It assumes you already know modular synthesis, so it doesn't teach the basics — it maps what you know onto this instrument, and points out the few things that have no hardware equivalent.
+This is the tutorial wCoast shows in its floating cards, on a first run and from Help ▸ Interactive tutorial. It's written for someone who has used a software modular before, so rather than teaching synthesis it maps what you already know onto this one — and points out where wCoast differs.
 
 ## Before you start
 
