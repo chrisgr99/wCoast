@@ -23,6 +23,9 @@ const POS_KEY = 'wcoast.tourPos';    // remembered card position: the reader par
 const SIZE_KEY = 'wcoast.tourSize';  // remembered card size, once the reader has resized it themselves
 const SEEN_KEY = 'wcoast.introSeen';  // set only by "Don't show on startup" — a plain close still returns next run
 
+// A card title → the fragment an in-tutorial link points at, e.g. "First sound" → "first-sound".
+const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
 const readJSON = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (_e) { return null; } };
 const write = (k, v) => { try { localStorage.setItem(k, v); } catch (_e) { /* no storage */ } };
 
@@ -33,7 +36,7 @@ export function tourSeen() { try { return localStorage.getItem(SEEN_KEY) === '1'
 // the card is dressed as a faceplate, so it follows View ▸ Light/Dark mode like the panels do.
 export function createTour({ steps, onExternal, isDark }) {
   let el = null, idx = 0;
-  let titleEl, bodyEl, countEl, prevBtn, nextBtn, neverCb;
+  let titleEl, bodyEl, countEl, prevBtn, nextBtn, neverCb, homeBtn;
 
   // Keep the card fully on screen. A remembered position can fall outside the window after a
   // resize (or a move between displays), which would strand the card where it can't be reached.
@@ -80,12 +83,19 @@ export function createTour({ steps, onExternal, isDark }) {
     const head = document.createElement('div');
     head.className = 'tour-head';
     titleEl = document.createElement('div'); titleEl.className = 'tour-title';
+    // Back to the first card — which is the contents, with its links to every section — from anywhere.
+    // Hidden on the first card itself (go() toggles it), where it would be a no-op.
+    homeBtn = document.createElement('button');
+    homeBtn.className = 'tour-home'; homeBtn.textContent = 'Home';
+    homeBtn.title = 'Back to start';
+    homeBtn.setAttribute('aria-label', 'Back to start');
+    homeBtn.addEventListener('click', () => go(0));
     const close = document.createElement('button');
     close.className = 'tour-x'; close.textContent = '×';
     close.title = 'Close (Help ▸ Interactive tutorial brings it back)';
     close.setAttribute('aria-label', 'Close');
     close.addEventListener('click', () => hide());
-    head.appendChild(titleEl); head.appendChild(close);
+    head.appendChild(titleEl); head.appendChild(homeBtn); head.appendChild(close);
     head.addEventListener('pointerdown', startDrag);
 
     bodyEl = document.createElement('div'); bodyEl.className = 'tour-body';
@@ -163,10 +173,21 @@ export function createTour({ steps, onExternal, isDark }) {
     bodyEl.scrollTop = 0;                   // a long step left scrolled down must not start the next one part-read
     countEl.textContent = `${idx + 1} of ${steps.length}`;
     prevBtn.disabled = idx === 0;
+    homeBtn.style.display = idx === 0 ? 'none' : '';
     nextBtn.textContent = idx >= steps.length - 1 ? 'Done' : 'Next ›';
-    // Route any link in the copy through the caller (Electron opens these in the real browser).
-    if (onExternal) for (const a of bodyEl.querySelectorAll('a[href]')) {
-      a.addEventListener('click', (e) => { e.preventDefault(); onExternal(a.getAttribute('href')); });
+    // Wire the links. An in-tutorial link — href "#slug", matching a card title (see slug()) — jumps
+    // to that card; a normal URL goes to the caller (Electron opens it in the real browser). A #slug
+    // whose card doesn't exist yet (an outline entry not written) drops back to plain text, so those
+    // become live automatically the moment their card lands.
+    for (const a of [...bodyEl.querySelectorAll('a[href]')]) {
+      const href = a.getAttribute('href') || '';
+      if (href.startsWith('#')) {
+        const target = steps.findIndex((st) => slug(st.title) === href.slice(1));
+        if (target >= 0) a.addEventListener('click', (e) => { e.preventDefault(); go(target); });
+        else a.replaceWith(document.createTextNode(a.textContent));
+      } else if (onExternal) {
+        a.addEventListener('click', (e) => { e.preventDefault(); onExternal(href); });
+      }
     }
   };
 

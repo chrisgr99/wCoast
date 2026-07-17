@@ -121,7 +121,9 @@
     .tour-title { flex: 1 1 auto; font-weight: 600; }
     .tour-x { flex: none; width: 20px; height: 20px; padding: 0; background: none; border: none;
       color: var(--t-dim); font: 400 12px/1 -apple-system, system-ui, sans-serif; cursor: pointer; border-radius: 4px; }
-    .tour-x:hover { color: var(--t-ink); background: rgba(128,128,128,0.18); }
+    .tour-home { flex: none; padding: 2px 7px; background: none; border: none; color: var(--t-dim);
+      font: 400 11px/1 -apple-system, system-ui, sans-serif; cursor: pointer; border-radius: 4px; }
+    .tour-x:hover, .tour-home:hover { color: var(--t-ink); background: rgba(128,128,128,0.18); }
     /* min-height:0 lets a flex child actually shrink and scroll. The bar is styled dark on a
        transparent track — the default macOS bar is a dazzling white slab over our panels.
        Deliberately NO scrollbar-width/scrollbar-color: setting either makes Chromium ignore the
@@ -156,7 +158,14 @@
     /* A real toggle, not an exit: it reports whether the tutorial auto-opens, and flips back off. */
     .tour-never { display: inline-flex; align-items: center; gap: 4px; color: var(--t-dim);
       font: inherit; font-size: 8px; cursor: pointer; user-select: none; -webkit-user-select: none; }
-    .tour-never input { width: 10px; height: 10px; margin: 0; cursor: pointer; accent-color: var(--t-accent); }
+    /* Fully custom box: the native checkbox renders a light square in both modes, which on the dark
+       faceplate reads as already-checked. Draw it as an empty faceplate square with a themed edge —
+       dark box + light line on dark, light box + dark line on light — and only fill it when checked. */
+    .tour-never input { appearance: none; -webkit-appearance: none; flex: none; width: 11px; height: 11px;
+      margin: 0; cursor: pointer; border-radius: 2px; background: var(--t-face); border: 1px solid var(--t-edge); }
+    .tour-never input:checked { background: var(--t-accent); border-color: var(--t-accent); }
+    .tour-never input:checked::after { content: '✓'; display: block; text-align: center;
+      color: var(--t-face); font: 700 9px/11px -apple-system, system-ui, sans-serif; }
     .tour-never:hover { color: var(--t-ink); }
 
     body.grabbing-cable, body.grabbing-cable * { cursor: var(--grip) !important; }

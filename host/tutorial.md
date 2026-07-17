@@ -18,7 +18,7 @@ This is the tutorial wCoast shows in its floating cards, on a first run and from
 
 ## Before you start
 
-**Extensions:** please turn off any browser extension that recolours pages — Dark Reader and the like — for this site. wCoast has its own light and dark modes, and those extensions distort its panels.
+**Before you start,** please turn off any browser extension that recolours pages — Dark Reader and the like — for this site. wCoast has its own light and dark modes, and those extensions distort its panels.
 
 **These cards:** each explains one part of the instrument, then asks you to do something. A card stays open while you work, so you never have to dismiss it to follow it — park it anywhere by its title bar, and resize it like any other window. Marked blocks are your cue to act, like this one:
 
@@ -26,17 +26,19 @@ This is the tutorial wCoast shows in its floating cards, on a first run and from
 
 **Coming up:**
 
-- **Basic interaction** — panels, menus, and the controls
-- **First sound** — the shortest path to hearing something
-- **Building a patch** — adding modules, and how cables behave here
-- **Getting around** — panning and zooming a rack bigger than the window
-- **Watching and hearing** — scopes and monitors on any terminal
-- **Following the signal** — seeing what feeds what
-- **Keeping your work** — saving, loading, and what carries over
+- [**Basic interaction**](#basic-interaction) — panels, menus, and the controls
+- [**First sound**](#first-sound) — the shortest path to hearing something
+- [**Building a patch**](#building-a-patch) — adding modules, and how cables behave here
+- [**Getting around**](#getting-around) — panning and zooming a rack bigger than the window
+- [**Watching and hearing**](#watching-and-hearing) — scopes and monitors on any terminal
+- [**Following the signal**](#following-the-signal) — seeing what feeds what
+- [**Keeping your work**](#keeping-your-work) — saving, loading, and what carries over
+
+Coming next: **Basic interaction**.
 
 ## Basic interaction
 
-**Panels:** a module's faceplate — the background behind its knobs and jacks. Its name runs vertically up the left edge, to save vertical space (scarcer here than horizontal).
+**Panels:** a module's faceplate — the background behind its knobs and jacks. Its name runs vertically up the left edge, to save vertical space.
 
 **Focus:** as you move around, the rack follows your pointer — whatever you're over brightens and everything else dims back. It's not decoration; it's how wCoast helps you read a patch. Hover a module and it stands out; on a multi-part module like a quad, hover just one band and only that band lights. Once things are wired, hovering lights the whole chain the signal runs through — every module from source to output — so the structure shows itself instead of hiding among equally bright cables and panels.
 
@@ -58,11 +60,13 @@ This is the tutorial wCoast shows in its floating cards, on a first run and from
 
 **Moving around:** if scrolling turns knobs, how do you get around a big rack? Hint: hold Option (Alt on Windows) and scroll. More on this in the **Getting around** section of the tutorial, covered later.
 
+Coming next: **First sound**.
+
 ## First sound
 
-**Cabling:** left-click a terminal and the cable follows the pointer — no button held. (Almost everything in wCoast works without a held button — gentler on the hand than dragging.) Left-click another terminal to connect it, or left-click anywhere else to drop it. A cable takes the colour of the input it plugs into, so you can read its job at a glance.
+**Cables:** left-click a terminal and the cable follows the pointer — no button held. (Almost everything in wCoast works without a held button — gentler on the hand than dragging.) Left-click another terminal to connect it, or left-click anywhere else to drop it. A cable takes the colour of the input it plugs into, so you can read its job at a glance.
 
-> **Do this** — Left-click the **"Complex Oscillator"** Final output, move to **channel A** of the **"Mixer"** (bottom-left, top row of inputs), and click to connect. The cable is yellow — its destination is an audio terminal.
+> **Do this** — Left-click the **"Complex Oscillator"** Final output (near the centre top of the module), move to **channel A** of the **"Mixer"** (bottom-left, top row of inputs), and click to connect. The cable is yellow — its destination is an audio terminal.
 
 **Sound:** nothing plays until the sound engine is on.
 
@@ -70,9 +74,9 @@ This is the tutorial wCoast shows in its floating cards, on a first run and from
 
 **The chain:** with the oscillator now wired to the mixer, the two are one signal chain — and hovering lights a whole chain at once, so you can see what feeds what, which controls affect the signal you're on, and what they in turn affect.
 
-> **Do this** — Hover another mixer channel (B, say): the **"Complex Oscillator"** stays dim, not part of that chain. Come back to channel A and it lights with the **"Complex Oscillator"** and the controls that shape what reaches it. Now hover the **"Complex Oscillator"** itself — channel A lights up downstream, showing that the **oscillator's** controls will affect that mixer channel.
+> **Do this** — Hover another mixer channel (B, say): the **"Complex Oscillator"** is dimmed, not part of that chain. Come back to channel A and it lights with the **"Complex Oscillator"** and the controls that shape what reaches it. Now hover the **"Complex Oscillator"** itself — channel A lights up downstream, showing that the **oscillator's** controls will affect that mixer channel.
 
-Here it's trivial — one oscillator into one channel — but in a rack full of wired modules, seeing at a glance what affects what, and what is affected by what, lightens your mental load.
+Here it's trivial — one oscillator into one channel — but in a rack full of wired modules, seeing at a glance what affects what, and what is affected by what, lightens your mental load and heightens your understanding of the patch.
 
 **Pitch:** the big **Pitch** knob (centre, under Principal Osc) sets the frequency of the sound you're hearing.
 
@@ -84,4 +88,6 @@ Here it's trivial — one oscillator into one channel — but in a rack full of 
 
 **More variations:** the shape section on the right — **Timbre**, **Order**, **Symmetry** — folds the waveform.
 
-> **Do this** — With **Mod Index** still turned up and at least one modulation push button on, scroll **Timbre**, then **Order** and **Symmetry**, and listen to the harmonics shift. Then combine everything — the principal **Pitch**, the modulation oscillator's **Frequency**, **Mod Index**, the different modulation buttons, and the shape knobs — to hear how far the sound will go.
+> **Do this** — With **Mod Index** still turned up and at least one modulation push button on, scroll **Timbre**, then **Order** and **Symmetry**, and listen to the harmonics shift. Then combine everything — the principal **Pitch**, the modulation oscillator's **Frequency**, **Mod Index**, the different modulation buttons, and the shape knobs — to hear the wide range of possible sounds.
+
+Coming next: **Building a patch**.
