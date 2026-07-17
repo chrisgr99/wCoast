@@ -4595,11 +4595,18 @@ export class Rack {
     if (window.wcoast && window.wcoast.openExternal) window.wcoast.openExternal(url);
     else window.open(url, '_blank', 'noopener');
   }
-  _closeSubs() { for (const s of this._openSubs) s.remove(); this._openSubs = []; this._subParent = null; }
+  // Close submenus at `depth` and DEEPER, leaving shallower ones standing — a submenu opening its
+  // own child must not tear itself down. _openSubs is the live stack, one entry per level.
+  _closeSubsFrom(depth = 0) {
+    while (this._openSubs.length > depth) this._openSubs.pop().remove();
+    if (depth === 0) this._subParent = null;
+  }
+  _closeSubs() { this._closeSubsFrom(0); }
 
-  // Build (but don't place) a submenu of leaf items — check marks, disabled state, and
-  // a click that runs the item and closes the whole menu.
-  _buildSubmenu(items) {
+  // Build (but don't place) a submenu — check marks, disabled state, a click that runs the item and
+  // closes the whole menu, and NESTED submenus of its own, to any depth. `depth` is which level this
+  // one is, so a child knows to close its siblings' children and not its parent.
+  _buildSubmenu(items, depth = 0) {
     const sub = document.createElement('div');
     sub.className = 'rack-menu rack-submenu' + (this.isDark() ? ' theme-dark' : '');
     for (const it of items) {
@@ -4608,7 +4615,21 @@ export class Rack {
       item.className = 'rack-menu-item';
       const on = it.checkFn ? it.checkFn() : !!it.checked;
       const lbl = document.createElement('span'); lbl.textContent = it.label; item.appendChild(lbl);
+      if (it.submenu) {
+        // Same affordance as a top-level heading: an arrow, opening to the side on hover or click.
+        item.classList.add('has-sub');
+        const arrow = document.createElement('span');
+        arrow.className = 'rack-menu-arrow'; arrow.textContent = '›';
+        item.appendChild(arrow);
+        item.addEventListener('mouseenter', () => this._openSubmenu(item, it.submenu, depth + 1));
+        item.addEventListener('click', (e) => { e.stopPropagation(); this._openSubmenu(item, it.submenu, depth + 1); });
+        sub.appendChild(item);
+        continue;
+      }
       if (it.checkFn || it.checked !== undefined) { const ck = document.createElement('span'); ck.className = 'rack-menu-check'; ck.textContent = on ? '✓' : ''; item.appendChild(ck); }
+      // Moving onto a plain row closes anything a NEIGHBOUR opened, or its submenu hangs there
+      // over the rows you're now pointing at.
+      item.addEventListener('mouseenter', () => this._closeSubsFrom(depth + 1));
       if (it.disabled) item.classList.add('disabled');
       else item.addEventListener('click', () => { this._closeMenu(); it.action(); });
       sub.appendChild(item);
@@ -4618,9 +4639,11 @@ export class Rack {
 
   // Open one submenu at a time, to the right of its parent heading (flips left / rides
   // up if it would run off-screen).
-  _openSubmenu(item, items) {
-    this._closeSubs();
-    const sub = this._buildSubmenu(items);
+  _openSubmenu(item, items, depth = 0) {
+    if (this._openSubs.length === depth + 1 && this._openSubs[depth] && this._openSubs[depth]._forItem === item) return;   // already showing this one
+    this._closeSubsFrom(depth);
+    const sub = this._buildSubmenu(items, depth);
+    sub._forItem = item;
     sub.style.left = '0px'; sub.style.top = '0px'; sub.style.visibility = 'hidden';
     document.body.appendChild(sub);
     this._openSubs.push(sub);
@@ -4630,6 +4653,6 @@ export class Rack {
     let sl = r.right - 2; if (sl + sw > vw - pad) sl = Math.max(pad, r.left - sw + 2);
     let st = r.top; if (st + sh > vh - pad) st = Math.max(pad, vh - pad - sh);
     sub.style.left = sl + 'px'; sub.style.top = st + 'px'; sub.style.visibility = '';
-    this._subParent = item;   // whose submenu is showing (so re-entering it is a no-op)
+    if (depth === 0) this._subParent = item;   // whose top-level submenu is showing (re-entering it is a no-op)
   }
 }
