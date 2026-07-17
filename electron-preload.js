@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('wcoast', {
     open: () => ipcRenderer.invoke('patch:open'),
     save: (state) => ipcRenderer.invoke('patch:save', state),
     saveAs: (state) => ipcRenderer.invoke('patch:saveAs', state),
+    recent: () => ipcRenderer.invoke('patch:recent'),
+    read: (p) => ipcRenderer.invoke('patch:read', p),
     setDirty: (v) => ipcRenderer.send('patch:dirty', v),
   },
   // AI patch mirror. status/setEnabled/reveal round-trip; write projects files.

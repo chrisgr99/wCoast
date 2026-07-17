@@ -19,6 +19,8 @@
 //     lastName()    : string | null
 //     forget()      : void                             // drop the current file (New)
 //     name()        : string | null                    // current file's display name
+//     recent()      : Promise<[{ id, name }]>          // recent saves, newest first ([] if unsupported)
+//     openRecent(id): Promise<{ text, name } | null>   // open one, becomes current
 //   }
 //
 // A user cancelling a picker resolves to null (not an error).
@@ -53,6 +55,19 @@ function electronStorage(bridge) {
       if (!res) return null;
       remember(res.path);
       return baseName(res.path);
+    },
+    // Recent saves come from the patches folder, newest first — the folder IS the list, so it
+    // can never offer a file that was renamed or deleted behind the app's back.
+    async recent() {
+      if (!bridge.recent) return [];
+      try { return (await bridge.recent()).map((f) => ({ id: f.path, name: f.name })); } catch (_e) { return []; }
+    },
+    async openRecent(id) {
+      if (!bridge.read) return null;
+      const res = await bridge.read(id);
+      if (!res) return null;
+      remember(res.path);
+      return { text: res.text, name: baseName(res.path) };
     },
     async reopenLast() { return null; },   // Electron reopen (via settings) is deferred
     hasLast() { return false; },
@@ -102,7 +117,7 @@ function handleStore() {
 function browserStorage() {
   if (typeof window === 'undefined' || !window.showSaveFilePicker) {
     const no = () => { throw new Error('This browser lacks the File System Access API — use Chrome or Edge.'); };
-    return { open: no, save: no, saveAs: no, async reopenLast() { return null; }, hasLast() { return false; }, lastName() { return null; }, adoptLast() { return null; }, forget() {}, name() { return null; } };
+    return { open: no, save: no, saveAs: no, async reopenLast() { return null; }, hasLast() { return false; }, lastName() { return null; }, adoptLast() { return null; }, forget() {}, name() { return null; }, async recent() { return []; }, async openRecent() { return null; } };
   }
 
   const PICKER = { types: [{ description: 'Wcoast Patch', accept: { 'application/json': ['.wcoast'] } }] };
@@ -136,6 +151,12 @@ function browserStorage() {
   }
 
   return {
+    // No recents in a browser, and it isn't an oversight: the File System Access API can't list a
+    // folder without the user granting that folder, and a saved handle can't be READ without a
+    // fresh permission prompt — so a "recent" list would be a row of files that each cost a
+    // permission dialog to touch. An empty list means the menu simply omits the section.
+    async recent() { return []; },
+    async openRecent() { return null; },
     async open() {
       const picked = await orNull(() => window.showOpenFilePicker({ ...PICKER, multiple: false, startIn: current || 'documents' }));
       if (!picked) return null;

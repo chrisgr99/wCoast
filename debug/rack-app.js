@@ -283,6 +283,21 @@ async function boot() {
     try { const name = await storage.saveAs(patchText()); if (name) { setPatchName(name); markClean(); } }
     catch (e) { log(`save failed: ${e.message}`); window.alert(`Could not save: ${e.message}`); }
   }
+  // Open one of the recent saves. Same guard as Open — it discards the current work.
+  async function openRecent(id) {
+    if (!okToDiscard()) return;
+    let f;
+    try { f = await storage.openRecent(id); } catch (e) { log(`open failed: ${e.message}`); return; }
+    if (!f) { window.alert('That patch could not be opened — it may have been moved or renamed.'); return; }
+    try { await restore(JSON.parse(f.text), rack, mixerIO); setPatchName(f.name); markClean(); }
+    catch (e) { log(`restore failed: ${e.message}`); window.alert(`Could not open patch: ${e.message}`); }
+  }
+
+  // The recent list is read when the menu OPENS, not cached at boot: the folder is the truth, and
+  // it changes underneath us every time a patch is saved — here or in the Finder.
+  let recentFiles = [];
+  const refreshRecent = async () => { try { recentFiles = await storage.recent(); } catch (_e) { recentFiles = []; } };
+
   async function reopenPatch() {
     if (!okToDiscard()) return;
     let f;
@@ -318,6 +333,12 @@ async function boot() {
       { label: 'Save As…', action: () => saveAsPatch() },
     ];
     if (storage.hasLast && storage.hasLast()) file.push({ label: `Reopen ${storage.lastName()}`, action: () => reopenPatch() });
+    // Newest first, in a submenu of its own — a header over a flat run of filenames just reads as
+    // more File commands. The file you already have open is listed like any other: clicking it
+    // re-reads it from disk, which is how you revert to the last save.
+    if (recentFiles.length) {
+      file.push({ label: 'Recent', submenu: recentFiles.map((f) => ({ label: f.name, action: () => openRecent(f.id) })) });
+    }
     const edit = [
       { label: 'Undo', disabled: !rack.canUndo(), action: () => rack.undo() },
       { label: 'Redo', disabled: !rack.canRedo(), action: () => rack.redo() },
@@ -350,11 +371,14 @@ async function boot() {
       { label: 'Help', submenu: rack.helpMenuItems() },
     ]);
   };
-  rack.onAppMenu = openAppMenu;              // panel-pie app-menu wedge
+  // Read the folder, THEN open. It's a local readdir of a handful of files, so the wait is
+  // imperceptible — and opening first and re-opening once it lands makes the menu flicker.
+  rack.onAppMenu = (x, y) => { refreshRecent().then(() => openAppMenu(x, y)); };
   // The always-visible hamburger: the same main menu, for anyone who hasn't met right-click yet
   // (or dismissed the tour before it said so). Opens under the button, like a menu bar would.
-  document.getElementById('burger').addEventListener('click', (e) => {
+  document.getElementById('burger').addEventListener('click', async (e) => {
     const r = e.currentTarget.getBoundingClientRect();
+    await refreshRecent();
     openAppMenu(Math.max(4, r.right - 190), r.bottom + 4);   // hang it INWARD from a top-right button
   });
 

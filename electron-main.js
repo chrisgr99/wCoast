@@ -42,6 +42,14 @@ async function patchesDir() {
   return dir;
 }
 
+const PATCH_EXT = '.wcoast';
+const RECENT_MAX = 20;           // how many recent saves the File menu offers
+// Paths this process handed the renderer via a dialog, so a patch kept OUTSIDE the patches folder
+// still shows in Recent and can still be re-read. It's also the read guard's allow-list: the user
+// chose these in a native dialog, which IS the grant — the renderer never names a file we didn't
+// give it first.
+const granted = new Set();
+
 let hasUnsavedChanges = false;   // mirrored from the renderer, to guard window close
 let appQuitting = false;         // ⌘Q / app-quit in progress — bypass the unsaved-changes guard
 app.on('before-quit', () => { appQuitting = true; });
@@ -57,7 +65,39 @@ function registerPatchIpc() {
     const r = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: PATCH_FILTER, defaultPath: await patchesDir() });
     if (r.canceled || !r.filePaths[0]) return null;
     const filePath = r.filePaths[0];
+    granted.add(path.normalize(filePath));
     return { path: filePath, text: await fs.promises.readFile(filePath, 'utf8') };
+  });
+  // Recent saves = the patches folder itself, newest first. Deliberately NOT a
+  // remembered most-recently-used list: a list drifts out of step with the disk and
+  // ends up offering files that were renamed, moved or deleted elsewhere. The folder
+  // IS the truth, mtime IS "last saved", so this can't go stale.
+  ipcMain.handle('patch:recent', async () => {
+    const seen = new Map();
+    const add = async (filePath) => {
+      const abs = path.normalize(filePath);
+      if (seen.has(abs) || !abs.toLowerCase().endsWith(PATCH_EXT)) return;
+      try { seen.set(abs, { path: abs, name: path.basename(abs), at: (await fs.promises.stat(abs)).mtimeMs }); } catch (_e) { /* gone */ }
+    };
+    try {
+      const dir = await patchesDir();
+      for (const f of await fs.promises.readdir(dir)) await add(path.join(dir, f));
+    } catch (_e) { /* no folder yet */ }
+    for (const p of granted) await add(p);   // ...plus anything kept elsewhere, so the open file is always listed
+    return [...seen.values()].sort((a, b) => b.at - a.at).slice(0, RECENT_MAX);
+  });
+  // Read a recent entry by path. The renderer names the file, so it must not be able to name ANY
+  // file: allow only the patches folder, or a path the user themselves chose in a dialog this
+  // session. Extension-checked either way.
+  ipcMain.handle('patch:read', async (_e, filePath) => {
+    try {
+      if (typeof filePath !== 'string' || !filePath.toLowerCase().endsWith(PATCH_EXT)) return null;
+      const abs = path.normalize(filePath);
+      const inPatchesDir = path.dirname(abs) === path.normalize(await patchesDir());
+      if (!inPatchesDir && !granted.has(abs)) return null;
+      granted.add(abs);
+      return { path: abs, text: await fs.promises.readFile(abs, 'utf8') };
+    } catch (_e) { return null; }
   });
   ipcMain.handle('patch:save', async (_e, arg) => {
     let filePath = arg && arg.path;
@@ -67,6 +107,7 @@ function registerPatchIpc() {
       filePath = r.filePath;
     }
     await fs.promises.writeFile(filePath, arg.text, 'utf8');
+    granted.add(path.normalize(filePath));
     return { path: filePath };
   });
   ipcMain.handle('patch:saveAs', async (_e, arg) => {
@@ -74,6 +115,7 @@ function registerPatchIpc() {
     const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath });
     if (r.canceled || !r.filePath) return null;
     await fs.promises.writeFile(r.filePath, arg.text, 'utf8');
+    granted.add(path.normalize(r.filePath));
     return { path: r.filePath };
   });
 }
