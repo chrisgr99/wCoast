@@ -57,3 +57,31 @@ This is the tutorial wCoast shows in its floating cards, on a first run and from
 > **Do this** — Hover a knob and scroll it, then move to its rim and scroll again — the same gesture, four times finer.
 
 **Moving around:** if scrolling turns knobs, how do you get around a big rack? Hint: hold Option (Alt on Windows) and scroll. More on this in the **Getting around** section of the tutorial, covered later.
+
+## First sound
+
+**Cabling:** left-click a terminal and the cable follows the pointer — no button held. (Almost everything in wCoast works without a held button — gentler on the hand than dragging.) Left-click another terminal to connect it, or left-click anywhere else to drop it. A cable takes the colour of the input it plugs into, so you can read its job at a glance.
+
+> **Do this** — Left-click the **"Complex Oscillator"** Final output, move to **channel A** of the **"Mixer"** (bottom-left, top row of inputs), and click to connect. The cable is yellow — its destination is an audio terminal.
+
+**Sound:** nothing plays until the sound engine is on.
+
+> **Do this** — Right-click a panel to open the menu and hover over **Engine** — the oscillator sounds while your pointer rests there. Pull away from the menu and it stops. Reopen the menu and click **Engine** to leave it running. Then set a comfortable volume with the mixer's **Master** fader (drag it, or scroll it) — the first sound can come out louder or quieter than you'd like.
+
+**The chain:** with the oscillator now wired to the mixer, the two are one signal chain — and hovering lights a whole chain at once, so you can see what feeds what, which controls affect the signal you're on, and what they in turn affect.
+
+> **Do this** — Hover another mixer channel (B, say): the **"Complex Oscillator"** stays dim, not part of that chain. Come back to channel A and it lights with the **"Complex Oscillator"** and the controls that shape what reaches it. Now hover the **"Complex Oscillator"** itself — channel A lights up downstream, showing that the **oscillator's** controls will affect that mixer channel.
+
+Here it's trivial — one oscillator into one channel — but in a rack full of wired modules, seeing at a glance what affects what, and what is affected by what, lightens your mental load.
+
+**Pitch:** the big **Pitch** knob (centre, under Principal Osc) sets the frequency of the sound you're hearing.
+
+> **Do this** — Hold the pointer over the **Pitch** knob and scroll (scroll wheel, or two fingers on a trackpad) to hear the pitch rise and fall. Try it near the knob's centre, then out at its rim — the centre changes it fast, the rim slow and fine.
+
+**Modulate:** the **"Complex Oscillator"** holds two oscillators — the principal one you're hearing, and a *modulation* oscillator (left) that can drive it. Between them sits the modulation section: three **push buttons** (Ampl Mod, Pitch Mod, Timbre Mod) that pick how it drives, and a **Mod Index** knob for depth.
+
+> **Do this** — On the **"Complex Oscillator"**, press the **Pitch Mod** push button (it lights), then scroll **Mod Index** either way off its centre, to a non-zero modulation depth. Explore the sound possibilities by changing three things: the modulation oscillator's **Frequency** (left), the principal **Pitch**, and the **Mod Index** depth.
+
+**More variations:** the shape section on the right — **Timbre**, **Order**, **Symmetry** — folds the waveform.
+
+> **Do this** — With **Mod Index** still turned up and at least one modulation push button on, scroll **Timbre**, then **Order** and **Symmetry**, and listen to the harmonics shift. Then combine everything — the principal **Pitch**, the modulation oscillator's **Frequency**, **Mod Index**, the different modulation buttons, and the shape knobs — to hear how far the sound will go.
