@@ -18,13 +18,13 @@ This is the tutorial wCoast shows in its floating cards, on a first run and from
 
 ## Before you start
 
-**First, please turn off any browser extension that recolours pages — Dark Reader and the like — for this site.** wCoast has its own light and dark modes, and those extensions distort its panels.
+**Extensions:** please turn off any browser extension that recolours pages — Dark Reader and the like — for this site. wCoast has its own light and dark modes, and those extensions distort its panels.
 
-Each card explains one part of the instrument and then asks you to do something. The card stays open while you work, so you never have to dismiss it to follow it — park it anywhere by its title bar, and resize it like any other window. Marked blocks are your cue to act, like this one:
+**These cards:** each explains one part of the instrument, then asks you to do something. A card stays open while you work, so you never have to dismiss it to follow it — park it anywhere by its title bar, and resize it like any other window. Marked blocks are your cue to act, like this one:
 
 > **Do this** — Read the [README](https://github.com/chrisgr99/wCoast/blob/main/README.md) if you haven't — it covers what wCoast is, and what it isn't, which this tutorial won't repeat.
 
-What the rest of the tutorial covers:
+**Coming up:**
 
 - **Basic interaction** — panels, menus, and the controls
 - **First sound** — the shortest path to hearing something
@@ -36,24 +36,24 @@ What the rest of the tutorial covers:
 
 ## Basic interaction
 
-A **panel** is a module's faceplate — the background behind its knobs and jacks.
+**Panels:** a module's faceplate — the background behind its knobs and jacks. Its name runs vertically up the left edge, to save vertical space (scarcer here than horizontal).
 
-Right-click asks whatever is under the pointer what it can do. On a panel, that's the main menu: Engine, File, Edit, View and Help.
+**Focus:** as you move around, the rack follows your pointer — whatever you're over brightens and everything else dims back. It's not decoration; it's how wCoast helps you read a patch. Hover a module and it stands out; on a multi-part module like a quad, hover just one band and only that band lights. Once things are wired, hovering lights the whole chain the signal runs through — every module from source to output — so the structure shows itself instead of hiding among equally bright cables and panels.
 
-> **Do this** — Right-click a panel to open the main menu. Click any panel to dismiss it — a click anywhere outside a menu closes it.
+> **Do this** — Move your pointer over the "Complex Oscillator" (the top-left module) without clicking, and watch the whole module brighten while the rest dims. Now move to a single band of the "Quad Low Pass Gate" — just that band lights.
 
-The same menu is on the hamburger in the top corner, if you'd rather click for it, and **F1** opens Help on its own.
+**Commands:** right-click a panel — or click the hamburger in the top corner — for the main menu: Engine, File, Edit, View and Help.
 
-Right-click elsewhere and you get that thing's own menu: a **terminal** offers what its signal can do, a module's **title strip** — the name running up its left edge — resets or deletes that module, and **empty rack space** offers a module to add.
+> **Do this** — Right-click a panel, go to View, and set light or dark to your taste. Everything re-skins, including this card, and your choice sticks between sessions.
 
-Knobs are the one thing your hands will get wrong: they **do not drag**. Hover a knob and scroll. Where you hover matters — full rate at the centre, a quarter of it at the rim, so the same scroll gives you coarse or fine without a modifier.
+**Terminals:** right-click one and the menu offers what you can do with that signal — watch it on a scope, listen to it, or trace where it goes.
 
-> **Do this** — Hover a knob and scroll it. Then move to its rim and scroll again — the same gesture, four times finer.
+> **Do this** — On the "Complex Oscillator", right-click the **Final** output (under Principal Osc Outputs) and rest the pointer on **Monitor** to hear the signal there, then slide onto **Scope** to see its shape. No clicking — each lasts only while your pointer is on it (you could click to keep it).
 
-Faders take either: drag them, or scroll them like a knob. Double-click any knob to put it back to its default.
+**Colour code:** terminals read at a glance. Colour is the signal family — **audio** yellow, **control voltage** orange, **gates and triggers** blue. Shape is direction: a dashed ring hugs a terminal's outer edge on an **output**, and surrounds the centre hole on an **input**.
 
-Plain scroll **only ever** touches the control under the pointer. It never moves the view — nothing scrolls out from under you while you're turning something.
+**Controls:** knobs may work differently from other modulars you've used — they **don't drag**. Hover a knob and scroll. Full rate at the centre, a quarter of it at the rim, so the same gesture gives you coarse or fine without a modifier. Faders take either: drag them, or scroll them like a knob. Double-click any knob to reset it.
 
-Light or dark is yours, and it sticks between sessions.
+> **Do this** — Hover a knob and scroll it, then move to its rim and scroll again — the same gesture, four times finer.
 
-> **Do this** — Open View from the main menu and switch mode. Everything re-skins, including this card.
+**Moving around:** if scrolling turns knobs, how do you get around a big rack? Hint: hold Option (Alt on Windows) and scroll. More on this in the **Getting around** section of the tutorial, covered later.
