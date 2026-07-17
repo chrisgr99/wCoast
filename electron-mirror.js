@@ -33,6 +33,7 @@ let reconciling = false;     // a reconcile is in flight (prevents overlap/doubl
 let pending = false;         // a folder event arrived during a reconcile — run once more
 let lastPatchText = null;    // last patch.json content WE wrote (self-write mute)
 let projected = false;       // the renderer has projected at least once this run
+let writeChain = Promise.resolve();   // serialises mirror:write — see the handler for why it must
 let getWindow = () => null;  // returns the BrowserWindow (set by initMirror)
 
 const mirrorDir = () => path.join(app.getPath('documents'), 'WCOAST', MIRROR_DIR_NAME);
@@ -51,10 +52,16 @@ async function isEnabled() {
   return typeof s.mirrorEnabled === 'boolean' ? s.mirrorEnabled : DEFAULT_ENABLED;
 }
 
-// Atomic write: <name>.tmp then rename to <name>, so a watcher never sees a torn
-// file (and the phase-2 self-write mute can key off the completed rename).
+// Atomic write: a UNIQUE <name>.<n>.tmp then rename to <name>, so a watcher never sees a torn
+// file (and the self-write mute can key off the completed rename). The scratch name must be
+// unique per write: with a shared one, two writes of the same file collide on it — the second
+// overwrites the first's scratch, the first renames it (so the file ends up holding the SECOND's
+// text) and then records the FIRST's as the baseline, and the second's rename dies on ENOENT into
+// a swallowed catch. The mute is then silently wrong forever. Callers are serialised too (see
+// mirror:write); this is the belt to that pair of braces.
+let tmpSeq = 0;
 async function writeAtomic(name, text) {
-  const tmp = path.join(mirrorDir(), name + TMP);
+  const tmp = path.join(mirrorDir(), `${name}.${process.pid}.${++tmpSeq}${TMP}`);
   await fsp.writeFile(tmp, text, 'utf8');
   await fsp.rename(tmp, path.join(mirrorDir(), name));
 }
@@ -167,17 +174,26 @@ function initMirror(windowGetter) {
     if (v) { await enable(); await seedBaseline(); startWatch(); } else { await disable(); stopWatch(); }
     return { enabled: !!v, dir: mirrorDir() };
   });
-  ipcMain.on('mirror:write', async (_e, files) => {
-    if (!(await isEnabled()) || !files) return;
-    await ensureFolder();
-    for (const name of Object.keys(files)) {
-      try {
-        await writeAtomic(name, files[name]);
-        // Mute our own echo, and mark that the app has now projected — from here
-        // on a differing patch.json is a genuine external edit worth surfacing.
-        if (name === 'patch.json') { lastPatchText = files[name]; projected = true; }
-      } catch (e) { console.warn('Wcoast mirror write failed:', name, e.message); }
-    }
+  // SERIALISED, and it must be. ipcMain.on does not await an async handler, so two writes
+  // arriving close together interleave at their awaits: A can rename patch.json AFTER B, leaving
+  // the file holding A's text while lastPatchText holds B's. That silently breaks the self-write
+  // mute — and because the mute is content-based it then LATCHES: every later folder event
+  // reconciles the difference as an AI edit and pops the accept prompt. Folder events are
+  // constant (selection.json is rewritten on every module hover), so once it goes wrong it stays
+  // wrong. A promise chain keeps the file and the baseline in step.
+  ipcMain.on('mirror:write', (_e, files) => {
+    writeChain = writeChain.then(async () => {
+      if (!(await isEnabled()) || !files) return;
+      await ensureFolder();
+      for (const name of Object.keys(files)) {
+        try {
+          await writeAtomic(name, files[name]);
+          // Mute our own echo, and mark that the app has now projected — from here
+          // on a differing patch.json is a genuine external edit worth surfacing.
+          if (name === 'patch.json') { lastPatchText = files[name]; projected = true; }
+        } catch (e) { console.warn('Wcoast mirror write failed:', name, e.message); }
+      }
+    }).catch((e) => console.warn('Wcoast mirror write chain:', e.message));
   });
   // The renderer reports the outcome of applying an external patch.json edit.
   ipcMain.on('mirror:result', async (_e, result) => {
