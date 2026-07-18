@@ -1,4 +1,4 @@
-# LibreSynth — Interactive tutorial
+# wCoast — Interactive tutorial
 
 <!--
 This file is BOTH the document you are reading and the exact copy the app shows in its tutorial cards. Editing it here changes the tutorial; there is no build step.
@@ -14,15 +14,15 @@ Inline: **bold**, *italic*, [text](url), `code`. Text above the first ## is prea
 House style: the reader has probably used a software modular before, and they all differ in interface and terminology — so the job is to map, not to teach. One card per heading, each a complete covering of it. No sales pitch; they've read the README.
 -->
 
-This is the tutorial LibreSynth shows in its floating cards, on a first run and from Help ▸ Interactive tutorial. It's written for someone who has used a software modular before, so rather than teaching synthesis it maps what you already know onto this one — and points out where LibreSynth differs.
+This is the tutorial wCoast shows in its floating cards, on a first run and from Help ▸ Interactive tutorial. It's written for someone who has used a software modular before, so rather than teaching synthesis it maps what you already know onto this one — and points out where wCoast differs.
 
 ## Before you start
 
-**Before you start,** please turn off any browser extension that recolours pages — Dark Reader and the like — for this site. LibreSynth has its own light and dark modes, and those extensions distort its panels.
+**Before you start,** please turn off any browser extension that recolours pages — Dark Reader and the like — for this site. wCoast has its own light and dark modes, and those extensions distort its panels.
 
 **These cards:** each explains one part of the instrument, then asks you to do something. A card stays open while you work, so you never have to dismiss it to follow it — park it anywhere by its title bar, and resize it like any other window. Marked blocks are your cue to act, like this one:
 
-> **Do this** — Read the [README](https://github.com/chrisgr99/LibreSynth/blob/main/README.md) if you haven't — it covers what LibreSynth is, and what it isn't, which this tutorial won't repeat.
+> **Do this** — Read the [README](https://github.com/chrisgr99/wCoast/blob/main/README.md) if you haven't — it covers what wCoast is, and what it isn't, which this tutorial won't repeat.
 
 **Coming up:**
 
@@ -40,7 +40,7 @@ Coming next: **Basic interaction**.
 
 **Panels:** a module's faceplate — the background behind its knobs and jacks. Its name runs vertically up the left edge, to save vertical space.
 
-**Focus:** as you move around, the rack follows your pointer — whatever you're over brightens and everything else dims back. It's not decoration; it's how LibreSynth helps you read a patch. Hover a module and it stands out; on a multi-part module like a quad, hover just one band and only that band lights. Once things are wired, hovering lights the whole chain the signal runs through — every module from source to output — so the structure shows itself instead of hiding among equally bright cables and panels.
+**Focus:** as you move around, the rack follows your pointer — whatever you're over brightens and everything else dims back. It's not decoration; it's how wCoast helps you read a patch. Hover a module and it stands out; on a multi-part module like a quad, hover just one band and only that band lights. Once things are wired, hovering lights the whole chain the signal runs through — every module from source to output — so the structure shows itself instead of hiding among equally bright cables and panels.
 
 > **Do this** — Move your pointer over the "Complex Oscillator" (the top-left module) without clicking, and watch the whole module brighten while the rest dims. Now move to a single band of the "Quad Low Pass Gate" — just that band lights.
 
@@ -64,7 +64,7 @@ Coming next: **First sound**.
 
 ## First sound
 
-**Cables:** left-click a terminal and the cable follows the pointer — no button held. (Almost everything in LibreSynth works without a held button — gentler on the hand than dragging.) Left-click another terminal to connect it, or left-click anywhere else to drop it. A cable takes the colour of the input it plugs into, so you can read its job at a glance.
+**Cables:** left-click a terminal and the cable follows the pointer — no button held. (Almost everything in wCoast works without a held button — gentler on the hand than dragging.) Left-click another terminal to connect it, or left-click anywhere else to drop it. A cable takes the colour of the input it plugs into, so you can read its job at a glance.
 
 > **Do this** — Left-click the **"Complex Oscillator"** Final output (near the centre top of the module), move to **channel A** of the **"Mixer"** (bottom-left, top row of inputs), and click to connect. The cable is yellow — its destination is an audio terminal.
 

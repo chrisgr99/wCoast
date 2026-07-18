@@ -1,6 +1,6 @@
-# LibreSynth — Design Document
+# Wcoast — Design Document
 
-LibreSynth is an open modular synthesizer for Web Audio,
+Wcoast is a West Coast (Buchla-style) modular synthesizer for Web Audio,
 packaged as a native macOS app via Electron. It is a companion instrument to
 GXW/GeoSonel: playable standalone, and later drivable by GXW over a local
 message bridge. Non-commercial personal project.
@@ -42,7 +42,7 @@ domains — qualities that happen to help low vision.
 
 ## 2. Signal domains (three cable types)
 
-LibreSynth is modelled on Buchla, which separates signals into domains. We use
+Wcoast is modelled on Buchla, which separates signals into domains. We use
 three: **audio**, **control**, **trigger**. Every port declares its domain.
 
 The domains are **typed-with-override**, not rigid. A single policy function
@@ -231,7 +231,7 @@ A module is up to **three separable artifacts**:
 
 ### "Module" = a complete Buchla module
 
-Throughout LibreSynth, **"module" ALWAYS means a complete Buchla module** (the 259t
+Throughout Wcoast, **"module" ALWAYS means a complete Buchla module** (the 259t
 Complex Oscillator, the 292 Low Pass Gate, the 281 Function Generator, …) —
 never a subpart of one. The 259t's Timbre/Harmonics wavefolder is a *section
 of* the 259t, not a module; a separate dedicated wavefolder would be a
@@ -620,7 +620,7 @@ Modulation & timing (make it move):
    more than one modulation source. (Control edges already get an inline gain
    for the per-connection amount, i.e. a free attenuator per control cord.)
 
-Full-fidelity rule: each LibreSynth module represents its real Buchla counterpart
+Full-fidelity rule: each Wcoast module represents its real Buchla counterpart
 **completely** — every jack and control — except hardware-only features with
 no software meaning (see ART, §10). Completeness sets the DSP bar per module;
 finish one module fully before the next.
@@ -634,12 +634,12 @@ finish one module fully before the next.
 > reasoning (control-rate, glide, scheduling); the protocol doc holds the wire
 > format (handles, mandatory duration, note-off, loss tolerance).
 
-- **Separate audio contexts.** GXW and LibreSynth do NOT share an audio graph;
+- **Separate audio contexts.** GXW and Wcoast do NOT share an audio graph;
   they talk over a local message transport. (Electron-to-Electron makes this
   far simpler than browser-to-anything.)
 - **GXW is tick-rate and cannot produce audio-rate control.** This is settled
   by GXW's nature (physics-tick cursor motion). Therefore:
-  - **All fast/audio-rate modulation lives inside LibreSynth** (its function
+  - **All fast/audio-rate modulation lives inside Wcoast** (its function
     generators, LFOs, random source). GXW *parameterises and triggers* these;
     it is not itself a modulation source. This is also the more Buchla-true
     arrangement.
@@ -662,7 +662,7 @@ finish one module fully before the next.
   Strudel, and a thin MIDI translator all speak the SAME message protocol into
   the same front door, so no single client constrains the design. Strudel already
   emits the SuperDirt play format; a superdough-shaped adapter maps its control
-  names onto the protocol’s fields, and LibreSynth is the target it would otherwise
+  names onto the protocol’s fields, and Wcoast is the target it would otherwise
   point at SuperCollider.
 
 ---
@@ -670,9 +670,9 @@ finish one module fully before the next.
 ## 10. ART — dropped (reference decision)
 
 The 259t's ART (Autonomous Reactive Tuning) hardware solves two analog
-problems LibreSynth does not have: autotuning oscillator **drift** (a digital
+problems Wcoast does not have: autotuning oscillator **drift** (a digital
 oscillator computes frequency exactly and never drifts), and **polyphonic
-voice allocation over a hardware protocol** (handled by LibreSynth's own voice
+voice allocation over a hardware protocol** (handled by Wcoast's own voice
 engine + the GXW bridge). So the ART switch, ART input jacks, and GATE OUT
 jacks are omitted from the module; the plain 1V/oct pitch input remains and
 tracks perfectly. This is the template for handling any hardware-only feature:

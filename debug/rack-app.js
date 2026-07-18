@@ -111,7 +111,7 @@ async function boot() {
   // Unsaved-changes tracking (state declared above the rack). Any knob, switch,
   // cable, or mixer change dirties the patch; loading or saving cleans it. The
   // title shows a dot while dirty, mirrored to the main process to guard close.
-  function updateTitle() { document.title = `LibreSynth — ${patchName || 'untitled'}${dirty ? ' •' : ''}`; }
+  function updateTitle() { document.title = `Wcoast — ${patchName || 'untitled'}${dirty ? ' •' : ''}`; }
   function setPatchName(n) { patchName = n; updateTitle(); if (mirror) mirror.project(); }
   function markDirty() { if (dirty) return; dirty = true; updateTitle(); window.wcoast?.patch?.setDirty?.(true); }
   function markClean() { dirty = false; updateTitle(); window.wcoast?.patch?.setDirty?.(false); if (mirror) mirror.project(); pushMenuState(); }
