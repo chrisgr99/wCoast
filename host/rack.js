@@ -73,6 +73,11 @@ const TITLE_BAND_MM = 5;                // a panel drags only by this-wide left-
 // to the fit-to-window home view (View ▸ Fit to window, or double-click a panel background).
 const VIEW_ZOOM_MAX = 8;
 const PAN_SCROLL_GAIN = 2;   // Option-scroll pans this many px per px of scroll (2× so it keeps up)
+const ZOOM_WHEEL_GAIN = 0.0015;   // Option-scroll zoom factor per wheel unit: e^(-deltaY*this), focal at the pointer
+const VIEW_DRAG_PX = 4;   // a press-move past this many px on a panel is a pan, not a click (so a plain click still drops a cable)
+const VIEW_MOTION_GAIN = 3;   // while Option is held, moving the pointer pans the view this many px per px moved
+const NAV_EDGE_MARGIN = 24;   // within this many px of a window edge, nav mode auto-scrolls that way
+const NAV_EDGE_RATE = 14;     // steady edge-scroll speed, px per frame
 const VIEW_EASE_MS = 500;
 const VIEW_COMMIT_MS = 1000;   // overview commit glides old→new view over this long
 const OVERVIEW_INSET = 40;     // px the overview picture is held off the window edge — a landing strip for the pointer
@@ -236,32 +241,47 @@ export class Rack {
     // cable, say — so it's not a tap: releasing Option must NOT pop the overview up mid-pull.
     document.addEventListener('pointerdown', () => { if (this._optDown) this._optUsed = true; }, true);
     // View navigation is the overview navigator, opened by an Option tap (see the keydown handler below).
-    // Plain scroll is left entirely to the control under the pointer; Option+scroll pans the view.
-    // Double-click a panel BACKGROUND (not a control — those reset themselves) glides back to fit-to-window.
-    this.container.addEventListener('dblclick', (e) => {
-      if (e.target.closest && e.target.closest('[data-wcoast-param]')) return;
-      this.resetZoom();
-    });
-    // Option + scroll pans the main view (deltaX horizontal, deltaY vertical; Shift routes a vertical-only
-    // wheel to horizontal) whenever the overview isn't open. It also marks the Option press as a pan, so
-    // releasing Option after scrolling won't pop the thumbnail. Document capture + stopPropagation so it
-    // beats every control/scope/monitor wheel; a short freeze holds the scope/monitor anchors still.
+    // Plain scroll is left entirely to the control under the pointer; Option+scroll zooms the view toward
+    // the pointer. Zooming back out to fit is the thumbnail's job (or Option+scroll out) — there is no
+    // double-click-to-fit, which fired too easily on a plain panel click.
+    // While OPTION is held the view is in navigate mode: the WHEEL zooms toward the pointer (scroll up =
+    // deltaY<0 = zoom in), and moving the POINTER pans the view at VIEW_MOTION_GAIN× (see _navMove below).
+    // Document capture + stopPropagation so the wheel beats every control/scope/monitor wheel; a short
+    // freeze holds the scope/monitor anchors still.
     //
-    // It is INSTALLED ONLY WHILE OPTION IS HELD (see the Alt keydown/keyup below), and that matters for
-    // more than tidiness: a non-passive wheel listener left on `document` tells Chromium that any tick
-    // MIGHT be prevented, so it can no longer scroll on the compositor and must wait for the main thread
-    // every time — app-wide. With the cable flow loop writing DOM each frame, that wait is a visible stall
-    // before ANY scroller moves (the tutorial card, a menu). Off while Option is up = the fast path is back.
-    // The overview's own wheel is scoped the same way (see _showOverview).
+    // The wheel listener is INSTALLED ONLY WHILE OPTION IS HELD (see the Alt keydown/keyup below), and that
+    // matters for more than tidiness: a non-passive wheel listener left on `document` tells Chromium that
+    // any tick MIGHT be prevented, so it can no longer scroll on the compositor and must wait for the main
+    // thread every time — app-wide. With the cable flow loop writing DOM each frame, that wait is a visible
+    // stall before ANY scroller moves (the tutorial card, a menu). Off while Option is up = fast path back.
     this._panWheel = (e) => {
-      if (this._ovActive || !e.altKey) return;   // overview owns its own wheel; plain scroll stays with controls
+      if (this._ovActive || !e.altKey) return;   // plain scroll stays with the control under the pointer
       e.preventDefault(); e.stopPropagation();
       this._optUsed = true;
       this._panBusyUntil = performance.now() + 300;
       this.content.style.transition = '';
-      let dx = e.deltaX, dy = e.deltaY;
-      if (e.shiftKey && dx === 0) { dx = dy; dy = 0; }
-      this._tx -= dx * PAN_SCROLL_GAIN; this._ty -= dy * PAN_SCROLL_GAIN;
+      const rect = this.container.getBoundingClientRect();
+      const px = e.clientX - rect.left, py = e.clientY - rect.top;
+      const cbx = (px - this._tx) / this.zoom, cby = (py - this._ty) / this.zoom;   // content base-px under the pointer
+      const z2 = Math.max(1, Math.min(VIEW_ZOOM_MAX, this.zoom * Math.exp(-e.deltaY * ZOOM_WHEEL_GAIN)));
+      this._tx = px - cbx * z2; this._ty = py - cby * z2;                           // keep that point under the pointer
+      this.zoom = z2;
+      this._clampPan();
+      this._applyTransform();
+    };
+    // While Option is held, moving the pointer pans the view at VIEW_MOTION_GAIN× the pointer's travel, so
+    // a sweep across the window covers several windows of rack — coarse positioning; you aim precisely
+    // after releasing Option. Move the pointer toward what you want to see (the view chases the pointer).
+    this._navMove = (e) => {
+      if (!this._optDown || this._ovActive) return;
+      if (this._navLastX == null) { this._navLastX = e.clientX; this._navLastY = e.clientY; return; }   // seed on the first move
+      const dx = e.clientX - this._navLastX, dy = e.clientY - this._navLastY;
+      this._navLastX = e.clientX; this._navLastY = e.clientY;
+      if (!dx && !dy) return;
+      this._optUsed = true;
+      this._panBusyUntil = performance.now() + 300;
+      this.content.style.transition = '';
+      this._tx -= dx * VIEW_MOTION_GAIN; this._ty -= dy * VIEW_MOTION_GAIN;
       this._clampPan();
       this._applyTransform();
     };
@@ -272,11 +292,24 @@ export class Rack {
       this._scheduleOverviewBuild();
     }, true);
     // A cable body is click-through, so it fires no hover events of its own.
+    // Drag a panel BACKGROUND to pan the view (grab-drag). Skips a press on a control or jack (those keep
+    // their own press), and skips while an overview, a menu, or a cable carry is active — a carry owns its
+    // own press (its onDown/onUp pans-or-drops). A plain click that never moves past VIEW_DRAG_PX does
+    // nothing, so it can't disturb a patch.
+    this.container.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || this._ovActive || this._tempCable || this._menuEl) return;
+      if (e.target && e.target.closest && e.target.closest('[data-wcoast-param],[data-jack-key]')) return;
+      const pd = this._viewDragStart(e);
+      const mv = (ev) => { if (!this._ovActive) this._viewDragPan(pd, ev); };
+      const up = () => { document.removeEventListener('pointermove', mv, true); document.removeEventListener('pointerup', up, true); };
+      document.addEventListener('pointermove', mv, true);
+      document.addEventListener('pointerup', up, true);
+    });
     // Detect a hovered cable by proximity and reveal its middle reshape handle.
     // Same pass: fade any cable that's covering the control the pointer is over.
     this.container.addEventListener('pointermove', (e) => {
-      this._lastPointer = { x: e.clientX, y: e.clientY };   // where the overview opens / frames
-      if (this._ovActive) return;   // navigating the overview — skip the rack's per-move cable/net hover work
+      this._lastPointer = { x: e.clientX, y: e.clientY };   // where the pointer is (for nav / edge-scroll)
+      if (this._ovActive || this._optDown) return;   // navigating (Option held) → whole rack at full brightness, no per-move hover work
       this._updateCableHover(e); this._updateControlCableFade(e); this._updateNetOrigin(e);
     });
     this.container.addEventListener('pointerleave', () => {
@@ -304,28 +337,42 @@ export class Rack {
       e.preventDefault();
       this._isolateSubnet(hov.key, hov.portId, dir);
     });
-    // OPTION is the view-navigation modifier, and a clean TAP of it TOGGLES the overview: press-and-release
-    // once to open it, again to dive into the orange rectangle. Nothing happens until RELEASE, which leaves
-    // Option+scroll free to pan the live view while held — and a scroll during the hold marks it as a
-    // pan gesture, so the tap is suppressed (no open, no commit). Escape / any other key / a blur cancels.
+    // OPTION is the view-navigation modifier: while it is HELD, the wheel zooms toward the pointer and
+    // moving the pointer pans the view (see _panWheel / _navMove). Releasing Option returns to normal at
+    // once. The `all-scroll` cursor signals the mode.
     document.addEventListener('keydown', (e) => {
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      if (e.key === 'Alt') { this._optDown = true; this._optUsed = false; this._armPanWheel(true); this._updateNavClass(); return; }
+      if (e.key === 'Alt') {
+        if (this._optDown) return;   // ignore auto-repeat while the key is held
+        this._optDown = true; this._optUsed = false;
+        this._navLastX = this._lastPointer ? this._lastPointer.x : null;       // seed motion/edge reference from the current pointer
+        this._navLastY = this._lastPointer ? this._lastPointer.y : null;
+        // Full brightness while navigating: clear any current hover dim/fade (per-move hover work is
+        // skipped while Option is held; see the container pointermove handler).
+        if (this._netOrigin !== null) { this._netOrigin = null; this._rebuildHoverFocus(); }
+        if (this._hoverCableEdgeId !== null || this._fadedCables) { this._hoverCableEdgeId = null; this._fadedCables = null; this._cableFadeCtrl = null; this._drawCables(); }
+        this._armPanWheel(true);
+        document.addEventListener('pointermove', this._navMove, true);         // pointer motion pans while held
+        this._setNavCursor(true);
+        this._startNavEdge();                                                   // auto-scroll while the pointer sits at a window edge
+        this._updateNavClass();
+        return;
+      }
       if (this._ovActive) this._cancelOverview();   // Escape or any other key → close without moving
     });
-    document.addEventListener('keyup', (e) => {
-      if (e.key !== 'Alt') return;
-      const wasTap = this._optDown && !this._optUsed;
+    const endNav = () => {
       this._optDown = false;
       this._armPanWheel(false);
-      if (wasTap) {
-        if (this._ovActive) this._commitOverview();   // second tap → dive into the rectangle
-        else this._showOverview();                    // first tap → open the navigator
-      }
-      this._updateNavClass();   // gesture over (unless the overview just opened)
-    });
-    window.addEventListener('blur', () => { this._optDown = false; this._armPanWheel(false); if (this._ovActive) this._cancelOverview(); this._updateNavClass(); });
+      document.removeEventListener('pointermove', this._navMove, true);
+      if (this._navEdgeRaf) { cancelAnimationFrame(this._navEdgeRaf); this._navEdgeRaf = null; }
+      this._setNavCursor(false);
+      this._updateNavClass();
+    };
+    document.addEventListener('keyup', (e) => { if (e.key === 'Alt') endNav(); });
+    window.addEventListener('blur', () => { endNav(); if (this._ovActive) this._cancelOverview(); });
+    // Right-click does nothing while navigating (Option held): no connection/context menu.
+    document.addEventListener('contextmenu', (e) => { if (this._optDown) { e.preventDefault(); e.stopPropagation(); } }, true);
   }
 
   // A patch endpoint resolved to a common shape.
@@ -542,9 +589,31 @@ export class Rack {
   // it is drawn at base scale, so this scales AND positions the whole rack at once.
   _applyTransform() {
     this.content.style.transformOrigin = '0 0';
-    this.content.style.transform = `translate(${r2(this._tx)}px, ${r2(this._ty)}px) scale(${r2(this.zoom)})`;
+    // Zoom is written at HIGH precision, not r2's 2 decimals: the focal-zoom offset that pins the point
+    // under the cursor scales with a module's distance from the top-left origin, so a coarse 0.01 step in
+    // the rendered zoom shifts far-out modules by many px each step — the "wobble". 5 decimals drops that
+    // to a fraction of a px even across a wide rack. (translate at 3 decimals is likewise sub-pixel.)
+    this.content.style.transform = `translate(${this._tx.toFixed(3)}px, ${this._ty.toFixed(3)}px) scale(${this.zoom.toFixed(5)})`;
     this._reprojectViewers();   // scopes/monitors live outside the transform, so move+scale them to match
     if (this._viewMovedHook) this._viewMovedHook();   // a cable in hand re-anchors to the pointer (see _startLinkRegrab)
+  }
+
+  // ---- drag-to-pan the view (grab-drag) ----
+  // Shared by the idle panel-drag handler and by a cable carry (which pans WITHOUT dropping its cord).
+  // `pd` is the press state captured on pointerdown; _viewDragPan only pans once the pointer has moved
+  // past VIEW_DRAG_PX, so a plain click still reads as a click (and a carried cord still drops on it).
+  // _applyTransform re-anchors a carried cord to the pointer as the view slides.
+  _viewDragStart(ev) { return { x: ev.clientX, y: ev.clientY, tx: this._tx, ty: this._ty, dragged: false }; }
+  _viewDragPan(pd, ev) {
+    if (!pd) return false;
+    if (!pd.dragged && Math.hypot(ev.clientX - pd.x, ev.clientY - pd.y) > VIEW_DRAG_PX) pd.dragged = true;
+    if (pd.dragged) {
+      this.content.style.transition = '';
+      this._tx = pd.tx + (ev.clientX - pd.x);
+      this._ty = pd.ty + (ev.clientY - pd.y);
+      this._clampPan(); this._applyTransform();
+    }
+    return pd.dragged;
   }
 
   // Scopes/monitors float in screen space (outside the transformed content), so move + scale them to ride
@@ -563,7 +632,12 @@ export class Rack {
       v.el.style.left = r2(rect.left + this._tx + ax * this.zoom) + 'px';
       v.el.style.top = r2(rect.top + this._ty + ay * this.zoom) + 'px';
       v.el.style.transformOrigin = '0 0';
-      v.el.style.transform = `scale(${r2(this.zoom)})`;   // always a scale (even 1) so an eased glide can interpolate it
+      // Scale with the MODULE scale, not just zoom. pxPerMm shrinks when rows are added (or the window
+      // shortens), making the modules smaller; a viewer sized in fixed screen px would then balloon
+      // relative to them. The ratio to its creation-time pxPerMm (baseScale) keeps a viewer a fixed size
+      // in rack (mm) terms, so it tracks the modules. At the row count it was made on, this is just zoom.
+      const vScale = this.zoom * (s / (v.baseScale || s));
+      v.el.style.transform = `scale(${r2(vScale)})`;   // always a scale (even 1) so an eased glide can interpolate it
       v.ax = ax; v.ay = ay;   // keep the base-px anchor in sync for anything else that reads it
     };
     if (this._scopes) for (const sc of this._scopes) place(sc);
@@ -989,25 +1063,41 @@ export class Rack {
     this._ovCable = { pos: a, color: STYLE_COLOR[domainStyle(meta.domain)], wmm };   // so the overview can draw the pull over its picture
     // While the overview is up the pointer aims the frame, not the cable — so don't redraw the (hidden) cable,
     // but DO keep following the pointer, so the dive re-arms the cable where the pointer actually ended up.
-    const onMove = (ev) => { if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; } track(ev.clientX, ev.clientY); };
-    // The VIEW can move with the cable in hand (Option-scroll pan, or the overview's dive). The free end is
-    // anchored in rack space, so it would slide off the pointer — re-arm it at the last pointer position on
-    // every view move (see _applyTransform) and it stays glued there.
+    let pan = null;   // press state while a down-press might turn out to be a pan (drag) rather than a drop (click)
+    const onMove = (ev) => {
+      if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }
+      if (pan) this._viewDragPan(pan, ev);   // a press held on the background → drag pans the view; the cord stays in hand
+      track(ev.clientX, ev.clientY);
+    };
+    // The VIEW can move with the cable in hand (Option-scroll zoom, a panel-drag pan, or the overview's
+    // dive). The free end is anchored in rack space, so re-arm it at the last pointer position on every
+    // view move (see _applyTransform) and it stays glued to the pointer.
     const onScroll = () => track(lastX, lastY);
     const finish = () => {
       this._viewMovedHook = null; this._ovCable = null;
       document.removeEventListener('pointermove', onMove, true);
-      document.removeEventListener('pointerdown', onDrop, true);
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('pointerup', onUp, true);
       document.removeEventListener('contextmenu', onCtx, true);
       document.removeEventListener('keydown', onKey, true);
       tmp.remove(); this._tempCable = null;
       this._disarmTarget(); this._clearHighlights();
       document.body.classList.remove('grabbing-cable');
     };
-    const onDrop = (ev) => {
-      if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }   // the click aims the overview's frame, not the cable — but note the pointer, so the dive re-arms there
+    // A press might be a DROP (click) or a PAN (drag on a panel): decide on RELEASE. onDown only records
+    // the press; a drag past VIEW_DRAG_PX (handled in onMove) pans and keeps the cord; a plain click drops
+    // it. `!pan` in onUp ignores the carry's own opening release (there was no matching onDown for it).
+    const onDown = (ev) => {
+      if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }   // the press aims the overview's frame
       if (ev.button !== 0) return;   // right-click is handled by onCtx; middle is ignored
       ev.preventDefault(); ev.stopPropagation();
+      pan = this._viewDragStart(ev);
+    };
+    const onUp = (ev) => {
+      if (this._ovActive || ev.button !== 0 || !pan) return;
+      const dragged = pan.dragged; pan = null;
+      ev.preventDefault(); ev.stopPropagation();
+      if (dragged) return;   // it was a pan of the view → keep the cord in hand
       const drop = this._jackNear(ev.clientX, ev.clientY);
       finish();
       if (drop && !(drop.key === key && drop.portId === portId)) this._recordCableAdd(this._tryConnect({ key, portId }, drop));
@@ -1015,7 +1105,8 @@ export class Rack {
     const onCtx = (ev) => { if (this._ovActive) return; ev.preventDefault(); ev.stopPropagation(); finish(); };   // right click cancels (no pie)
     const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); } };
     document.addEventListener('pointermove', onMove, true);
-    document.addEventListener('pointerdown', onDrop, true);
+    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('pointerup', onUp, true);
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', onKey, true);
     this._viewMovedHook = onScroll;
@@ -1062,14 +1153,21 @@ export class Rack {
     this._ovCable = { pos: fixedPos, color: STYLE_COLOR[domainStyle(fixedMeta.domain)], wmm };   // so the overview can draw the pull over its picture
     // While the overview is up the pointer aims the frame, not the cable — don't redraw the (hidden) cable,
     // but DO keep following the pointer, so the dive re-arms it where the pointer actually ended up.
-    const onMove = (ev) => { if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; } track(ev.clientX, ev.clientY); };
-    // The VIEW can move with the cable in hand (Option-scroll pan, or the overview's dive) — re-arm at the
-    // last pointer position on every view move (see _applyTransform) so the end stays glued to the pointer.
+    let pan = null;   // press state while a down-press might turn out to be a pan (drag) rather than a drop (click)
+    const onMove = (ev) => {
+      if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }
+      if (pan) this._viewDragPan(pan, ev);   // a press held on the background → drag pans the view; the cord stays in hand
+      track(ev.clientX, ev.clientY);
+    };
+    // The VIEW can move with the cable in hand (Option-scroll zoom, a panel-drag pan, or the overview's
+    // dive) — re-arm at the last pointer position on every view move (see _applyTransform) so the end
+    // stays glued to the pointer.
     const onScroll = () => track(lastX, lastY);
     const finish = () => {
       this._viewMovedHook = null; this._ovCable = null;
       document.removeEventListener('pointermove', onMove, true);
-      document.removeEventListener('pointerdown', onDrop, true);
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('pointerup', onUp, true);
       document.removeEventListener('contextmenu', onCtx, true);
       document.removeEventListener('keydown', onKey, true);
       tmp.remove(); this._tempCable = null;
@@ -1081,10 +1179,20 @@ export class Rack {
       if (e && savedBow != null) e.bow = savedBow;
       this._drawCables();
     };
-    const onDrop = (ev) => {
-      if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }   // the click aims the overview's frame, not the cable — but note the pointer, so the dive re-arms there
+    // A press might be a DROP (click) or a PAN (drag on a panel): decide on RELEASE. onDown records the
+    // press; a drag past VIEW_DRAG_PX pans and keeps the cord; a plain click drops it. `!pan` in onUp
+    // ignores the carry's own opening release (no matching onDown for it).
+    const onDown = (ev) => {
+      if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }   // the press aims the overview's frame
       if (ev.button !== 0) return;   // right-click is handled by onCtx; middle is ignored
       ev.preventDefault(); ev.stopPropagation();
+      pan = this._viewDragStart(ev);
+    };
+    const onUp = (ev) => {
+      if (this._ovActive || ev.button !== 0 || !pan) return;
+      const dragged = pan.dragged; pan = null;
+      ev.preventDefault(); ev.stopPropagation();
+      if (dragged) return;   // it was a pan of the view → keep the cord in hand
       const drop = this._jackNear(ev.clientX, ev.clientY);
       finish();
       const droppedBack = drop && drop.key === grabbed.key && drop.portId === grabbed.portId;
@@ -1103,7 +1211,8 @@ export class Rack {
     const onCtx = (ev) => { if (this._ovActive) return; ev.preventDefault(); ev.stopPropagation(); finish(); restore(); };   // right-click aborts → restore
     const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); restore(); } };   // Escape aborts → restore
     document.addEventListener('pointermove', onMove, true);
-    document.addEventListener('pointerdown', onDrop, true);
+    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('pointerup', onUp, true);
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', onKey, true);
     this._viewMovedHook = onScroll;
@@ -1170,22 +1279,32 @@ export class Rack {
     // While the overview navigator is up (Option tapped mid-pull), the pointer aims the frame, not the
     // cable: don't redraw the (hidden) cable, and let neither a click-to-drop nor Escape act on it. Keep
     // FOLLOWING the pointer though, so the dive re-arms the cable where the pointer actually ended up.
-    const onMove = (ev) => { if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; } track(ev.clientX, ev.clientY); };
-    // The VIEW can move while the cable is in hand (Option-scroll pan, or the overview's dive). The cable's
-    // free end is anchored in rack space, so it would slide away from the pointer — re-arm it at the last
-    // pointer position on every view move (see _applyTransform), and it stays glued to the pointer.
+    let pan = null;   // press state while a down-press might turn out to be a pan (drag) rather than a drop (click)
+    const onMove = (ev) => {
+      if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }
+      if (pan) this._viewDragPan(pan, ev);   // a press held on the background → drag pans the view; the cord stays in hand
+      track(ev.clientX, ev.clientY);
+    };
+    // The VIEW can move while the cable is in hand (Option-scroll zoom, a panel-drag pan, or the overview's
+    // dive) — re-arm at the last pointer position on every view move (see _applyTransform), so the end
+    // stays glued to the pointer.
     const onScroll = () => track(lastX, lastY);
     this._viewMovedHook = onScroll;
     const finish = () => {
       this._viewMovedHook = null; this._ovCable = null;
-      document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerdown', onDrop, true);
+      document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('pointerup', onUp, true);
       document.removeEventListener('contextmenu', onCtx, true); document.removeEventListener('keydown', onKey, true);
       teardown();
     };
-    const onDrop = (ev) => { if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; } if (ev.button !== 0) return; ev.preventDefault(); ev.stopPropagation(); const drop = this._jackNear(ev.clientX, ev.clientY); finish(); commit(drop); };
+    // Drop on RELEASE (click), or pan on a drag that keeps the cord. `!pan` in onUp ignores the carry's own
+    // opening release (there was no matching onDown for it).
+    const onDown = (ev) => { if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; } if (ev.button !== 0) return; ev.preventDefault(); ev.stopPropagation(); pan = this._viewDragStart(ev); };
+    const onUp = (ev) => { if (this._ovActive || ev.button !== 0 || !pan) return; const dragged = pan.dragged; pan = null; ev.preventDefault(); ev.stopPropagation(); if (dragged) return; const drop = this._jackNear(ev.clientX, ev.clientY); finish(); commit(drop); };
     const onCtx = (ev) => { if (this._ovActive) return; ev.preventDefault(); ev.stopPropagation(); finish(); this._restoreCable(origSnap); };
     const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); this._restoreCable(origSnap); } };
-    document.addEventListener('pointermove', onMove, true); document.addEventListener('pointerdown', onDrop, true);
+    document.addEventListener('pointermove', onMove, true); document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('pointerup', onUp, true);
     document.addEventListener('contextmenu', onCtx, true); document.addEventListener('keydown', onKey, true);
   }
 
@@ -2041,6 +2160,7 @@ export class Rack {
       ringBuf: new Float32Array(Math.round(SCOPE_RING_SEC * sr0)), ringPos: 0, ringFilled: 0, lastCapTime: null,
       hi: null, lo: null, fastVotes: 0, tap: null,
       cssW: 120, cssH: 37, dpr: 1,   // logical CSS size; backing store is scaled to the display DPR
+      baseScale: this.pxPerMm || 1,  // pxPerMm at creation — the viewer stays this size in mm as rows/window change (see _reprojectViewers)
       vIdx: 7, tIdx: 6, vOffset: 0, hOffset: 0, autosetPending: true, autosetBudget: 180,   // 0.2 /div, 10 ms/div, centred on 0 until autoset frames it; hOffset = horizontal trace pan (px)
       valuesEl: null, playBtn: null, trigBtn: null, valEls: {}, valMode: 'scale',
       gridOn: true,   // the G button toggles the grid on/off
@@ -3138,6 +3258,7 @@ export class Rack {
     const tick = document.createElement('div'); tick.className = 'mon-tick'; el.appendChild(tick);
     const m = {
       key, portId, el, gain: g, tap: null, muted: false, showCallout, tick, fade: 0,
+      baseScale: this.pxPerMm || 1,  // pxPerMm at creation — keeps the monitor a fixed mm size as rows/window change (see _reprojectViewers)
       vol: (opts.vol != null ? clamp01(opts.vol) : MON_VOL_DEFAULT),
       volVel: 0, volRaf: null, volLast: 0,
       ring: document.createElementNS(SVG_NS, 'circle'), line: document.createElementNS(SVG_NS, 'line'),
@@ -3766,7 +3887,7 @@ export class Rack {
     const Lx = (e.clientX - this._ovOrigin.left) / cS, Ly = (e.clientY - this._ovOrigin.top) / cS;
     const oldW = bm.winW / this._ovZoom, oldH = bm.winH / this._ovZoom;
     const fx = oldW ? -this._ovGrab.x / oldW : 0.5, fy = oldH ? -this._ovGrab.y / oldH : 0.5;   // pointer's fraction of the frame
-    this._ovZoom = this._clampOverviewZoom(this._ovZoom * Math.exp(-e.deltaY * 0.0015));   // up (deltaY<0) → more zoom → smaller frame
+    this._ovZoom = this._clampOverviewZoom(this._ovZoom * Math.exp(e.deltaY * 0.0015));   // down (deltaY>0) → more zoom → smaller frame → zoom in
     const newW = bm.winW / this._ovZoom, newH = bm.winH / this._ovZoom;
     const hold = (g, span) => Math.max(-span, Math.min(0, g));
     this._ovGrab = { x: -fx * newW, y: -fy * newH };   // same fraction at the new size → grows/shrinks about the pointer
@@ -3820,6 +3941,34 @@ export class Rack {
   _armPanWheel(on) {
     if (on) document.addEventListener('wheel', this._panWheel, { passive: false, capture: true });
     else document.removeEventListener('wheel', this._panWheel, { capture: true });
+  }
+
+  // Navigate-mode cursor: shown while Option is held (wheel zooms, motion pans), cleared on release.
+  _setNavCursor(on) { if (this.container) this.container.style.cursor = on ? 'all-scroll' : ''; }
+
+  // Edge-scroll: while Option is held and the pointer sits within NAV_EDGE_MARGIN of a window edge, keep
+  // panning that way at a steady rate — so you can cross a rack wider than one pointer sweep without
+  // releasing. Reads the last pointer position (kept current by _navMove); runs on rAF until release.
+  _startNavEdge() {
+    if (this._navEdgeRaf) return;
+    const tick = () => {
+      if (!this._optDown) { this._navEdgeRaf = null; return; }
+      const x = this._navLastX, y = this._navLastY;
+      if (x != null && y != null) {
+        const vw = window.innerWidth || 0, vh = window.innerHeight || 0, M = NAV_EDGE_MARGIN, R = NAV_EDGE_RATE;
+        let mx = 0, my = 0;
+        if (x <= M) mx = R; else if (x >= vw - M) mx = -R;   // left edge → reveal left (tx up); right edge → reveal right (tx down)
+        if (y <= M) my = R; else if (y >= vh - M) my = -R;   // top → reveal top; bottom → reveal bottom
+        if (mx || my) {
+          this.content.style.transition = '';
+          this._tx += mx; this._ty += my;
+          this._panBusyUntil = performance.now() + 300;
+          this._clampPan(); this._applyTransform();
+        }
+      }
+      this._navEdgeRaf = requestAnimationFrame(tick);
+    };
+    this._navEdgeRaf = requestAnimationFrame(tick);
   }
 
   // True for the whole of a view-navigation gesture — Option held, or the overview up. Drives the body class
