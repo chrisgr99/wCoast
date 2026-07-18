@@ -68,6 +68,10 @@ Coming next: **First sound**.
 
 > **Do this** — Left-click the **"Complex Oscillator"** Final output (near the centre top of the module), move to **channel A** of the **"Mixer"** (bottom-left, top row of inputs), and click to connect. The cable is yellow — its destination is an audio terminal.
 
+**Unplug or move a cable:** to remove or re-route a cable, left-click the terminal it's plugged into — the cable lifts off and follows the pointer again, just as if you'd started it there. Left-click another terminal to plug it in instead, or left-click empty space to remove it. Press Escape while carrying to cancel and leave the cable where it was. If more than one cable meets at that terminal, pull away in the direction of the one you want — the cable whose path matches your drag is the one that lifts off.
+
+> **Do this** — Left-click the **"Mixer"** channel A input where your cable lands: it lifts off and follows the pointer. Left-click channel A again to plug it back in, and leave it connected there for what follows. (To remove a cable for good, you'd drop it on empty space instead.)
+
 **Sound:** nothing plays until the sound engine is on.
 
 > **Do this** — Right-click a panel to open the menu and hover over **Engine** — the oscillator sounds while your pointer rests there. Pull away from the menu and it stops. Reopen the menu and click **Engine** to leave it running. Then set a comfortable volume with the mixer's **Master** fader (drag it, or scroll it) — the first sound can come out louder or quieter than you'd like.
@@ -91,3 +95,32 @@ Here it's trivial — one oscillator into one channel — but in a rack full of 
 > **Do this** — With **Mod Index** still turned up and at least one modulation push button on, scroll **Timbre**, then **Order** and **Symmetry**, and listen to the harmonics shift. Then combine everything — the principal **Pitch**, the modulation oscillator's **Frequency**, **Mod Index**, the different modulation buttons, and the shape knobs — to hear the wide range of possible sounds.
 
 Coming next: **Building a patch**.
+## Building a patch
+
+**Your modules:** you already have a useful set of four — the "Complex Oscillator", "Quad Function Generator", "Quad Low Pass Gate", and "Mixer" — enough to build real patches. Adding and removing modules comes later; for now, build with these. (The sound engine should still be running from **First sound**; if it's off, turn it on from the menu's **Engine** item.)
+
+> **Do this** — This section works mostly with the "Quad Low Pass Gate", the module at the lower right. If this card covers it, pull its bottom edge up until the whole module is visible.
+
+**Create a pluck or percussive sound:** a plucked sound is a brief pulse of sound, made by passing a signal through a gate that opens and closes quickly — which is how a low pass gate works. To give it something to gate, send a signal from the oscillator into the gate's input.
+
+> **Do this** — Cable the "Complex Oscillator" **Square** output to the "Quad Low Pass Gate" **channel A** input (its **IN** jack), then the gate's **channel A** output (**OUT**) to the "Mixer" **channel B**. Nothing yet — the gate stays shut until it's struck.
+
+**Play it:** the **Strike** button opens the gate for an instant — the sound bursts through, then decays. **Decay** sets how long the tail rings.
+
+> **Do this** — Press **Strike** on channel A for a pluck, and press it again for another. Turn **Decay** up for a longer tail, down for a short blip.
+
+**Clock it:** instead of striking by hand, let the gate's own clock strike it — steadily, over and over.
+
+> **Do this** — Turn on channel A's **Clock** button (CLK on), then the master **Run** at the bottom of the module — the pluck now repeats in time. Turn **Rate** to speed it up or slow it down. Set channel A's **clock ratio** dial, and its **÷ / ×** mode, to pulse at divisions or multiples of the master rate — all locked in sync.
+
+**Adjust the levels:** both voices run into the mixer now — the oscillator drone on channel A, the gated plucks on channel B. Balance them here.
+
+> **Do this** — Drag the **channel A** and **channel B** faders to set each voice's level against the other. Then use the **Enable** buttons below the faders to switch a voice on or off.
+
+**Explore:** mute the drone on channel A and leave the plucks on channel B, so you hear the rhythm on its own — then shape it with everything you've already met. The "Complex Oscillator" knobs colour the tone; the gate's **Level** and **Decay** set how hard and how long each pluck sounds.
+
+> **Do this** — If channel A's **Enable** button on the mixer is illuminated, press it so it is not — that mutes the drone. Now explore: on the "Complex Oscillator" work the **Pitch**, **Timbre**, **Order**, **Symmetry**, **Mod Index** and the modulation buttons; on the gate, channel A's **Level** and **Decay**. Have fun — there's a wide range of sounds in here.
+
+> **Bonus** — Add a second voice: cable the "Complex Oscillator" **Sine** output to the gate's **channel B** input, and the gate's **channel B** output to the "Mixer" **channel C**. Turn on channel B's **Clock**, and set its **clock ratio** to a different value than channel A's — the two plucks cross in and out of step, building a shifting rhythm.
+
+Coming next: **Getting around**.

@@ -76,6 +76,30 @@ export function createTour({ steps, onExternal, isDark }) {
     document.addEventListener('pointerup', onUp, true);
   };
 
+  // Resize by a grip: 'y' drags height only (the whole bottom edge), 'xy' drags both (the corner).
+  // Clamps match the CSS min/max so a drag can't shrink the card past its controls or overflow the
+  // window. Setting inline width/height is what the ResizeObserver watches, so the size persists.
+  const startResize = (axis) => (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const r = el.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY, sw = r.width, sh = r.height;
+    const maxH = (window.innerHeight || 0) * 0.9;   // matches max-height: 90vh
+    const onMove = (ev) => {
+      if (axis === 'xy') el.style.width = Math.round(Math.max(220, sw + (ev.clientX - sx))) + 'px';
+      let h = Math.max(130, sh + (ev.clientY - sy));
+      if (maxH > 0) h = Math.min(h, maxH);
+      el.style.height = Math.round(h) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('pointerup', onUp, true);
+      write(SIZE_KEY, JSON.stringify({ w: el.offsetWidth, h: el.offsetHeight }));
+    };
+    document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('pointerup', onUp, true);
+  };
+
   const build = () => {
     el = document.createElement('div');
     el.className = 'tour-card';
@@ -127,6 +151,15 @@ export function createTour({ steps, onExternal, isDark }) {
     foot.appendChild(left); foot.appendChild(nav);
 
     el.appendChild(head); el.appendChild(bodyEl); el.appendChild(foot);
+
+    // The whole bottom edge is a height grip, so the card is easy to pull up off a module it covers;
+    // the corner grip takes both axes.
+    const gripY = document.createElement('div'); gripY.className = 'tour-resize-y';
+    gripY.addEventListener('pointerdown', startResize('y'));
+    const gripXY = document.createElement('div'); gripXY.className = 'tour-resize-xy';
+    gripXY.addEventListener('pointerdown', startResize('xy'));
+    el.appendChild(gripY); el.appendChild(gripXY);
+
     document.body.appendChild(el);
 
     // The card resizes like a window (CSS `resize`), which fires no event — so watch it. Only a

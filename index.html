@@ -110,12 +110,16 @@
     .tour-card { --t-face: #cfcfcf; --t-ink: #163a69; --t-dim: #5c6f8c; --t-edge: #141414;
       --t-sep: rgba(22,58,105,0.28); --t-accent: #8a5510; --t-tint: rgba(138,85,16,0.10);
       position: fixed; z-index: 1350; width: 340px; min-width: 220px; min-height: 130px; max-height: 90vh;
-      resize: both; overflow: hidden; display: flex; flex-direction: column;
+      overflow: hidden; display: flex; flex-direction: column;
       background: var(--t-face); color: var(--t-ink);
       border: 1.5px solid var(--t-edge); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       font: 400 9px/1.5 -apple-system, system-ui, sans-serif; user-select: none; -webkit-user-select: none; }
     .tour-card.theme-dark { --t-face: #262629; --t-ink: #b8b8bc; --t-dim: #8a8a90; --t-edge: #d2d2d6;
       --t-sep: rgba(184,184,188,0.24); --t-accent: #e0a353; --t-tint: rgba(224,163,83,0.10); }
+    /* Resize grips. The whole bottom edge grabs height (so the card is easy to pull up off a module
+       it covers); the corner grabs both. Custom, because CSS `resize` only draws the corner grip. */
+    .tour-resize-y { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; cursor: ns-resize; touch-action: none; }
+    .tour-resize-xy { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; z-index: 1; }
     .tour-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 11px;
       border-bottom: 1px solid var(--t-sep); cursor: move; touch-action: none; }
     .tour-title { flex: 1 1 auto; font-weight: 600; }
