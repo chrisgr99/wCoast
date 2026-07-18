@@ -370,7 +370,7 @@ async function boot() {
   // The panel pie's app-menu wedge opens the File menu, reusing the rack's pop-up menu.
   // Hierarchical menu: the top level shows File / Edit / View; hovering (or clicking) a
   // heading opens its submenu, Electron-style.
-  const openAppMenu = (x, y, rec) => {
+  const openAppMenu = (x, y, rec, rowIndex) => {
     const file = [
       { label: 'New', action: () => newPatch() },
       { label: 'Open…', action: () => openPatch() },
@@ -397,11 +397,11 @@ async function boot() {
     // Rack: rack-shaping actions gathered in one place. "Delete this module" acts on the module that was
     // right-clicked (rec); it's disabled when the background was clicked, or the module is pinned (mixer).
     const rackMenu = [
-      { label: 'Rows in rack', submenu: [2, 3, 4].map((n) => ({
+      { label: 'Rows in rack', submenu: [1, 2, 3, 4, 5].map((n) => ({
         label: String(n), checkFn: () => rack.rowCount === n, action: () => setRows(n),
       })) },
       { label: 'Add module', submenu: MODULE_TYPES.filter((t) => !t.hidden).map((t) => ({
-        label: t.name, action: () => rack.addModuleFromMenu(t.descriptorId),
+        label: t.name, action: () => rack.addModuleFromMenu(t.descriptorId, rowIndex),
       })) },
       { label: 'Delete this module', disabled: !(rec && !rec.pinned),
         action: rec && !rec.pinned ? () => rack.deleteModuleFromMenu(rec) : undefined },
@@ -423,7 +423,7 @@ async function boot() {
   };
   // Read the folder, THEN open. It's a local readdir of a handful of files, so the wait is
   // imperceptible — and opening first and re-opening once it lands makes the menu flicker.
-  rack.onAppMenu = (x, y, rec) => { refreshRecent().then(() => openAppMenu(x, y, rec)); };
+  rack.onAppMenu = (x, y, rec, rowIndex) => { refreshRecent().then(() => openAppMenu(x, y, rec, rowIndex)); };
   // The always-visible hamburger: the same main menu, for anyone who hasn't met right-click yet
   // (or dismissed the tour before it said so). Opens under the button, like a menu bar would.
   document.getElementById('burger').addEventListener('click', async (e) => {

@@ -169,7 +169,7 @@ function applyAppMenu() {
       label: 'View',
       submenu: [
         { label: s.dark ? 'Light Mode' : 'Dark Mode', click: () => menuSend('toggleDark') },
-        { label: 'Rows in Rack', submenu: [2, 3, 4].map((n) => ({ label: String(n), type: 'radio', checked: s.rows === n, click: () => menuSend('setRows', n) })) },
+        { label: 'Rows in Rack', submenu: [1, 2, 3, 4, 5].map((n) => ({ label: String(n), type: 'radio', checked: s.rows === n, click: () => menuSend('setRows', n) })) },
         { label: 'Fit to Window', click: () => menuSend('fitToWindow') },
       ],
     },

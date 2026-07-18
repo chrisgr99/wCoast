@@ -4491,14 +4491,18 @@ export class Rack {
   _onRowContextMenu(e, rowIndex) {
     if (e.target.closest('.rack-module')) return;
     e.preventDefault();
-    this.onAppMenu(e.clientX, e.clientY, null);   // background right-click → the main menu, no module context (Add/Delete under Rack)
+    this.onAppMenu(e.clientX, e.clientY, null, rowIndex);   // background right-click → the main menu; Add module appends to this row
   }
 
-  // Add a module from the View ▸ Modules menu, where there's no cursor to place it: drop it into the row
-  // with the most free space, packed to the right of whatever is already there.
-  addModuleFromMenu(descriptorId) {
-    let row = 0, best = Infinity;
-    for (let i = 0; i < this.rowCount; i++) { const w = this._snapLeftX(i, Infinity); if (w < best) { best = w; row = i; } }
+  // Add a module from Rack ▸ Add module: append it to the END of the row the menu was opened over — the
+  // row of the right-clicked module, or the right-clicked background row. With no row context (the
+  // hamburger), fall back to the row with the most free space.
+  addModuleFromMenu(descriptorId, rowIndex) {
+    let row = rowIndex;
+    if (row == null || row < 0 || row >= this.rowCount) {
+      row = 0; let best = Infinity;
+      for (let i = 0; i < this.rowCount; i++) { const w = this._snapLeftX(i, Infinity); if (w < best) { best = w; row = i; } }
+    }
     return this._addModuleWithUndo(descriptorId, row, this._snapLeftX(row, Infinity));
   }
 
@@ -4521,7 +4525,7 @@ export class Rack {
     e.preventDefault();
     e.stopPropagation();
     if (e.target.closest && e.target.closest('[data-wcoast-param]')) return;   // no menu over a knob or any control
-    this.onAppMenu(e.clientX, e.clientY, rec);
+    this.onAppMenu(e.clientX, e.clientY, rec, rec.row);   // Add module appends to this module's row; Delete targets rec
   }
 
   // Delete a module chosen from Rack ▸ Delete this module (the right-clicked panel). Pinned modules
