@@ -1,6 +1,6 @@
-# Wcoast control protocol — Design
+# LibreModular control protocol — Design
 
-How an external sequencer or composition engine plays Wcoast: a small,
+How an external sequencer or composition engine plays LibreModular: a small,
 sender-agnostic message protocol that arrives at a **rack module** and comes out
 as **voltages on jacks** — pitch, gate, and modulation — which you patch like any
 other cable. GXW is the first client; Strudel and a MIDI translator are co-clients
@@ -31,7 +31,7 @@ keeps the whole thing modular and keeps the sender decoupled from the patch.
 - **OSC-shaped messages** — an address, typed args, and a time tag — over a local
   link. A browser Strudel can't open UDP, so the canonical carrier is a
   **WebSocket** the Electron **main process** receives; native OSC-over-UDP is
-  accepted by the same listener. So Wcoast stands in for the SuperCollider/SuperDirt
+  accepted by the same listener. So LibreModular stands in for the SuperCollider/SuperDirt
   target that Strudel already knows how to drive. Plain JSON `{address, args,
   timestamp}` over the same socket is an equivalent carrier — OSC is a tidy
   convention, not a speed requirement (§9).
@@ -127,7 +127,7 @@ available targets and how to scale into them.
   the tempo master (optionally emit the clock).
 - **Strudel** — its pattern controls (note, gain, pan, cutoff, …) emitted as these
   messages; because it already speaks the SuperDirt play format, pointing it at
-  Wcoast is largely repointing its output. A superdough-shaped adapter maps its
+  LibreModular is largely repointing its output. A superdough-shaped adapter maps its
   control names to the protocol's fields. Strudel is the tempo master when it drives.
 - **MIDI** — a thin translator: note-on/off to protocol note-on/off (synthesising a
   handle per key, a generous duration as the failsafe), CC to control-set.

@@ -1,10 +1,10 @@
-# wCoast
+# LibreModular
 
-wCoast is a modular synthesizer that runs in a web browser, built on Web Audio. You place modules on a rack, wire their jacks with virtual cables, turn the knobs, and listen — the feel of a hardware modular, with a few things a screen can do that hardware can't. It's a personal project: non-commercial, free, open source once it's a little further along, and — I hope — something you'll enjoy using as much as I do. Your mileage may vary. 😌
+LibreModular is a modular synthesizer that runs in a web browser, built on Web Audio. You place modules on a rack, wire their jacks with virtual cables, turn the knobs, and listen — the feel of a hardware modular, with a few things a screen can do that hardware can't. It's a personal project: non-commercial, free, open source once it's a little further along, and — I hope — something you'll enjoy using as much as I do. Your mileage may vary. 😌
 
 Two ideas drive it. The first is the interface — making a modular easier to read, explore, and understand — which is where most of the effort below has gone. The second is an open architecture: each module is just a folder holding a descriptor and its DSP, and the host builds the panel and handles patching, saving, and the rest from that descriptor alone — pure JavaScript (and a bit of SVG), without reaching into the core. New modules of any kind, with or without a hardware ancestor, drop in as plug-ins; in time, if there's interest, so could modules contributed by others.
 
-The modules that ship today are a West Coast-style complex oscillator, a quad low-pass gate, a quad function generator, and a mixer. The name comes from my interest in West Coast synthesis (Buchla and Serge style), but nothing in the architecture ties it to that — it's meant for modules of any kind.
+The modules that ship today are a West Coast-style complex oscillator, a quad low-pass gate, a quad function generator, and a mixer — reflecting my interest in West Coast synthesis (Buchla and Serge style) — but nothing in the architecture ties LibreModular to that: it's an open platform meant for modules of any kind. The name says as much: *Libre* for free and open, *Modular* for what it is — LibreMod for short.
 
 ## What makes it different
 
@@ -31,19 +31,19 @@ Patching itself stays direct, and you never hold the mouse button down: left-cli
 
 ## Current state
 
-wCoast is in alpha — fully usable, but expect rough edges and things to change. What works today:
+LibreModular is in alpha — fully usable, but expect rough edges and things to change. What works today:
 
 - A **rack** you place modules on, and **save and load** for whole patches.
 - **Modules:** Complex Oscillator, Quad Low Pass Gate, Quad Function Generator, and a Mixer — plus a "gallery" module used to exercise every control and jack type.
 
-Still ahead, designed but not yet built: the floating signal sources and injectors above, polyphony (it's one voice today), and an interface module that conforms to the Web Audio Modules (WAM) plugin standard, so other in-browser audio hosts and sequencers can drive wCoast and embed it as a sound source. Many other modules are planned; suggestions are welcome.
+Still ahead, designed but not yet built: the floating signal sources and injectors above, polyphony (it's one voice today), and an interface module that conforms to the Web Audio Modules (WAM) plugin standard, so other in-browser audio hosts and sequencers can drive LibreModular and embed it as a sound source. Many other modules are planned; suggestions are welcome.
 
-Share thoughts, bugs, and ideas in the [discussions](https://github.com/chrisgr99/wCoast/discussions).
+Share thoughts, bugs, and ideas in the [discussions](https://github.com/chrisgr99/LibreModular/discussions).
 
 ## Running it
 
-There's nothing to download or install. Open the GitHub Pages build at [chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/) and follow the getting-started notes that appear on first run. A cross-platform desktop version, built on Electron, is coming in the near future.
+There's nothing to download or install. Open the GitHub Pages build at [chrisgr99.github.io/LibreModular](https://chrisgr99.github.io/LibreModular/) and follow the getting-started notes that appear on first run. A cross-platform desktop version, built on Electron, is coming in the near future.
 
 It works in most browsers — Chrome, Edge, Firefox, or Safari. Saving and loading patches as files relies on the browser's File System Access feature, which today is only in Chrome and Edge, so use one of those if you want to keep your patches; everything else works the same everywhere.
 
-**One caveat — turn off page-recolouring extensions.** If you use an add-on that changes how pages look (Dark Reader, or any dark-mode or colour-adjusting extension), disable it for wCoast. The app has its own light and dark modes, and these extensions distort the panels and lettering — the most likely culprit if anything ever looks wrong.
+**One caveat — turn off page-recolouring extensions.** If you use an add-on that changes how pages look (Dark Reader, or any dark-mode or colour-adjusting extension), disable it for LibreModular. The app has its own light and dark modes, and these extensions distort the panels and lettering — the most likely culprit if anything ever looks wrong.

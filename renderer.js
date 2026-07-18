@@ -1,4 +1,4 @@
-// renderer.js — Wcoast audio-generation spike.
+// renderer.js — LibreModular audio-generation spike.
 //
 // This is implementation milestones one and two in a single page:
 //

@@ -1,7 +1,6 @@
-# AGENTS.md — Wcoast patch mirror
+# AGENTS.md — LibreModular patch mirror
 
-This folder is the **patch mirror** for a running Wcoast session. Wcoast is a
-West Coast (Buchla-style) modular synthesizer for Web Audio, packaged as a macOS
+This folder is the **patch mirror** for a running LibreModular session. LibreModular is an open modular synthesizer for Web Audio, packaged as a macOS
 Electron app. You compose a *patch* — Chris calls it a **score** — by placing
 modules in a rack, wiring their jacks with cables, and setting their knobs and
 switches. The mirror projects the live patch to these files so an AI assistant
@@ -14,7 +13,7 @@ the user's instructions; the user always has the final say.
 ## Proposing a patch (the round-trip)
 
 You can both **read** these files and **write `patch.json`** to propose a new
-patch. When you write it, Wcoast validates the patch against `catalogue.json`,
+patch. When you write it, LibreModular validates the patch against `catalogue.json`,
 shows the user a confirm dialog, and — on accept — rebuilds the running patch
 from it. Read `last-apply-result.json` afterwards to learn whether your edit was
 accepted or rejected, and why.
@@ -22,7 +21,7 @@ accepted or rejected, and why.
 How to write it:
 
 - Write `patch.json` with an **atomic temp-and-rename**: write `patch.json.tmp`
-  first, then rename it to `patch.json`. Wcoast never sees a torn file, and the
+  first, then rename it to `patch.json`. LibreModular never sees a torn file, and the
   completed rename is itself the signal — there is no separate handshake.
 - Keep the exact format (see "patch.json" below) and reference only module types,
   ports, and params that exist in `catalogue.json`, with values inside each
@@ -31,7 +30,7 @@ How to write it:
 - After writing, read `last-apply-result.json`:
   - `{ "status": "success", "applied": ["patch.json"] }` — your patch is now the
     running patch (unsaved; the user can Save it).
-  - `{ "status": "rejected", "error": "…" }` — nothing changed, and Wcoast has
+  - `{ "status": "rejected", "error": "…" }` — nothing changed, and LibreModular has
     force-pushed the current patch back to `patch.json`, so the file reverts. Fix
     the problem named in `error` and try again.
 - If the user clicks Cancel in the confirm dialog, that is a rejection and the
@@ -45,7 +44,7 @@ When a change could be large or surprising, describe it to the user first.
 At `~/Documents/WCOAST/mirror/`, beside the user's saved patches. Created when
 the user enables the mirror (on by default) and emptied when they disable it.
 
-`isLive` in `active.json` is `true` while Wcoast is running and `false` after it
+`isLive` in `active.json` is `true` while LibreModular is running and `false` after it
 quits. If you read the folder with `isLive: false`, the data is stale — the app
 is closed and the user isn't at the keyboard.
 
@@ -57,7 +56,7 @@ is closed and the user isn't at the keyboard.
   parameters, plus the mixer endpoint. This is how you know what modules exist,
   what each parameter's range or allowed values are, and how ports may connect.
 - `patch.json` — the current patch: the modules placed, the wiring between them,
-  and every parameter value. This is the same format Wcoast saves to a `.wcoast`
+  and every parameter value. This is the same format LibreModular saves to a `.wcoast`
   file. It reflects live in-memory state, including unsaved changes. This is also
   the file you write to propose a change (see the round-trip section above).
 - `last-apply-result.json` — the outcome of your most recent `patch.json` write:

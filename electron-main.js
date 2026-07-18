@@ -1,6 +1,6 @@
-// Electron main process entry point for Wcoast.
+// Electron main process entry point for LibreModular.
 //
-// Wcoast is a West Coast (Buchla-style) modular synthesizer built on
+// LibreModular is an open modular synthesizer built on
 // Web Audio, packaged as a native macOS app via Electron. This file is
 // the spike-stage main process: it creates the BrowserWindow that hosts
 // the renderer (index.html) and does nothing else yet. Persistence, the
@@ -32,17 +32,17 @@ const { initMirror } = require('./electron-mirror');
 // Patch save/load lives in the app's own hamburger menu, not the native menu.
 // The main process owns the native dialogs and the file writes; the renderer
 // reaches them over the preload bridge (window.wcoast.patch).
-const PATCH_FILTER = [{ name: 'Wcoast Patch', extensions: ['wcoast'] }];
+const PATCH_FILTER = [{ name: 'LibreModular Patch', extensions: ['limod'] }];
 
-// Patches live in a WCOAST folder in the user's Documents by default; create it
+// Patches live in a LibreModular folder in the user's Documents by default; create it
 // on demand and use it as the dialogs' starting location.
 async function patchesDir() {
-  const dir = path.join(app.getPath('documents'), 'WCOAST');
+  const dir = path.join(app.getPath('documents'), 'LibreModular');
   await fs.promises.mkdir(dir, { recursive: true });
   return dir;
 }
 
-const PATCH_EXT = '.wcoast';
+const PATCH_EXT = '.limod';
 const RECENT_MAX = 20;           // how many recent saves the File menu offers
 // Paths this process handed the renderer via a dialog, so a patch kept OUTSIDE the patches folder
 // still shows in Recent and can still be re-read. It's also the read guard's allow-list: the user
@@ -102,7 +102,7 @@ function registerPatchIpc() {
   ipcMain.handle('patch:save', async (_e, arg) => {
     let filePath = arg && arg.path;
     if (!filePath) {
-      const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath: path.join(await patchesDir(), 'patch.wcoast') });
+      const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath: path.join(await patchesDir(), 'patch.limod') });
       if (r.canceled || !r.filePath) return null;
       filePath = r.filePath;
     }
@@ -111,7 +111,7 @@ function registerPatchIpc() {
     return { path: filePath };
   });
   ipcMain.handle('patch:saveAs', async (_e, arg) => {
-    const defaultPath = (arg && arg.path) ? arg.path : path.join(await patchesDir(), 'patch.wcoast');
+    const defaultPath = (arg && arg.path) ? arg.path : path.join(await patchesDir(), 'patch.limod');
     const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath });
     if (r.canceled || !r.filePath) return null;
     await fs.promises.writeFile(r.filePath, arg.text, 'utf8');
@@ -213,7 +213,7 @@ function logMainProcessFault(kind, err) {
   const stack = (err && err.stack) ? err.stack
     : (err && err.message) ? err.message : String(err);
   const line = `[${new Date().toISOString()}] ${kind}: ${stack}\n`;
-  console.error(`Wcoast main-process ${kind} (non-fatal):`, err);
+  console.error(`LibreModular main-process ${kind} (non-fatal):`, err);
   try {
     const logPath = path.join(app.getPath('userData'), 'crash.log');
     fs.appendFileSync(logPath, line);
@@ -228,7 +228,7 @@ process.on('uncaughtException', (err) => {
   logMainProcessFault('uncaughtException', err);
 });
 
-app.setName('Wcoast');
+app.setName('LibreModular');
 
 let mainWindow;
 
@@ -316,7 +316,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 720,
-    title: 'Wcoast',
+    title: 'LibreModular',
     show: false,
     backgroundColor: '#14110d',
     webPreferences: {

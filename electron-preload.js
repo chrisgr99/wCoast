@@ -1,4 +1,4 @@
-// Electron preload script for Wcoast.
+// Electron preload script for LibreModular.
 //
 // Runs in a privileged context before the renderer loads. It exposes a small,
 // explicit surface on window.wcoast: a stamp confirming we're inside Electron

@@ -1,4 +1,4 @@
-// descriptor.js — Complex Oscillator (Buchla & TipTop 259t), Wcoast module.
+// descriptor.js — Complex Oscillator (Buchla & TipTop 259t), LibreModular module.
 //
 // This is the DESCRIPTOR: pure data describing what the module is. It is the
 // single source of truth the host reads to build the panel, the connection
@@ -18,7 +18,7 @@
 // Reactive Tuning) hardware solves two analog problems we do not have: (1)
 // autotuning oscillator drift — irrelevant because a digital oscillator
 // computes frequency exactly and never drifts; and (2) polyphonic voice
-// allocation over a hardware protocol — handled instead by Wcoast's own
+// allocation over a hardware protocol — handled instead by LibreModular's own
 // per-voice engine and the GXW bridge. We have better ways to do the same
 // things. So EVERYTHING ART-related is removed: the Range switch's ART
 // position (Range is just low/high here), both "1V/OCT · ART" buttons and

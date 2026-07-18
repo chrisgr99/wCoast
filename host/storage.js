@@ -120,7 +120,7 @@ function browserStorage() {
     return { open: no, save: no, saveAs: no, async reopenLast() { return null; }, hasLast() { return false; }, lastName() { return null; }, adoptLast() { return null; }, forget() {}, name() { return null; }, async recent() { return []; }, async openRecent() { return null; } };
   }
 
-  const PICKER = { types: [{ description: 'Wcoast Patch', accept: { 'application/json': ['.wcoast'] } }] };
+  const PICKER = { types: [{ description: 'LibreModular Patch', accept: { 'application/json': ['.limod'] } }] };
   const FILE_ACTIVE_KEY = 'wcoast.browserFileActive';   // persists whether the session corresponds to a file (so a resume can re-adopt it)
   const idb = handleStore();
   let current = null;   // the file being edited this session (Save writes here)
@@ -143,7 +143,7 @@ function browserStorage() {
   const write = async (handle, text) => { const w = await handle.createWritable(); await w.write(text); await w.close(); };
 
   async function saveAs(text) {
-    const h = await orNull(() => window.showSaveFilePicker({ ...PICKER, suggestedName: (current && current.name) || 'patch.wcoast', startIn: current || 'documents' }));
+    const h = await orNull(() => window.showSaveFilePicker({ ...PICKER, suggestedName: (current && current.name) || 'patch.limod', startIn: current || 'documents' }));
     if (!h) return null;
     await write(h, text);
     await remember(h);
