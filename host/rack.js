@@ -4679,6 +4679,9 @@ export class Rack {
     }
     if (left > vw - pad - mw) left = vw - pad - mw;
     if (left < pad) left = pad;
+    // Keep the whole menu on-screen vertically too: pull it up so its bottom clears the window edge, but
+    // not above the top. (A menu taller than the window pins to the top; the wheel slide reveals the rest.)
+    top = Math.max(pad, Math.min(top, vh - pad - menu.offsetHeight));
     recomputeBounds();
     menu.style.left = left + 'px';
     menu.style.top = top + 'px';
