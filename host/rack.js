@@ -4488,21 +4488,18 @@ export class Rack {
   }
 
   // ---- context menus ----
-  _xUnderCursor(rowEl, clientX) {
-    const rRect = rowEl.getBoundingClientRect();
-    return Math.max(0, (clientX - rRect.left) / (this.pxPerMm * this.zoom));
-  }
-
   _onRowContextMenu(e, rowIndex) {
     if (e.target.closest('.rack-module')) return;
     e.preventDefault();
-    const cursorX = this._xUnderCursor(this._rowEls[rowIndex], e.clientX);
-    const xMm = this._snapLeftX(rowIndex, cursorX);
-    const items = this.moduleTypes.filter((t) => !t.hidden).map((t) => ({
-      label: `Add ${t.name}`,
-      action: () => this._addModuleWithUndo(t.descriptorId, rowIndex, xMm),
-    }));
-    this._openMenu(e.clientX, e.clientY, items);
+    this.onAppMenu(e.clientX, e.clientY, null);   // background right-click → the main menu, no module context (Add/Delete under Rack)
+  }
+
+  // Add a module from the View ▸ Modules menu, where there's no cursor to place it: drop it into the row
+  // with the most free space, packed to the right of whatever is already there.
+  addModuleFromMenu(descriptorId) {
+    let row = 0, best = Infinity;
+    for (let i = 0; i < this.rowCount; i++) { const w = this._snapLeftX(i, Infinity); if (w < best) { best = w; row = i; } }
+    return this._addModuleWithUndo(descriptorId, row, this._snapLeftX(row, Infinity));
   }
 
   // A newly added module packs against the nearest module to the left of the
@@ -4518,26 +4515,27 @@ export class Rack {
     return x;
   }
 
-  // Right-click a panel → the main menu, a plain list (File / Edit / Engine / Dark mode /
-  // Help). It's no longer a pie. Delete lives on the module's vertical title (see
-  // _onTitleContextMenu). rack-app fills the items via onAppMenu.
+  // Right-click a panel → the main menu (Engine / File / Edit / View / Rack / Help). rack-app fills the
+  // items via onAppMenu; the module `rec` is passed so Rack ▸ Delete this module can act on it.
   _onModuleContextMenu(e, rec) {
     e.preventDefault();
     e.stopPropagation();
     if (e.target.closest && e.target.closest('[data-wcoast-param]')) return;   // no menu over a knob or any control
-    this.onAppMenu(e.clientX, e.clientY);
+    this.onAppMenu(e.clientX, e.clientY, rec);
   }
 
-  // Right-click a module's vertical title (its left edge) → a small menu: reset its controls
-  // (cables untouched) and, for a non-pinned module, delete it.
+  // Delete a module chosen from Rack ▸ Delete this module (the right-clicked panel). Pinned modules
+  // (the mixer) can't be deleted — the menu item is disabled for them.
+  deleteModuleFromMenu(rec) { if (rec && !rec.pinned) this._deleteModuleWithUndo(rec); }
+
+  // Right-click a module's vertical title (its left edge) → a small menu to reset its controls (cables
+  // untouched). Deleting a module now lives in Rack ▸ Delete this module.
   _onTitleContextMenu(e, rec) {
     e.preventDefault();
     e.stopPropagation();
-    const items = [
+    this._openMenu(e.clientX, e.clientY, [
       { label: `Reset ${rec.name}`, action: () => this._resetModuleWithUndo(rec) },
-    ];
-    if (!rec.pinned) items.push({ label: `Delete ${rec.name}`, action: () => this._deleteModuleWithUndo(rec) });
-    this._openMenu(e.clientX, e.clientY, items);
+    ]);
   }
 
   // items: { label, action } clickable rows, plus optional { header:true } group
