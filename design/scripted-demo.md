@@ -1,6 +1,6 @@
-# LibreModular Scripted Demo (Attract Mode) — Design
+# LibreSynth Scripted Demo (Attract Mode) — Design
 
-A self-contained subsystem inside LibreModular that plays back an authored sequence of
+A self-contained subsystem inside LibreSynth that plays back an authored sequence of
 patching and performance actions — instantiating modules, drawing patch cables,
 turning knobs, firing gates — while a synthetic on-screen pointer moves around the
 panel so it reads as a hand-operated session. It runs entirely inside the app,
@@ -18,7 +18,7 @@ look and sound the same, so takes are interchangeable and re-recording is free.
   events — it never fakes pointer/drag events to trigger handlers.
 - Does not record the screen; capture is an external tool's job.
 - Does not target cross-machine audio identity (see Determinism).
-- No control-message layer. The runner calls LibreModular's own methods directly; the
+- No control-message layer. The runner calls LibreSynth's own methods directly; the
   GXW control-rate link is a separate, unrelated interface and is not involved.
 - Does not rename module descriptor ids or folders — they keep their legacy numbers
   (a separate refactor, out of scope). This subsystem only uses module names in its

@@ -8,8 +8,8 @@
 // Following GeoSonel's proven design (GXW electron-mirror.js): the renderer holds
 // the in-memory state and computes the file contents; THIS main-process module
 // owns the folder, the atomic temp-and-rename writes, and the lifecycle. The
-// folder lives at Documents/LibreModular/mirror, beside the user's saved patches, so a
-// filesystem MCP already granted the LibreModular folder can reach it without extra
+// folder lives at Documents/LibreSynth/mirror, beside the user's saved patches, so a
+// filesystem MCP already granted the LibreSynth folder can reach it without extra
 // configuration. (The enabled setting stays in app data, not the mirror folder.)
 //
 // Phase 1 is the WRITE side only: patch.json, catalogue.json, active.json, and a
@@ -36,7 +36,7 @@ let projected = false;       // the renderer has projected at least once this ru
 let writeChain = Promise.resolve();   // serialises mirror:write — see the handler for why it must
 let getWindow = () => null;  // returns the BrowserWindow (set by initMirror)
 
-const mirrorDir = () => path.join(app.getPath('documents'), 'LibreModular', MIRROR_DIR_NAME);
+const mirrorDir = () => path.join(app.getPath('documents'), 'LibreSynth', MIRROR_DIR_NAME);
 const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
 
 async function readSettings() {
@@ -84,7 +84,7 @@ async function copyStaticDocs() {
     try {
       const text = await fsp.readFile(path.join(__dirname, 'mirror-docs', name), 'utf8');
       await writeAtomic(name, text);
-    } catch (e) { console.warn(`LibreModular mirror: ${name} copy failed:`, e.message); }
+    } catch (e) { console.warn(`LibreSynth mirror: ${name} copy failed:`, e.message); }
   }
 }
 
@@ -111,7 +111,7 @@ function startWatch() {
       if (watchTimer) return;
       watchTimer = setTimeout(reconcile, 150);
     });
-  } catch (e) { console.warn('LibreModular mirror watch failed:', e.message); }
+  } catch (e) { console.warn('LibreSynth mirror watch failed:', e.message); }
 }
 function stopWatch() {
   if (watcher) { try { watcher.close(); } catch (_e) { /* gone */ } watcher = null; }
@@ -191,16 +191,16 @@ function initMirror(windowGetter) {
           // Mute our own echo, and mark that the app has now projected — from here
           // on a differing patch.json is a genuine external edit worth surfacing.
           if (name === 'patch.json') { lastPatchText = files[name]; projected = true; }
-        } catch (e) { console.warn('LibreModular mirror write failed:', name, e.message); }
+        } catch (e) { console.warn('LibreSynth mirror write failed:', name, e.message); }
       }
-    }).catch((e) => console.warn('LibreModular mirror write chain:', e.message));
+    }).catch((e) => console.warn('LibreSynth mirror write chain:', e.message));
   });
   // The renderer reports the outcome of applying an external patch.json edit.
   ipcMain.on('mirror:result', async (_e, result) => {
     const out = result && result.ok
       ? { status: 'success', timestamp: new Date().toISOString(), applied: ['patch.json'] }
       : { status: 'rejected', timestamp: new Date().toISOString(), filename: 'patch.json', error: (result && result.error) || 'unknown' };
-    try { await writeAtomic('last-apply-result.json', JSON.stringify(out, null, 2)); } catch (e) { console.warn('LibreModular mirror result write:', e.message); }
+    try { await writeAtomic('last-apply-result.json', JSON.stringify(out, null, 2)); } catch (e) { console.warn('LibreSynth mirror result write:', e.message); }
   });
   ipcMain.handle('mirror:reveal', async () => { await ensureFolder(); await shell.openPath(mirrorDir()); return mirrorDir(); });
 
@@ -213,7 +213,7 @@ function initMirror(windowGetter) {
     await copyStaticDocs();
     await seedBaseline();
     startWatch();
-  })().catch((e) => console.warn('LibreModular mirror init:', e.message));
+  })().catch((e) => console.warn('LibreSynth mirror init:', e.message));
 
   app.on('before-quit', () => { stopWatch(); markNotLiveSync(); });
 }

@@ -68,7 +68,7 @@ export function serialize(rack, mixer) {
 }
 
 export async function restore(obj, rack, mixer) {
-  if (!obj || obj.format !== FORMAT) throw new Error('Not a LibreModular patch file.');
+  if (!obj || obj.format !== FORMAT) throw new Error('Not a LibreSynth patch file.');
   if (obj.version !== VERSION) throw new Error(`Unsupported patch version ${obj.version}.`);
 
   rack.clear();

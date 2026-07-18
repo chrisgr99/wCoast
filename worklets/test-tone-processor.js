@@ -11,7 +11,7 @@
 // (registration, message handling, zero-allocation loop) stays.
 //
 // Zero-allocation discipline. Even though this is throwaway DSP, it is
-// written the way all LibreModular audio-thread code must be written: the
+// written the way all LibreSynth audio-thread code must be written: the
 // process() method allocates NOTHING. No object literals, no array
 // literals, no closures created per block or per sample. Every value it
 // needs is either a preallocated instance field or a stack local. The
