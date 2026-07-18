@@ -292,24 +292,19 @@ export class Rack {
       this._scheduleOverviewBuild();
     }, true);
     // A cable body is click-through, so it fires no hover events of its own.
-    // Drag a panel BACKGROUND to pan the view (grab-drag). Skips a press on a control or jack (those keep
-    // their own press), and skips while an overview, a menu, or a cable carry is active — a carry owns its
-    // own press (its onDown/onUp pans-or-drops). A plain click that never moves past VIEW_DRAG_PX does
-    // nothing, so it can't disturb a patch.
-    this.container.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || this._ovActive || this._tempCable || this._menuEl) return;
-      if (e.target && e.target.closest && e.target.closest('[data-wcoast-param],[data-jack-key]')) return;
-      const pd = this._viewDragStart(e);
-      const mv = (ev) => { if (!this._ovActive) this._viewDragPan(pd, ev); };
-      const up = () => { document.removeEventListener('pointermove', mv, true); document.removeEventListener('pointerup', up, true); };
-      document.addEventListener('pointermove', mv, true);
-      document.addEventListener('pointerup', up, true);
-    });
+    // (Removed: drag-a-panel-background-to-pan. It slid the whole rack when users grabbed a panel to move
+    // it, carrying the leftmost module — the mixer — off-screen. Panels move by their title band; pan with
+    // Option.)
     // Detect a hovered cable by proximity and reveal its middle reshape handle.
     // Same pass: fade any cable that's covering the control the pointer is over.
     this.container.addEventListener('pointermove', (e) => {
       this._lastPointer = { x: e.clientX, y: e.clientY };   // where the pointer is (for nav / edge-scroll)
-      if (this._ovActive || this._optDown) return;   // navigating (Option held) → whole rack at full brightness, no per-move hover work
+      // Skip the per-move hover work while navigating (Option held → full brightness) AND while Control is
+      // held. Control+scroll is the macOS accessibility-zoom gesture: as Zoom recenters the pointer it
+      // fires pointer-moves, and our hover recompute (dim the off-chain rack + redraw cables) rewrites the
+      // DOM each time, which Zoom then re-tracks — a feedback loop that jerks the pointer rightward over a
+      // module. Pausing the hover work while Control is down breaks the loop without touching the zoom.
+      if (this._ovActive || this._optDown || e.ctrlKey) return;
       this._updateCableHover(e); this._updateControlCableFade(e); this._updateNetOrigin(e);
     });
     this.container.addEventListener('pointerleave', () => {
@@ -4384,6 +4379,13 @@ export class Rack {
     yes.focus();
   }
 
+  // Reposition an existing module by key — used by restore to put the pinned mixer back where it was
+  // saved (a fresh boot always places it at x=0, so without this it snaps to the left edge on reopen).
+  placeModule(key, row, x) {
+    const rec = this.records.get(key);
+    if (rec) this._moveModule(rec, Math.max(0, Math.min(this.rowCount - 1, row | 0)), Math.max(0, +x || 0));
+  }
+
   _moveModule(rec, newRow, newX) {
     const old = this.rows[rec.row];
     const i = old.indexOf(rec);
@@ -4401,21 +4403,15 @@ export class Rack {
   // pan vertically too when zoomed in (there's no vertical scrollbar). A press with no drag just leaves
   // isolate mode, exactly as a plain faceplate click did before.
   _startPan(e) {
+    // A press on a panel BODY no longer pans — that slid the whole rack off-screen when a panel was
+    // grabbed to move it. A drag does nothing; a plain click (no drag) still leaves isolate mode, as a
+    // faceplate click always has. (Panels move by their title band; pan the view with Option.)
     const sx = e.clientX, sy = e.clientY;
-    const tx0 = this._tx, ty0 = this._ty;
     let moved = false;
-    const onMove = (ev) => {
-      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return;
-      if (!moved) { moved = true; document.body.classList.add('panning'); }
-      this._tx = tx0 + (ev.clientX - sx);   // the rack follows the pointer 1:1
-      this._ty = ty0 + (ev.clientY - sy);
-      this._clampPan();
-      this._applyTransform();
-    };
+    const onMove = (ev) => { if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) >= 4) moved = true; };
     const onUp = () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
-      document.body.classList.remove('panning');
       if (!moved && this._isolateNet) this._exitIsolate();
     };
     document.addEventListener('pointermove', onMove);

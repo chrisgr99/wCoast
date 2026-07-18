@@ -29,6 +29,9 @@ export function serialize(rack, mixer) {
   // mixer's params + wiring still round-trip: params via the `mixer` adapter
   // below, wiring by its stable key.
   const recs = rack.moduleRecords().filter((rec) => !rec.pinned);
+  // The pinned mixer isn't listed as a module, but its POSITION still round-trips so it reopens where
+  // the user left it (a fresh boot always places it at x=0).
+  const mixRec = rack.records.get(mixer.key);
 
   const modules = recs.map((rec) => ({
     id: rec.key,
@@ -60,6 +63,7 @@ export function serialize(rack, mixer) {
     format: FORMAT,
     version: VERSION,
     rack: { rows: rack.rowCount },
+    mixerPos: mixRec ? { row: mixRec.row, x: round2(mixRec.x) } : null,
     modules,
     wiring,
     settings: { params },
@@ -81,6 +85,8 @@ export async function restore(obj, rack, mixer) {
     const rec = await rack.addModule(m.type, m.row, m.x);
     if (rec) idToKey.set(m.id, rec.key);
   }
+  // Put the pinned mixer back where it was saved (it survives rack.clear() at its boot x=0 otherwise).
+  if (obj.mixerPos) rack.placeModule(mixer.key, obj.mixerPos.row, obj.mixerPos.x);
 
   // Apply settings: module param maps, then the mixer.
   const params = (obj.settings && obj.settings.params) || {};
