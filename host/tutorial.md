@@ -58,7 +58,7 @@ Coming next: **Basic interaction**.
 
 > **Do this** — Hover a knob and scroll it, then move to its rim and scroll again — the same gesture, four times finer.
 
-**Moving around:** if scrolling turns knobs, how do you get around a big rack? Hint: hold Option (Alt on Windows) and scroll. More on this in the **Getting around** section of the tutorial, covered later.
+**Moving around:** if scrolling turns knobs, how do you get around a big rack? Hold Option (Alt on Windows), then move the pointer to slide the view and roll the wheel to zoom. More on this in the **Getting around** section, covered later.
 
 Coming next: **First sound**.
 
@@ -124,3 +124,21 @@ Coming next: **Building a patch**.
 > **Bonus** — Add a second voice: cable the "Complex Oscillator" **Sine** output to the gate's **channel B** input, and the gate's **channel B** output to the "Mixer" **channel C**. Turn on channel B's **Clock**, and set its **clock ratio** to a different value than channel A's — the two plucks cross in and out of step, building a shifting rhythm.
 
 Coming next: **Getting around**.
+
+## Getting around
+
+**Your rack:** the *rack* is the surface your modules sit on; a *module* is a single panel — the "Complex Oscillator", the "Mixer", and so on. Your four fit the window at once for now, but the moment you zoom in for a closer look — or add more modules later — the rack reaches past what the window can show, and you'll want to move around it and magnify parts of it. That's what this section covers. (Reshaping the rack itself — its rows, and adding or removing modules — will be covered later.)
+
+**The Option key:** one key handles both moving and magnifying: **Option** (Alt on Windows). Hold it and the rack switches to a navigate mode: move the pointer to slide the view, and roll the wheel to zoom in and out on wherever the pointer is. The cursor becomes a four-way arrow while you navigate; let go and you're back to normal, ready to turn a knob or pull a cable.
+
+> **Do this** — Hold **Option** and roll the wheel to zoom in on a module. Release Option — now you're looking at just a section of the rack. Press **Option** again and move the pointer to slide the view to a different part. Release Option, and you're there. Notice how effortlessly you can bring any part of your rack into view, as large or as small as you like. Mix zooming and moving freely, and practice until it feels comfortable.
+
+**Cabling across the rack:** you may want to run a cable to a module that isn't currently in view. You can navigate to it with the cable already in hand — the same Option-key moving and zooming works while you carry a cable, and the cable stays attached the whole time.
+
+> **Do this** — Hold **Option** and zoom in until only part of the rack shows. Click an **output** terminal to pick up a cable, then hold **Option** again and move and zoom until the module you want comes into view — the cable trails from your pointer all the way. Release **Option** and the cable is still in hand; click a terminal on that module to drop it, the usual way.
+
+**Zooming in on a scope:** one way to see a scope more clearly is to enlarge the scope itself by dragging its borders. But when you'd rather get a closer look without resizing the object, zooming does it — magnify the view over a scope and it grows on screen along with everything around it, then zoom back out when you're done.
+
+> **Do this** — If you don't already have a scope in your rack, attach one to an output that's producing sound — the "Complex Oscillator" **Final** output, say. Hover over the scope, hold **Option**, and roll the wheel to zoom in, nudging the pointer to keep the scope in view. Now it's as large as you want; zoom back out when you've seen enough.
+
+Coming next: **Watching and hearing**.
