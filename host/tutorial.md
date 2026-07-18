@@ -142,3 +142,37 @@ Coming next: **Getting around**.
 > **Do this** — If you don't already have a scope in your rack, attach one to an output that's producing sound — the "Complex Oscillator" **Final** output, say. Hover over the scope, hold **Option**, and roll the wheel to zoom in, nudging the pointer to keep the scope in view. Now it's as large as you want; zoom back out when you've seen enough.
 
 Coming next: **Watching and hearing**.
+
+## Watching and hearing
+
+**Listen with the monitor:** many outputs carry a signal even with no cable plugged into them, so you can listen to a point in the circuit on its own — and not just audio: even a slower output like an LFO or a clock may carry a signal you can listen to, unless it's a very low frequency. Right-click a terminal and hover **Monitor** to listen to just that point; move off and it stops. It's separate from your mix — the "Mixer" is the sound you're building, while a monitor checks any single signal, even one that isn't in the mix, brought up to a comfortable level.
+
+> **Do this** — Right-click a few different outputs on the "Complex Oscillator" — the modulation oscillator's **Triangle**, the principal **Sine**, the **Final** — and hover **Monitor** on each to hear how they differ, without wiring anything. If you built the patch last section, try it on the "Quad Low Pass Gate" too: hover **Monitor** on its **Clk Out**, and on channel A's **Clk A** output, to hear the clock ticking.
+
+**Keep a monitor:** to listen without holding the pointer still, click **Monitor** instead of hovering — a monitor drops onto the rack and follows the pointer until you click again to set it down. It stays live and is saved with your patch, so you can leave several running side by side. Each is also its own control: hold the pointer over it and scroll to set its level, click it to mute and unmute — a green ring shows when it's on — and close it with its ×.
+
+> **Do this** — Right-click a terminal, click **Monitor**, then drag the monitor to a spot near the terminal and click to set it down. Notice the callout: a ring appears around the terminal, joined to the monitor by a line, marking which signal it hears. Drop a couple more monitors on terminals — including ones with no cable — then hold the pointer over each and scroll to set its level, then click it to mute it and click again to bring it back.
+
+**Master and monitor buses:** the "Mixer" carries two output buses, side by side in its master section. **Master** is the mix you build from the six channels; **Monitor** is the sum of every monitor you've dropped — a second, independent sub-mix, like the monitor or aux bus on a real desk. Each bus has its own level fader and its own enable lamp beneath it, and the two are independent: play either, both, or neither. Dropping a monitor switches the Monitor bus on for you; turning it off silences all your monitors at once without removing them, and turning **Master** off leaves just the monitor sub-mix. Both buses are gated by the engine.
+
+> **Do this** — With a monitor or two running, find the **Master** and **Monitor** faders in the mixer's master section, each with an enable lamp below it. Set the **Monitor** level against the **Master**, then toggle the two enables — **Master** off to hear only your monitors, **Monitor** off to silence them and keep just the mix.
+
+**Peek at a signal:** the same terminal menu's **Scope** shows a signal's shape. Right-click a terminal and hover **Scope**, and a small scope appears beside the pointer, drawing live; move off and it's gone — the same peek-or-keep pattern as the monitor. It sets its own scale and locks the trace steady, triggering on the signal's rising edges, so you get a still, framed picture at once — whether the signal is fast or slow. The exception is a signal with no clear rising edge to lock onto, like the Complex Oscillator's **Final** output while it's modulated: with nothing steady to trigger on, that trace keeps moving.
+
+> **Do this** — Right-click the "Complex Oscillator" principal **Square** output and hover **Scope** — a clean waveform, held steady. Try the modulation oscillator's **Triangle** and the "Quad Low Pass Gate" **Clk Out** too: each locks into a still trace, the slow clock included.
+
+**Keep a scope:** to hold a scope open, click it — on the **Scope** menu item, or on the peeked scope's face. It then follows the pointer until you click again to set it down. Like an audio monitor, a kept scope draws a callout — a ring around the terminal, joined by a line to the scope — stays live, and is saved with your patch. A running scope tracks its signal moment to moment, so anything you change upstream shows on screen at once.
+
+> **Do this** — Right-click the "Complex Oscillator" principal **Square** output, click **Scope**, drag it to a clear spot, and click to set it down. Turn the **Frequency** (Pitch) knob and watch the wavelength squeeze and stretch as the frequency rises and falls. Then keep a scope on the "Quad Low Pass Gate" **Clk Out** and turn its **Rate** up and down — the trigger pulses crowd together or spread apart.
+
+**Move or remove a scope:** the callout ring has a small grab handle. Drag the ring off its terminal and release it over empty space, and the scope vanishes — the same gesture as pulling a cable off a terminal. Drop the ring on a different terminal instead, and the scope re-probes there, re-framing to show that signal.
+
+> **Do this** — Grab a kept scope's ring by its handle and drag it onto a different terminal, then release — the scope now shows that signal. Grab it again, pull it out over an empty part of the rack, and let go to remove the scope.
+
+**Looking at complex signals:** while the "Complex Oscillator" is being modulated, its output usually can't be held steady by the scope's auto-sync — the waveform shifts too much from one cycle to the next for the trigger to lock onto. You can still study it by freezing the trace: hover the scope and press its freeze button (lower-left) to hold the picture exactly as it was the instant you pressed — a still frame to read at leisure. Freezing works on steady signals too, handy when you want a close look. Press the button again to run.
+
+> **Do this** — Keep a scope on the "Complex Oscillator" **Final** output, then turn up the modulation — press **Pitch Mod** and raise **Mod Index**. The trace won't settle. Hover the scope and press its **freeze** button to catch a single frame; study its shape, then press again to run. Try freezing a steady signal too, like the principal **Square** — a still trace can be easier to read.
+
+The scope can do more — triggering, and comparing two signals at once — which a later section covers.
+
+Coming next: **Following the signal**.
