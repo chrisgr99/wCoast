@@ -4147,6 +4147,8 @@ export class Rack {
     // A grab (hand) cursor over the left title band signals it's the drag handle; the rest of the
     // faceplate stays default, and a control keeps its own cursor (a child's overrides this one).
     el.addEventListener('pointermove', (e) => {
+      if (e.ctrlKey) return;   // Control held = macOS accessibility-zoom gesture; skip the getBoundingClientRect
+                               // read + cursor write, which only fires over a module and fed the zoom feedback loop
       const inBand = (e.clientX - el.getBoundingClientRect().left) <= TITLE_BAND_MM * this.pxPerMm;
       el.style.cursor = inBand ? 'grab' : '';
     });
