@@ -329,6 +329,16 @@ function createWindow() {
 
   mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
 
+  // Disable Chromium's built-in pinch / Control+wheel PAGE zoom (min=max=1). Without this, macOS
+  // accessibility zoom (Control+scroll) also reaches the page as a ctrl+wheel event and Chromium
+  // scales the whole document toward the cursor — so the app content jerks sideways under the fixed
+  // screen pointer, and the two zooms desync enough to warp the pointer on zoom-out. We never bind
+  // Control ourselves; this hands the gesture entirely back to the OS. Re-applied on every load
+  // because the limits reset with the page.
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.setVisualZoomLevelLimits(1, 1);
+  });
+
   // Guard the close if the renderer has unsaved changes.
   mainWindow.on('close', (e) => {
     // ⌘Q (app quit) forces the exit without prompting — the unsaved-changes guard
