@@ -175,4 +175,22 @@ Coming next: **Watching and hearing**.
 
 The scope can do more — triggering, and comparing two signals at once — which a later section covers.
 
-Coming next: **Following the signal**.
+Coming next: **Keeping your work**.
+
+## Keeping your work
+
+**Nothing is lost when you close:** you don't have to save to hang on to your work — wCoast quietly remembers your session as you go, in the desktop app and in any web browser, so the next time you open it you're right back where you left off: the same modules, cables, knob settings, and any scopes or monitors you'd placed. Saving is for something different — keeping a named version you can return to, or hand to someone else.
+
+> **Do this** — Change something small — turn a knob, drop a monitor — then quit and reopen. It all comes back exactly as you left it.
+
+**Save a patch:** to keep a version by name, open the menu and choose **File ▸ Save** — or **Save As…** to start a new one, saved to your Documents as a file you can keep, copy, or share. If you're running the web version in a browser, saving named files to disk needs **Chrome or Edge**; other browsers can't write files, but they still keep your work safe in the browser's own storage and restore it when you reload — you just can't name and export separate versions there.
+
+> **Do this** — **File ▸ Save As…**, give the patch a name, and save. That one file now holds this whole setup.
+
+**Open and revert:** **File ▸ Open** loads a saved patch. **File ▸ Recent** lists your saved patches, newest first — and the patch you currently have open is in that list too, so choosing it re-reads it from disk. That's how you revert: back to your last save, dropping any changes since.
+
+> **Do this** — Turn a knob, then open **File ▸ Recent** and pick the patch you just saved — it reloads from disk, discarding that change.
+
+**What a patch holds:** opening a patch brings the whole instrument back — every module and where it sits on the rack, every cable and its bends, every knob and switch, and the scopes and monitors you left clipped on, with their positions and settings. Nothing to reassemble; it reopens exactly as you had it.
+
+That's the tour. From here it's yours — build, listen, and see where it takes you.
