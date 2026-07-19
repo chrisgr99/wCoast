@@ -31,7 +31,6 @@ This is the tutorial wCoast shows in its floating cards, on a first run and from
 - [**Building a patch**](#building-a-patch) — adding modules, and how cables behave here
 - [**Getting around**](#getting-around) — panning and zooming a rack bigger than the window
 - [**Watching and hearing**](#watching-and-hearing) — scopes and monitors on any terminal
-- [**Following the signal**](#following-the-signal) — seeing what feeds what
 - [**Keeping your work**](#keeping-your-work) — saving, loading, and what carries over
 
 Coming next: **Basic interaction**.
@@ -44,7 +43,7 @@ Coming next: **Basic interaction**.
 
 > **Do this** — Move your pointer over the "Complex Oscillator" (the top-left module) without clicking, and watch the whole module brighten while the rest dims. Now move to a single band of the "Quad Low Pass Gate" — just that band lights.
 
-**Commands:** right-click a panel — or click the hamburger in the top corner — for the main menu: Engine, File, Edit, View and Help.
+**Commands:** right-click a panel — or click the hamburger in the top corner — for the main menu: Engine, File, Edit, View, Rack and Help.
 
 > **Do this** — Right-click a panel, go to View, and set light or dark to your taste. Everything re-skins, including this card, and your choice sticks between sessions.
 
