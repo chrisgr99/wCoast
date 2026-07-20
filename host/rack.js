@@ -2981,14 +2981,17 @@ export class Rack {
     vt.style.width = w + 'px'; vv.style.width = w + 'px';
   }
   _fmtLevel(v) { return (v >= 0 ? '+' : '') + (Math.abs(v) < 10 ? v.toFixed(2) : v.toFixed(1)); }
+  // Fixed decimal places per magnitude band (toFixed keeps the trailing zeros a bare number would drop),
+  // so the readout doesn't switch between 1 and 2 decimals and jitter left-right. Tabular digits (CSS)
+  // keep equal-length values from shifting too.
   _fmtCps(hz) {
-    const v = hz >= 1000 ? Math.round(hz) : hz >= 100 ? Math.round(hz * 10) / 10 : Math.round(hz * 100) / 100;
-    return `${v} CPS`;
+    const s = hz >= 1000 ? hz.toFixed(0) : hz >= 100 ? hz.toFixed(1) : hz.toFixed(2);
+    return `${s} CPS`;
   }
   _fmtPeriod(sec) {
-    return sec >= 1 ? `${Math.round(sec * 100) / 100} s`
-      : sec >= 1e-3 ? `${Math.round(sec * 1e5) / 100} ms`
-      : `${Math.round(sec * 1e7) / 10} µs`;
+    return sec >= 1 ? `${sec.toFixed(2)} s`
+      : sec >= 1e-3 ? `${(sec * 1e3).toFixed(2)} ms`
+      : `${(sec * 1e6).toFixed(1)} µs`;
   }
   // Measure the signal's fundamental over the scope's sample RING (a window of the last ~1.5s, longer
   // than the analyser alone so slow clock/LFO rates still show two cycles). Cross at the amplitude

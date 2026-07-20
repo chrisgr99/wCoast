@@ -35,7 +35,7 @@
     .scope-canvas { display: block; border-radius: 3px; }
     /* A small clickable nub at the bottom-centre of the display opens the values panel. */
     /* Values panel below the display: spin boxes for the two scales. */
-    .scope-values { display: flex; opacity: 0; pointer-events: none; transition: opacity 1s; position: absolute; left: 50%; transform: translateX(-50%); background: #0a0c09; color: #ffffff; border: 1px solid #8a8d92; border-radius: 4px; padding: 2px 7px; font-size: 13px; font-weight: 400; line-height: 1; white-space: nowrap; align-items: center; gap: 4px; z-index: 2; user-select: none; -webkit-user-select: none; }
+    .scope-values { display: flex; opacity: 0; font-variant-numeric: tabular-nums; pointer-events: none; transition: opacity 1s; position: absolute; left: 50%; transform: translateX(-50%); background: #0a0c09; color: #ffffff; border: 1px solid #8a8d92; border-radius: 4px; padding: 2px 7px; font-size: 13px; font-weight: 400; line-height: 1; white-space: nowrap; align-items: center; gap: 4px; z-index: 2; user-select: none; -webkit-user-select: none; }
     .scope-values.show { opacity: 1; pointer-events: auto; }
     .scope-spin { display: inline-flex; align-items: center; gap: 3px; }
     .scope-arrows { display: inline-flex; flex-direction: column; line-height: 0.7; }
