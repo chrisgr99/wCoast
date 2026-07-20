@@ -187,8 +187,9 @@ export class Rack {
     this._cableTgt = new Map();   // edge id -> target { body, dash } opacity set each _drawCables
     this._isolateNet = null; // Set of edge ids when isolating one terminal's subnet (else null)
     this._isolateOrigin = null; // { key, portId } of the isolated terminal, for live recompute
-    this._undoStack = [];    // { undo, redo } ops for cable/module topology changes (not knob values)
+    this._undoStack = [];    // { undo, redo } ops for cable/module topology + scope/monitor create/delete/move (not knob values)
     this._redoStack = [];
+    this._probeSeq = 0;      // stable id per permanent scope/monitor, so undo entries survive delete-and-recreate
     this._openSubs = [];     // open submenu elements of the current pop-up menu
     this._isolateSwells = []; // enlarged jack records (el + live tap) to restore when isolate mode ends
     this._isolateJackByTag = new Map();
@@ -410,82 +411,132 @@ export class Rack {
   // Only the PERMANENT ones (a temporary pie peek has showCallout === false). Endpoints
   // are module keys, which patch-io remaps to the fresh session keys on restore.
   serializeProbes() {
-    // Store each probe's home as an offset IN MM FROM ITS PORT (view-independent), so it reopens on the
-    // right spot regardless of the zoom/pan at save or load time — saving an absolute screen position was
-    // why probes came back displaced. Fall back to absolute px only if the port is somehow gone.
-    const offOf = (v) => {
-      const port = this._jackPosMm(v.key, v.portId);
-      if (port) { const r = v.el.getBoundingClientRect(); const mm = this._clientToMm(r.left, r.top); return { offX: r2(mm.x - port.x), offY: r2(mm.y - port.y) }; }
-      return { x: Math.round(parseFloat(v.el.style.left) || 0), y: Math.round(parseFloat(v.el.style.top) || 0) };
-    };
     const out = [];
-    for (const sc of this._scopes) {
-      if (sc.showCallout === false || !sc.key) continue;
-      const p = { kind: 'scope', module: sc.key, port: sc.portId, ...offOf(sc), w: sc.cssW, h: sc.cssH, vIdx: sc.vIdx, tIdx: sc.tIdx, vOffset: r2(sc.vOffset || 0), hOffset: r2(sc.hOffset || 0), grid: sc.gridOn ? 1 : 0, trigger: !!sc.trigger, trigLevel: r2(sc.trigLevel || 0), frozen: !!sc.frozen, hidden: !!sc.hidden, minimized: !!sc.minimized, homeX: sc.homeOffX != null ? r2(sc.homeOffX) : null, homeY: sc.homeOffY != null ? r2(sc.homeOffY) : null, displaced: !!sc.displaced };
-      // A FROZEN scope also stores the paused trace, so the exact captured shape reopens with it.
-      if (sc.frozen) this._saveFrozenTrace(sc, p);
-      out.push(p);
-    }
-    for (const m of this._monitors) {
-      if (m.showCallout === false || !m.key) continue;
-      out.push({ kind: 'monitor', module: m.key, port: m.portId, ...offOf(m), vol: r2(m.vol), muted: !!m.muted });
-    }
+    for (const sc of this._scopes) if (sc.showCallout !== false && sc.key) out.push(this._snapProbe(sc));
+    for (const m of this._monitors) if (m.showCallout !== false && m.key) out.push(this._snapProbe(m));
     return out;
   }
-  // Recreate probes (called after modules + wiring exist, so an input probe finds its
-  // feeding cord). Monitors restore their saved level rather than auto-levelling.
+  // A probe's position as an offset IN MM FROM ITS PORT (view-independent), so it reopens on the right spot
+  // regardless of zoom/pan; absolute-px fallback if the port is somehow gone.
+  _probeOff(v) {
+    const port = this._jackPosMm(v.key, v.portId);
+    if (port) { const r = v.el.getBoundingClientRect(); const mm = this._clientToMm(r.left, r.top); return { offX: r2(mm.x - port.x), offY: r2(mm.y - port.y) }; }
+    return { x: Math.round(parseFloat(v.el.style.left) || 0), y: Math.round(parseFloat(v.el.style.top) || 0) };
+  }
+  // Full snapshot of ONE probe (scope or monitor) — the exact shape saved in the patch, reused for undo.
+  // The session-only uid is NOT stored here; undo entries track it alongside.
+  _snapProbe(v) {
+    const off = this._probeOff(v);
+    if (this._scopes.has(v)) {
+      const p = { kind: 'scope', module: v.key, port: v.portId, ...off, w: v.cssW, h: v.cssH, vIdx: v.vIdx, tIdx: v.tIdx, vOffset: r2(v.vOffset || 0), hOffset: r2(v.hOffset || 0), grid: v.gridOn ? 1 : 0, trigger: !!v.trigger, trigLevel: r2(v.trigLevel || 0), frozen: !!v.frozen, hidden: !!v.hidden, minimized: !!v.minimized, homeX: v.homeOffX != null ? r2(v.homeOffX) : null, homeY: v.homeOffY != null ? r2(v.homeOffY) : null, displaced: !!v.displaced };
+      if (v.frozen) this._saveFrozenTrace(v, p);   // a frozen scope also carries its paused trace
+      return p;
+    }
+    return { kind: 'monitor', module: v.key, port: v.portId, ...off, vol: r2(v.vol), muted: !!v.muted };
+  }
+  // Recreate probes (called after modules + wiring exist, so an input probe finds its feeding cord).
   restoreProbes(probes) {
-    // Turn the saved port-relative mm back into a screen position at the CURRENT view, so the probe lands
-    // exactly on its port. (Older patches only have absolute px — use that as-is.)
-    const rect = this.container.getBoundingClientRect();
-    const s = (this.pxPerMm || 1) * this.zoom;
-    const screenOf = (p) => {
-      const port = this._jackPosMm(p.module, p.port);
-      if (port && p.offX != null) return { x: rect.left + this._tx + (port.x + p.offX) * s, y: rect.top + this._ty + (port.y + p.offY) * s };
-      return { x: p.x || 60, y: p.y || 60 };
-    };
     const seenScopeTerm = new Set();   // one scope per terminal — drop any saved duplicates
     for (const p of probes || []) {
       if (!p || !p.module || !p.port) continue;
-      const { x, y } = screenOf(p);
-      if (p.kind === 'scope') {
-        const tk = p.module + '|' + p.port;
-        if (seenScopeTerm.has(tk)) continue;
-        seenScopeTerm.add(tk);
-        const sc = this._createScope(p.module, p.port, x, y);
-        if (!sc) continue;
-        if (p.w) sc.cssW = Math.max(60, Math.min(640, Math.round(p.w)));
-        if (p.h) sc.cssH = Math.max(24, Math.min(400, Math.round(p.h)));
-        if (p.w || p.h) { this._sizeScopeCanvas(sc); this._placeScopeValues(sc); }   // re-place the affordance/panel for the restored size
-        // A saved scale skips autoset; an older patch (no vIdx) autosets on first signal.
-        if (p.vIdx != null) { sc.vIdx = Math.max(0, Math.min(SCOPE_VDIV.length - 1, p.vIdx | 0)); sc.autosetPending = false; }
-        if (p.tIdx != null) { sc.tIdx = Math.max(0, Math.min(SCOPE_TDIV.length - 1, p.tIdx | 0)); }
-        if (p.vOffset != null) sc.vOffset = p.vOffset;   // restore the panned trace position
-        if (p.hOffset != null) sc.hOffset = p.hOffset;
-        if (p.grid != null) sc.gridOn = !!p.grid;
-        if (p.trigger != null) sc.trigger = !!p.trigger;
-        if (p.trigLevel != null) sc.trigLevel = p.trigLevel;
-        if (p.frozen != null) sc.frozen = !!p.frozen;
-        if (sc.frozen) this._loadFrozenTrace(sc, p);   // repopulate the paused trace so it reopens as captured
-        this._updateScopePlayPause(sc);
-        this._updateCallout(sc);
-        if (p.homeX != null) { sc.homeOffX = p.homeX; sc.homeOffY = p.homeY; }   // its home spot beside the terminal
-        sc.displaced = !!p.displaced;                                            // …and whether it's currently away from it
-        this._updateScopeHomeBtn(sc);
-        if (p.minimized) { sc.minimized = true; sc.el.classList.add('minimized'); }   // reopen collapsed to its token
-        if (p.hidden) {   // reopen parked in the roster (no follow) — hide its box + callout, keep its state
-          sc.hidden = true;
-          sc.el.style.display = 'none';
-          if (sc.ring) sc.ring.style.display = 'none';
-          if (sc.line) sc.line.style.display = 'none';
-          if (sc.dot) sc.dot.style.display = 'none';
-        }
-      } else if (p.kind === 'monitor') {
-        const m = this._createMonitor(p.module, p.port, x, y, true, { vol: p.vol, skipAutoLevel: true });
-        if (m && p.muted) this._toggleMonMute(m);
-      }
+      if (p.kind === 'scope') { const tk = p.module + '|' + p.port; if (seenScopeTerm.has(tk)) continue; seenScopeTerm.add(tk); }
+      this._restoreOneProbe(p);
     }
     this._scheduleOverviewBuild();   // a freshly loaded patch → build the overview picture ahead of the first open
+  }
+  // Recreate ONE probe from a snapshot at the CURRENT session keys/view, applying every saved setting.
+  // Shared by patch load and by undo/redo. Returns the new object (or null). Monitors restore their saved
+  // level rather than auto-levelling.
+  _restoreOneProbe(p) {
+    if (!p || !p.module || !p.port) return null;
+    const rect = this.container.getBoundingClientRect();
+    const s = (this.pxPerMm || 1) * this.zoom;
+    const port = this._jackPosMm(p.module, p.port);
+    const x = (port && p.offX != null) ? rect.left + this._tx + (port.x + p.offX) * s : (p.x || 60);
+    const y = (port && p.offX != null) ? rect.top + this._ty + (port.y + p.offY) * s : (p.y || 60);
+    if (p.kind === 'scope') {
+      const sc = this._createScope(p.module, p.port, x, y);
+      if (!sc) return null;
+      if (p.w) sc.cssW = Math.max(60, Math.min(640, Math.round(p.w)));
+      if (p.h) sc.cssH = Math.max(24, Math.min(400, Math.round(p.h)));
+      if (p.w || p.h) { this._sizeScopeCanvas(sc); this._placeScopeValues(sc); }
+      if (p.vIdx != null) { sc.vIdx = Math.max(0, Math.min(SCOPE_VDIV.length - 1, p.vIdx | 0)); sc.autosetPending = false; }
+      if (p.tIdx != null) { sc.tIdx = Math.max(0, Math.min(SCOPE_TDIV.length - 1, p.tIdx | 0)); }
+      if (p.vOffset != null) sc.vOffset = p.vOffset;
+      if (p.hOffset != null) sc.hOffset = p.hOffset;
+      if (p.grid != null) sc.gridOn = !!p.grid;
+      if (p.trigger != null) sc.trigger = !!p.trigger;
+      if (p.trigLevel != null) sc.trigLevel = p.trigLevel;
+      if (p.frozen != null) sc.frozen = !!p.frozen;
+      if (sc.frozen) this._loadFrozenTrace(sc, p);
+      this._updateScopePlayPause(sc);
+      this._updateCallout(sc);
+      if (p.homeX != null) { sc.homeOffX = p.homeX; sc.homeOffY = p.homeY; }
+      sc.displaced = !!p.displaced;
+      this._updateScopeHomeBtn(sc);
+      if (p.minimized) { sc.minimized = true; sc.el.classList.add('minimized'); }
+      if (p.hidden) { sc.hidden = true; sc.el.style.display = 'none'; if (sc.ring) sc.ring.style.display = 'none'; if (sc.line) sc.line.style.display = 'none'; if (sc.dot) sc.dot.style.display = 'none'; }
+      return sc;
+    }
+    if (p.kind === 'monitor') {
+      const m = this._createMonitor(p.module, p.port, x, y, true, { vol: p.vol, skipAutoLevel: true });
+      if (m && p.muted) this._toggleMonMute(m);
+      return m;
+    }
+    return null;
+  }
+
+  // ---- scope / monitor create, delete, move, re-probe undo (NOT settings) ----
+  // Undo entries reference a probe by its stable uid, not the live object, so they survive a
+  // delete-and-recreate. Settings (scale, trigger, level, freeze, minimize/home) are not undoable.
+  _probeByUid(uid) { for (const sc of this._scopes) if (sc.uid === uid) return sc; for (const m of this._monitors) if (m.uid === uid) return m; return null; }
+  _closeProbe(v, immediate) { if (!v) return; if (this._scopes.has(v)) this._closeScope(v, immediate); else this._closeMonitor(v, immediate); }
+  _restoreProbeSnap(snap, uid) { const v = this._restoreOneProbe(snap); if (v && uid != null) v.uid = uid; return v; }
+  _deleteProbeByUid(uid) { const v = this._probeByUid(uid); if (v) this._closeProbe(v, true); }
+  // Position-only state (what a MOVE changes); settings are left alone on undo.
+  _probePos(v) { const o = this._probeOff(v); return { offX: o.offX != null ? o.offX : null, offY: o.offY != null ? o.offY : null, homeX: v.homeOffX != null ? v.homeOffX : null, homeY: v.homeOffY != null ? v.homeOffY : null, displaced: !!v.displaced }; }
+  _applyProbePos(uid, pos) {
+    const v = this._probeByUid(uid); if (!v) return;
+    const rect = this.container.getBoundingClientRect();
+    const s = (this.pxPerMm || 1) * this.zoom;
+    const port = this._jackPosMm(v.key, v.portId);
+    if (port && pos.offX != null) {
+      v.el.style.left = r2(rect.left + this._tx + (port.x + pos.offX) * s) + 'px';
+      v.el.style.top = r2(rect.top + this._ty + (port.y + pos.offY) * s) + 'px';
+      v.offMmX = pos.offX; v.offMmY = pos.offY;
+    }
+    if (this._scopes.has(v)) { if (pos.homeX != null) { v.homeOffX = pos.homeX; v.homeOffY = pos.homeY; } v.displaced = !!pos.displaced; this._updateScopeHomeBtn(v); }
+    this._updateCallout(v);
+    this.onChange();
+  }
+  _pushProbeCreate(uid) {
+    let snap = null;
+    this._pushUR({
+      undo: () => { const v = this._probeByUid(uid); if (v) { snap = this._snapProbe(v); this._closeProbe(v, true); } },
+      redo: () => { if (snap) this._restoreProbeSnap(snap, uid); },
+    });
+  }
+  // Delete a scope/monitor as a user action, undoably. A temporary peek (showCallout === false) just closes.
+  _deleteProbeWithUndo(v) {
+    if (!v) return;
+    if (v.showCallout === false) { this._closeProbe(v, false); return; }
+    const uid = v.uid; let snap = this._snapProbe(v);
+    this._closeProbe(v, false);
+    this._pushUR({
+      undo: () => this._restoreProbeSnap(snap, uid),
+      redo: () => { const p = this._probeByUid(uid); if (p) { snap = this._snapProbe(p); this._closeProbe(p, true); } },
+    });
+  }
+  _pushProbeMove(uid, before, after) {
+    if (!before || !after) return;
+    if (before.offX === after.offX && before.offY === after.offY && before.displaced === after.displaced && before.homeX === after.homeX && before.homeY === after.homeY) return;   // no real move
+    this._pushUR({ undo: () => this._applyProbePos(uid, before), redo: () => this._applyProbePos(uid, after) });
+  }
+  _pushProbeReprobe(uid, before, after) {
+    this._pushUR({
+      undo: () => { this._deleteProbeByUid(uid); this._restoreProbeSnap(before, uid); },
+      redo: () => { this._deleteProbeByUid(uid); this._restoreProbeSnap(after, uid); },
+    });
   }
   // Capture a frozen scope's displayed trace into the probe record. A triggerable (wave) scope draws
   // from the raw sample RING, so save the window it shows plus trigger/pan headroom; a slow (roll)
@@ -2072,14 +2123,15 @@ export class Rack {
       if (existing) {
         if (sc) this._closeScope(sc, true);   // discard the transient preview
         this._closeMenu();
+        const before = this._probePos(existing);
         this._unhideScope(existing);          // reuse the terminal's own scope, settings and all (no-op if already shown)
         existing.displaced = false; this._updateScopeHomeBtn(existing);   // pulled from the terminal → re-placed, so home tracks where you drop it
-        this._carryScope(existing, { clientX: ev.clientX, clientY: ev.clientY }, carryMode || 'up');
+        this._carryScope(existing, { clientX: ev.clientX, clientY: ev.clientY }, carryMode || 'up', () => this._pushProbeMove(existing.uid, before, this._probePos(existing)));
         return;
       }
       if (sc) this._promoteScope(sc); else sc = this._createScope(key, portId, ev.clientX, ev.clientY, true);
       this._closeMenu();
-      this._carryScope(sc, { clientX: ev.clientX, clientY: ev.clientY }, carryMode || 'up');
+      this._carryScope(sc, { clientX: ev.clientX, clientY: ev.clientY }, carryMode || 'up', () => this._pushProbeCreate(sc.uid));
     };
     this._openMenu(ox, oy, [
       {
@@ -2095,7 +2147,7 @@ export class Rack {
           this._autoLevelMonitor(tempMon);
         },
         onLeave: () => { if (tempMon) { this._closeMonitor(tempMon); tempMon = null; } },
-        action: (ev) => this._carryMonitor(this._createMonitor(key, portId, ev.clientX, ev.clientY), { clientX: ev.clientX, clientY: ev.clientY }, 'up'),
+        action: (ev) => { const nm = this._createMonitor(key, portId, ev.clientX, ev.clientY); this._carryMonitor(nm, { clientX: ev.clientX, clientY: ev.clientY }, 'up', () => this._pushProbeCreate(nm.uid)); },
       },
       {
         label: 'Scope', icon: SCOPE_ICON,
@@ -2250,6 +2302,7 @@ export class Rack {
 
     sc.trigger = true; this._scopeAutoset(sc);   // a new scope auto-scales and triggers → a useful view at once
     this._updateScopeTrigBtn(sc);
+    sc.uid = ++this._probeSeq;   // stable id for undo (survives delete-and-recreate)
     this._scopes.add(sc);
     if (showCallout) this.onChange();   // a placed scope is part of the patch (not the temporary peek)
     this._updateCallout(sc);
@@ -2277,7 +2330,7 @@ export class Rack {
   //   'auto' — committed with the button held: if you DRAG it into place it drops on release;
   //            if you merely clicked (no drag) it keeps following and drops on the next click.
   // Escape (or clicking back on the origin terminal) cancels — the scope is removed.
-  _carryScope(sc, e, mode) {
+  _carryScope(sc, e, mode, onCommit) {
     if (sc.minimized) this._expandScope(sc);   // a scope being carried is always open
     const h = sc.el.offsetHeight || 80;
     const place = (px, py) => { sc.el.style.left = Math.round(px) + 'px'; sc.el.style.top = Math.round(py - h / 2) + 'px'; this._updateCallout(sc); };
@@ -2297,15 +2350,16 @@ export class Rack {
       if (drop && drop.key === sc.key && drop.portId === sc.portId) { this._closeScope(sc); return true; }
       return false;
     };
+    const commit = (ev) => { const cancelled = cancelIfOrigin(ev); finish(); if (!cancelled && onCommit) onCommit(); };
     const onUp = (ev) => {
       if (mode === 'auto' && !dragged) {   // a click, not a drag → keep carrying, drop on the NEXT click
         document.removeEventListener('pointerup', onUp, true);
         document.addEventListener('pointerdown', onClick, true);
         return;
       }
-      cancelIfOrigin(ev); finish();        // dragged into place ('auto') or 'down' mode → drop here
+      commit(ev);                          // dragged into place ('auto') or 'down' mode → drop here
     };
-    const onClick = (ev) => { ev.preventDefault(); ev.stopPropagation(); cancelIfOrigin(ev); finish(); };
+    const onClick = (ev) => { ev.preventDefault(); ev.stopPropagation(); commit(ev); };
     const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); this._closeScope(sc); finish(); } };
     document.addEventListener('pointermove', onMove, true);
     document.addEventListener('keydown', onKey, true);
@@ -2322,6 +2376,7 @@ export class Rack {
   _startScopeFollow(sc, e) {
     if (sc.following) return;
     if (sc.minimized) this._expandScope(sc);   // a scope carried away from home is always open
+    const before = this._probePos(sc);         // position before the carry, for the move-undo on drop
     for (const other of this._scopes) if (other !== sc && other.following) this._stopScopeFollow(other);
     sc.following = true;
     sc.displaced = true; this._updateScopeHomeBtn(sc);   // fetched to the pointer → no longer at home (home stays put)
@@ -2334,8 +2389,9 @@ export class Rack {
     sc._followMove = (ev) => { if (ev.ctrlKey) return; put(ev.clientX, ev.clientY); };   // hold still during accessibility-zoom (Control) moves
     // A press anywhere ends follow and deposits in place. We do NOT swallow the event — the click still
     // reaches the knob/panel underneath (a knob ignores a plain click; a panel click leaves isolate mode).
-    sc._followDown = () => this._stopScopeFollow(sc);
-    sc._followKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); this._stopScopeFollow(sc); } };
+    const drop = () => { this._stopScopeFollow(sc); this._pushProbeMove(sc.uid, before, this._probePos(sc)); };   // depositing it is an undoable move
+    sc._followDown = () => drop();
+    sc._followKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); drop(); } };
     // Ease the first hop from its current spot to the pointer, then follow instantly.
     sc.el.style.transition = 'left 0.18s ease, top 0.18s ease';
     put(e ? e.clientX : 0, e ? e.clientY : 0);
@@ -2853,7 +2909,7 @@ export class Rack {
     // (carry it to the pointer). Send-home was folded into minimize — a minimized scope only lives at home.
     const del = document.createElement('div'); del.className = 'scope-close'; del.textContent = '×';
     del.addEventListener('pointerdown', (e) => e.stopPropagation());
-    del.addEventListener('click', (e) => { e.stopPropagation(); this._closeScope(sc); });
+    del.addEventListener('click', (e) => { e.stopPropagation(); this._deleteProbeWithUndo(sc); });
     const min = document.createElement('div'); min.className = 'scope-min'; min.textContent = '–';
     min.addEventListener('pointerdown', (e) => e.stopPropagation());
     min.addEventListener('click', (e) => { e.stopPropagation(); this._toggleScopeMin(sc); });
@@ -3186,6 +3242,7 @@ export class Rack {
     const r = sc.el.getBoundingClientRect();
     const ox = ev.clientX - r.left, oy = ev.clientY - r.top, sx = ev.clientX, sy = ev.clientY;
     let moved = false;
+    const before = this._probePos(sc);
     const onMove = (e2) => {
       if (!moved && Math.hypot(e2.clientX - sx, e2.clientY - sy) < 4) return;   // ignore a click's micro-jitter
       moved = true;
@@ -3194,6 +3251,7 @@ export class Rack {
     const onUp = () => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
       if (!moved) { if (sc.minimized) this._expandScope(sc); else this._toggleScopeValues(sc); }   // a click (not a drag): open the token, else toggle the settings box
+      else this._pushProbeMove(sc.uid, before, this._probePos(sc));                                // a drag is an undoable move
     };
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
   }
@@ -3251,6 +3309,7 @@ export class Rack {
     if (ev.button !== 0) return;
     ev.preventDefault(); ev.stopPropagation();
     const sx = ev.clientX, sy = ev.clientY; let moved = false;   // the dot: DRAG to re-probe, plain CLICK to close
+    const before = this._snapProbe(sc);    // full state before a re-probe, for undo
     sc.regrabbing = true;                  // stop the loop resetting the loop/dot to the old port
     sc.dot.style.pointerEvents = 'none';   // so the drop hit-test finds the jack, not this dot
     const onMove = (e2) => {
@@ -3262,10 +3321,10 @@ export class Rack {
     };
     const onUp = (e2) => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
-      if (!moved) { sc.dot.style.pointerEvents = ''; sc.regrabbing = false; this._closeScope(sc); return; }   // a plain click on the dot closes the scope
+      if (!moved) { sc.dot.style.pointerEvents = ''; sc.regrabbing = false; this._deleteProbeWithUndo(sc); return; }   // a plain click on the dot closes the scope (undoable)
       const drop = this._jackFromPoint(e2.clientX, e2.clientY);   // hit-test while the dot is still pe:none, so it finds the jack, not the dot
       sc.dot.style.pointerEvents = '';
-      if (!drop) { this._closeScope(sc); return; }   // loop dropped on the panel → delete it (like a cable pulled off a terminal)
+      if (!drop) { this._deleteProbeWithUndo(sc); return; }   // loop dropped on the panel → delete it (undoable)
       if (this._scopeOnTerminal(drop.key, drop.portId, sc)) { sc.regrabbing = false; this._updateCallout(sc); return; }   // that terminal already has a scope — snap back, one per terminal
       this._scopeTapDisconnect(sc); sc.hist.fill(null); sc.histIdx = 0;
       sc.frozen = false; sc.armed = false; this._updateScopePlayPause(sc);   // moving to a new terminal resumes live display
@@ -3273,6 +3332,7 @@ export class Rack {
       sc.key = drop.key; sc.portId = drop.portId; this._scopeTapConnect(sc);
       sc.regrabbing = false;
       this._updateCallout(sc);
+      this._pushProbeReprobe(sc.uid, before, this._snapProbe(sc));   // re-probe to a new terminal is a structural change → undoable
     };
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
   }
@@ -3495,8 +3555,9 @@ export class Rack {
     // Close badge (upper-right ×), shown on hover — like the scope. Removes the monitor.
     const close = document.createElement('div'); close.className = 'mon-close'; close.textContent = '×'; close.title = 'close';
     close.addEventListener('pointerdown', (e) => e.stopPropagation());   // don't start a mute/drag
-    close.addEventListener('click', (e) => { e.stopPropagation(); this._closeMonitor(m); });
+    close.addEventListener('click', (e) => { e.stopPropagation(); this._deleteProbeWithUndo(m); });
     el.appendChild(close);
+    m.uid = ++this._probeSeq;   // stable id for undo (survives delete-and-recreate)
     this._monitors.add(m);
     if (showCallout) this.onChange();   // a placed monitor is part of the patch (not the temporary peek)
     this._updateCallout(m);
@@ -3599,6 +3660,7 @@ export class Rack {
     if (ev.button !== 0) return;
     ev.preventDefault(); ev.stopPropagation();
     const sx = ev.clientX, sy = ev.clientY; let moved = false;   // the dot is the re-probe handle; closing is the × badge
+    const before = this._snapProbe(m);    // full state before a re-probe, for undo
     m.regrabbing = true;
     m.dot.style.pointerEvents = 'none';
     const onMove = (e2) => {
@@ -3613,12 +3675,13 @@ export class Rack {
       if (!moved) { m.dot.style.pointerEvents = ''; m.regrabbing = false; return; }   // a plain click on the dot does nothing (use the × to close)
       const drop = this._jackFromPoint(e2.clientX, e2.clientY);   // hit-test while the dot is still pe:none, so it finds the jack, not the dot
       m.dot.style.pointerEvents = '';
-      if (!drop) { this._closeMonitor(m); return; }   // loop dropped on the panel → delete it (like a cable pulled off a terminal)
+      if (!drop) { this._deleteProbeWithUndo(m); return; }   // loop dropped on the panel → delete it (undoable)
       this._monTapDisconnect(m);
       m.key = drop.key; m.portId = drop.portId; if (!m.muted) this._monTapConnect(m);
       m.regrabbing = false;
       this._updateCallout(m);
       this._enableMonitorBus(true);   // re-probing keeps the monitor bus on
+      this._pushProbeReprobe(m.uid, before, this._snapProbe(m));   // re-probe to a new terminal → undoable
     };
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
   }
@@ -3643,6 +3706,7 @@ export class Rack {
     const r = m.el.getBoundingClientRect();
     const ox = ev.clientX - r.left, oy = ev.clientY - r.top, sx = ev.clientX, sy = ev.clientY;
     let moved = false;
+    const before = this._probePos(m);
     const onMove = (e2) => {
       if (!moved && Math.hypot(e2.clientX - sx, e2.clientY - sy) < 4) return;
       moved = true;
@@ -3651,6 +3715,7 @@ export class Rack {
     const onUp = () => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
       if (!moved) this._toggleMonMute(m);
+      else this._pushProbeMove(m.uid, before, this._probePos(m));   // a drag is an undoable move
     };
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
   }
@@ -3666,7 +3731,7 @@ export class Rack {
   // Carry a freshly-placed monitor circle out to be dropped (see _carryScope): the
   // pointer touches the LEFT of its circumference, so it hangs down-and-right, centred
   // vertically. Escape cancels — the monitor is removed.
-  _carryMonitor(m, e, mode) {
+  _carryMonitor(m, e, mode, onCommit) {
     const h = m.el.offsetHeight || 34;
     const place = (px, py) => { m.el.style.left = Math.round(px) + 'px'; m.el.style.top = Math.round(py - h / 2) + 'px'; this._updateCallout(m); };
     place(e.clientX, e.clientY);
@@ -3677,14 +3742,14 @@ export class Rack {
       document.removeEventListener('pointerdown', onClick, true);
       document.removeEventListener('keydown', onKey, true);
     };
-    const onUp = () => finish();
+    const onUp = () => { finish(); if (onCommit) onCommit(); };
     // Clicking back on its terminal cancels the creation (deletes it) — as a cable drag
     // does when dropped back on its port.
     const onClick = (ev) => {
       ev.preventDefault(); ev.stopPropagation();
       const drop = this._jackNear(ev.clientX, ev.clientY);
       if (drop && drop.key === m.key && drop.portId === m.portId) { this._closeMonitor(m); finish(); return; }
-      finish();
+      finish(); if (onCommit) onCommit();
     };
     const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); this._closeMonitor(m); finish(); } };
     document.addEventListener('pointermove', onMove, true);
@@ -4416,6 +4481,7 @@ export class Rack {
   }
 
   deleteModule(rec) {
+    for (const v of this._probesOnModule(rec.key)) this._closeProbe(v, true);   // its scopes/monitors go with it (captured in _moduleSnap for undo)
     if (this._hoverRec === rec) this._hoverRec = null;
     if (this._netOrigin && this._netOrigin.split(':')[0] === rec.key) this._netOrigin = null;
     this.patchbay.disconnectModule(rec.key);   // pull its cords before the nodes go
@@ -4468,8 +4534,11 @@ export class Rack {
   _cablesOf(key) {
     return this.patchbay.list().filter((e) => e.src.key === key || e.dst.key === key).map((e) => this._edgeSnapshot(e));
   }
+  // The permanent scopes/monitors clipped to a module's terminals.
+  _probesOnModule(key) { return [...this._scopes, ...this._monitors].filter((v) => v.key === key && v.showCallout !== false); }
   _moduleSnap(rec) {
-    return { key: rec.key, descriptorId: rec.descriptorId, row: rec.row, x: rec.x, params: new Map(rec.values), cables: this._cablesOf(rec.key) };
+    return { key: rec.key, descriptorId: rec.descriptorId, row: rec.row, x: rec.x, params: new Map(rec.values), cables: this._cablesOf(rec.key),
+      probes: this._probesOnModule(rec.key).map((v) => ({ uid: v.uid, snap: this._snapProbe(v) })) };   // its scopes/monitors ride along, so deleting/undoing a module carries them
   }
   async _reAddModule(snap) {
     const re = await this.addModule(snap.descriptorId, snap.row, snap.x, { key: snap.key });
@@ -4477,6 +4546,7 @@ export class Rack {
     // Real cables before links, so a link's target input is already fed when it restores.
     for (const c of [...snap.cables].sort((a, b) => (a.link ? 1 : 0) - (b.link ? 1 : 0))) this._restoreCable(c);
     this._reconcileLinks(); this._drawCables();
+    for (const pr of (snap.probes || [])) this._restoreProbeSnap(pr.snap, pr.uid);   // bring its scopes/monitors back too
     return re;
   }
 
