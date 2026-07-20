@@ -54,11 +54,19 @@ const SCOPE_VDIV = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 
 const SCOPE_TDIV = [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5];      // seconds / division (full 1-2-5)
 const SCOPE_DIV_PX = 12;   // a division is this many CSS px on the face
 const SCOPE_RING_SEC = 4;  // seconds of raw samples kept so a slow sweep can still fill the window
-const SCOPE_EDGE_CURSOR = { l: 'ew-resize', r: 'ew-resize', t: 'ns-resize', b: 'ns-resize', tl: 'nwse-resize', br: 'nwse-resize', tr: 'nesw-resize', bl: 'nesw-resize' };
+const SCOPE_EDGE_CURSOR = { l: 'var(--rz-ew)', r: 'var(--rz-ew)', t: 'var(--rz-ns)', b: 'var(--rz-ns)', tl: 'var(--rz-nwse)', br: 'var(--rz-nwse)', tr: 'var(--rz-nesw)', bl: 'var(--rz-nesw)' };
 const SCOPE_ROLL_FPS = 60;      // roll history is one peak per animation frame — used to label the slow time base
 const SCOPE_TRACE = '#ffffff';  // trace 1 colour (white); the bright-orange second trace is phase 3
 // The scope's little controls (transport + trigger) are orange for visibility on the dark face.
 const SCOPE_CTRL = '#ff9d3a';
+// Row-mark glyphs for the Scopes roster menu: an open EYE (this scope is shown on the panel) and a
+// TRASH can (delete it for good). Inline SVG so they take the menu's currentColor like the other icons.
+const MENU_EYE_SVG = '<svg viewBox="0 0 16 16"><path d="M8 3.2C4.4 3.2 1.7 6 0.8 8c0.9 2 3.6 4.8 7.2 4.8s6.3-2.8 7.2-4.8C14.3 6 11.6 3.2 8 3.2zm0 8a3.2 3.2 0 110-6.4 3.2 3.2 0 010 6.4zm0-1.6a1.6 1.6 0 100-3.2 1.6 1.6 0 000 3.2z"/></svg>';
+const MENU_TRASH_SVG = '<svg viewBox="0 0 16 16"><path d="M6 1.5h4a1 1 0 011 1V3h3v1.5H2V3h3v-0.5a1 1 0 011-1zM3.2 5.5h9.6l-0.8 8.1a1 1 0 01-1 0.9H5a1 1 0 01-1-0.9L3.2 5.5zm2.8 1.8v5.4h1V7.3H6zm3 0v5.4h1V7.3h-1z"/></svg>';
+// The scope's send-home button glyph: a small house.
+const SCOPE_HOME_SVG = '<svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3z"/></svg>';
+// The minimized-token glyph: a generic sine wave (stands for "a wave display", not the actual trace).
+const SCOPE_WAVE_SVG = '<svg viewBox="0 0 24 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M1 8Q4 -2 7 8T13 8T19 8T23 8"/></svg>';
 // Grid line brightness. Fine = every division; coarse = the decade lines (a power of 10 in the
 // axis units, i.e. every 2/5/10 divisions for a 1-2-5 scale). The G button toggles the grid.
 const SCOPE_GRID_FINE = 0.5, SCOPE_GRID_COARSE = 0.9;
@@ -299,6 +307,8 @@ export class Rack {
     // Same pass: fade any cable that's covering the control the pointer is over.
     this.container.addEventListener('pointermove', (e) => {
       this._lastPointer = { x: e.clientX, y: e.clientY };   // where the pointer is (for nav / edge-scroll)
+      this._ctrlDown = e.ctrlKey;   // track Control (macOS accessibility-zoom gesture) so the rAF scope loop can pause its per-frame layout reads; self-heals every move
+
       // Skip the per-move hover work while navigating (Option held → full brightness) AND while Control is
       // held. Control+scroll is the macOS accessibility-zoom gesture: as Zoom recenters the pointer it
       // fires pointer-moves, and our hover recompute (dim the off-chain rack + redraw cables) rewrites the
@@ -338,6 +348,7 @@ export class Rack {
     document.addEventListener('keydown', (e) => {
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.key === 'Control') this._ctrlDown = true;   // accessibility-zoom gesture held → pause the scope loop's layout reads
       if (e.key === 'Alt') {
         if (this._optDown) return;   // ignore auto-repeat while the key is held
         this._optDown = true; this._optUsed = false;
@@ -364,8 +375,8 @@ export class Rack {
       this._setNavCursor(false);
       this._updateNavClass();
     };
-    document.addEventListener('keyup', (e) => { if (e.key === 'Alt') endNav(); });
-    window.addEventListener('blur', () => { endNav(); if (this._ovActive) this._cancelOverview(); });
+    document.addEventListener('keyup', (e) => { if (e.key === 'Alt') endNav(); if (e.key === 'Control') this._ctrlDown = false; });
+    window.addEventListener('blur', () => { this._ctrlDown = false; endNav(); if (this._ovActive) this._cancelOverview(); });
     // Right-click does nothing while navigating (Option held): no connection/context menu.
     document.addEventListener('contextmenu', (e) => { if (this._optDown) { e.preventDefault(); e.stopPropagation(); } }, true);
   }
@@ -410,7 +421,7 @@ export class Rack {
     const out = [];
     for (const sc of this._scopes) {
       if (sc.showCallout === false || !sc.key) continue;
-      const p = { kind: 'scope', module: sc.key, port: sc.portId, ...offOf(sc), w: sc.cssW, h: sc.cssH, vIdx: sc.vIdx, tIdx: sc.tIdx, vOffset: r2(sc.vOffset || 0), hOffset: r2(sc.hOffset || 0), grid: sc.gridOn ? 1 : 0, trigger: !!sc.trigger, trigLevel: r2(sc.trigLevel || 0), frozen: !!sc.frozen };
+      const p = { kind: 'scope', module: sc.key, port: sc.portId, ...offOf(sc), w: sc.cssW, h: sc.cssH, vIdx: sc.vIdx, tIdx: sc.tIdx, vOffset: r2(sc.vOffset || 0), hOffset: r2(sc.hOffset || 0), grid: sc.gridOn ? 1 : 0, trigger: !!sc.trigger, trigLevel: r2(sc.trigLevel || 0), frozen: !!sc.frozen, hidden: !!sc.hidden, minimized: !!sc.minimized, homeX: sc.homeOffX != null ? r2(sc.homeOffX) : null, homeY: sc.homeOffY != null ? r2(sc.homeOffY) : null, displaced: !!sc.displaced };
       // A FROZEN scope also stores the paused trace, so the exact captured shape reopens with it.
       if (sc.frozen) this._saveFrozenTrace(sc, p);
       out.push(p);
@@ -433,10 +444,14 @@ export class Rack {
       if (port && p.offX != null) return { x: rect.left + this._tx + (port.x + p.offX) * s, y: rect.top + this._ty + (port.y + p.offY) * s };
       return { x: p.x || 60, y: p.y || 60 };
     };
+    const seenScopeTerm = new Set();   // one scope per terminal — drop any saved duplicates
     for (const p of probes || []) {
       if (!p || !p.module || !p.port) continue;
       const { x, y } = screenOf(p);
       if (p.kind === 'scope') {
+        const tk = p.module + '|' + p.port;
+        if (seenScopeTerm.has(tk)) continue;
+        seenScopeTerm.add(tk);
         const sc = this._createScope(p.module, p.port, x, y);
         if (!sc) continue;
         if (p.w) sc.cssW = Math.max(60, Math.min(640, Math.round(p.w)));
@@ -454,6 +469,17 @@ export class Rack {
         if (sc.frozen) this._loadFrozenTrace(sc, p);   // repopulate the paused trace so it reopens as captured
         this._updateScopePlayPause(sc);
         this._updateCallout(sc);
+        if (p.homeX != null) { sc.homeOffX = p.homeX; sc.homeOffY = p.homeY; }   // its home spot beside the terminal
+        sc.displaced = !!p.displaced;                                            // …and whether it's currently away from it
+        this._updateScopeHomeBtn(sc);
+        if (p.minimized) { sc.minimized = true; sc.el.classList.add('minimized'); }   // reopen collapsed to its token
+        if (p.hidden) {   // reopen parked in the roster (no follow) — hide its box + callout, keep its state
+          sc.hidden = true;
+          sc.el.style.display = 'none';
+          if (sc.ring) sc.ring.style.display = 'none';
+          if (sc.line) sc.line.style.display = 'none';
+          if (sc.dot) sc.dot.style.display = 'none';
+        }
       } else if (p.kind === 'monitor') {
         const m = this._createMonitor(p.module, p.port, x, y, true, { vol: p.vol, skipAutoLevel: true });
         if (m && p.muted) this._toggleMonMute(m);
@@ -620,6 +646,8 @@ export class Rack {
     const rect = this.container.getBoundingClientRect();
     const s = this.pxPerMm || 1;
     const place = (v) => {
+      if (v.hidden) return;      // parked in the roster — not on the panel
+      if (v.following) return;   // a following scope is driven by the pointer, not its port anchor — leave it be
       let ax = v.ax, ay = v.ay;
       const port = v.offMmX != null ? this._jackPosMm(v.key, v.portId) : null;
       if (port) { ax = (port.x + v.offMmX) * s; ay = (port.y + v.offMmY) * s; }   // port-relative → stable
@@ -2038,6 +2066,17 @@ export class Rack {
       let sc = tempScope; tempScope = null;
       if (scopeWatch) { document.removeEventListener('pointermove', scopeWatch, true); scopeWatch = null; }
       if (scopeClick) { document.removeEventListener('pointerdown', scopeClick, true); scopeClick = null; }
+      // One scope per terminal: if this terminal already has one, don't make a second — hand the existing
+      // one back to the pointer instead (unpark it if it was tucked away).
+      const existing = this._scopeOnTerminal(key, portId);
+      if (existing) {
+        if (sc) this._closeScope(sc, true);   // discard the transient preview
+        this._closeMenu();
+        this._unhideScope(existing);          // reuse the terminal's own scope, settings and all (no-op if already shown)
+        existing.displaced = false; this._updateScopeHomeBtn(existing);   // pulled from the terminal → re-placed, so home tracks where you drop it
+        this._carryScope(existing, { clientX: ev.clientX, clientY: ev.clientY }, carryMode || 'up');
+        return;
+      }
       if (sc) this._promoteScope(sc); else sc = this._createScope(key, portId, ev.clientX, ev.clientY, true);
       this._closeMenu();
       this._carryScope(sc, { clientX: ev.clientX, clientY: ev.clientY }, carryMode || 'up');
@@ -2064,7 +2103,16 @@ export class Rack {
           if (tempScope) return;
           scopeItemEl = this._hoverItem;                // the Scope row, for the watcher's geometry
           const a = this._dwellAnchor || { x: ox, y: oy };
+          const existingScope = this._scopeOnTerminal(key, portId);
+          if (existingScope && !existingScope.hidden) return;   // the terminal's scope is already on the panel — nothing to peek
           tempScope = this._createScope(key, portId, a.x, a.y, false);
+          if (existingScope) {   // reflect the hidden scope's own look in the peek (scale/trigger/size), not a fresh default
+            tempScope.vIdx = existingScope.vIdx; tempScope.tIdx = existingScope.tIdx;
+            tempScope.trigger = existingScope.trigger; tempScope.forceMode = existingScope.forceMode;
+            tempScope.gridOn = existingScope.gridOn; tempScope.autosetPending = false;
+            if (existingScope.cssW) { tempScope.cssW = existingScope.cssW; tempScope.cssH = existingScope.cssH; this._sizeScopeCanvas(tempScope); this._placeScopeValues(tempScope); }
+            this._updateScopeTrigBtn(tempScope);
+          }
           tempScope.el.style.zIndex = 3100;             // over the menu
           tempScope.el.style.pointerEvents = 'none';    // a visual preview; the menu owns the pointer
           const h = tempScope.el.offsetHeight || 80;
@@ -2133,6 +2181,13 @@ export class Rack {
     return this._scopeOv;
   }
 
+  // The permanent scope already on a terminal, if any (a hover-preview, showCallout===false, doesn't count).
+  // Used to enforce one scope per terminal.
+  _scopeOnTerminal(key, portId, exclude) {
+    for (const sc of this._scopes) if (sc !== exclude && sc.showCallout !== false && sc.key === key && sc.portId === portId) return sc;
+    return null;
+  }
+
   _createScope(key, portId, x, y, showCallout = true) {
     const el = document.createElement('div');
     el.className = 'scope';
@@ -2154,10 +2209,12 @@ export class Rack {
       // only ~340ms). Each frame stitches the newest samples in, counted off the audio clock.
       ringBuf: new Float32Array(Math.round(SCOPE_RING_SEC * sr0)), ringPos: 0, ringFilled: 0, lastCapTime: null,
       hi: null, lo: null, fastVotes: 0, tap: null,
-      cssW: 120, cssH: 37, dpr: 1,   // logical CSS size; backing store is scaled to the display DPR
+      cssW: 120, cssH: 48, dpr: 1,   // logical CSS size (height +30% over the old 37); backing store is scaled to the display DPR
       baseScale: this.pxPerMm || 1,  // pxPerMm at creation — the viewer stays this size in mm as rows/window change (see _reprojectViewers)
       vIdx: 7, tIdx: 6, vOffset: 0, hOffset: 0, autosetPending: true, autosetBudget: 180,   // 0.2 /div, 10 ms/div, centred on 0 until autoset frames it; hOffset = horizontal trace pan (px)
-      valuesEl: null, playBtn: null, trigBtn: null, valEls: {}, valMode: 'scale',
+      valuesEl: null, playBtn: null, trigBtn: null, followBtn: null, homeBtn: null, minBtn: null, following: false, hidden: false, minimized: false,
+      homeOffX: null, homeOffY: null, displaced: false,   // home = its offset from the terminal; displaced once fetched (Follow / menu) elsewhere
+      valEls: {}, valMode: 'scale',
       gridOn: true,   // the G button toggles the grid on/off
       trigger: true, trigLevel: 0, frozen: false, forceMode: 'auto',
       armed: false, recFrames: 0, prevPeak: null, showCallout, fade: 0,
@@ -2179,11 +2236,11 @@ export class Rack {
     el.addEventListener('contextmenu', (ev) => this._scopeMenu(ev, sc));
     // Drag ANY edge of the face to resize; drag the INTERIOR to move the whole scope (like a monitor);
     // a plain CLICK on the interior toggles the settings box. Controls stop propagation / sit outside.
-    el.addEventListener('pointerdown', (ev) => { const e = this._scopeEdgeAt(sc, ev); if (e) this._resizeScopeEdge(ev, sc, e); else this._moveScope(ev, sc); });
+    el.addEventListener('pointerdown', (ev) => { if (sc.minimized) { this._moveScope(ev, sc); return; } const e = this._scopeEdgeAt(sc, ev); if (e) this._resizeScopeEdge(ev, sc, e); else this._moveScope(ev, sc); });   // minimized token: grab anywhere to drag, plain click to open
     el.addEventListener('pointermove', (ev) => {
       if (sc._resizing) return;
       if (ev.target !== sc.canvas) { el.style.cursor = ''; return; }   // over the settings panel/buttons → no resize/move affordance
-      const e = this._scopeEdgeAt(sc, ev); el.style.cursor = e ? SCOPE_EDGE_CURSOR[e] : 'move';
+      const e = this._scopeEdgeAt(sc, ev); el.style.cursor = e ? SCOPE_EDGE_CURSOR[e] : 'var(--move)';
     });
     // Scroll over the face to PAN the trace: vertical scroll shifts it up/down, horizontal scroll
     // shifts it left/right, and cmd+vertical shifts left/right too (for mice with no h-scroll).
@@ -2221,6 +2278,7 @@ export class Rack {
   //            if you merely clicked (no drag) it keeps following and drops on the next click.
   // Escape (or clicking back on the origin terminal) cancels — the scope is removed.
   _carryScope(sc, e, mode) {
+    if (sc.minimized) this._expandScope(sc);   // a scope being carried is always open
     const h = sc.el.offsetHeight || 80;
     const place = (px, py) => { sc.el.style.left = Math.round(px) + 'px'; sc.el.style.top = Math.round(py - h / 2) + 'px'; this._updateCallout(sc); };
     place(e.clientX, e.clientY);
@@ -2255,6 +2313,148 @@ export class Rack {
     else document.addEventListener('pointerup', onUp, true);   // 'down' and 'auto' watch the release
   }
 
+  // Follow mode: arm from the scope's upper-left "F" button. The scope eases from where it sits to just
+  // down-and-right of the pointer tip, then rides the pointer (click-through, so it never blocks a knob)
+  // while you move from control to control. A click on the panel or a knob, or Escape, deposits it in
+  // place — it becomes an ordinary placed scope right where the pointer was. Only ONE scope follows at a
+  // time. The per-move work is a pure left/top write (no layout reads) so it stays clear of the
+  // accessibility-zoom pointer-warp hazard.
+  _startScopeFollow(sc, e) {
+    if (sc.following) return;
+    if (sc.minimized) this._expandScope(sc);   // a scope carried away from home is always open
+    for (const other of this._scopes) if (other !== sc && other.following) this._stopScopeFollow(other);
+    sc.following = true;
+    sc.displaced = true; this._updateScopeHomeBtn(sc);   // fetched to the pointer → no longer at home (home stays put)
+    if (sc.followBtn) sc.followBtn.classList.add('on');
+    sc.el.style.pointerEvents = 'none';   // click-through: the ending click lands on the panel/knob beneath
+    sc.el.style.zIndex = '1300';          // ride above the other viewers while carried
+    if (sc.dot) sc.dot.style.display = 'none';   // no grab-dot interaction while it's roaming
+    const off = 3 * (this.pxPerMm || 1);  // sit a hair down-and-right of the pointer tip
+    const put = (cx, cy) => { sc.el.style.left = Math.round(cx + off) + 'px'; sc.el.style.top = Math.round(cy + off) + 'px'; };
+    sc._followMove = (ev) => { if (ev.ctrlKey) return; put(ev.clientX, ev.clientY); };   // hold still during accessibility-zoom (Control) moves
+    // A press anywhere ends follow and deposits in place. We do NOT swallow the event — the click still
+    // reaches the knob/panel underneath (a knob ignores a plain click; a panel click leaves isolate mode).
+    sc._followDown = () => this._stopScopeFollow(sc);
+    sc._followKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); this._stopScopeFollow(sc); } };
+    // Ease the first hop from its current spot to the pointer, then follow instantly.
+    sc.el.style.transition = 'left 0.18s ease, top 0.18s ease';
+    put(e ? e.clientX : 0, e ? e.clientY : 0);
+    setTimeout(() => { if (sc.following) sc.el.style.transition = ''; }, 200);
+    document.addEventListener('pointermove', sc._followMove, true);
+    document.addEventListener('pointerdown', sc._followDown, true);
+    document.addEventListener('keydown', sc._followKey, true);
+  }
+  _teardownFollow(sc) {
+    if (sc._followMove) document.removeEventListener('pointermove', sc._followMove, true);
+    if (sc._followDown) document.removeEventListener('pointerdown', sc._followDown, true);
+    if (sc._followKey) document.removeEventListener('keydown', sc._followKey, true);
+    sc._followMove = sc._followDown = sc._followKey = null;
+  }
+  _stopScopeFollow(sc) {
+    if (!sc.following) return;
+    sc.following = false;
+    this._teardownFollow(sc);
+    if (sc.followBtn) sc.followBtn.classList.remove('on');
+    sc.el.style.transition = '';
+    sc.el.style.zIndex = '';
+    if (sc.dot) sc.dot.style.display = '';
+    this._anchorViewer(sc);   // capture its current spot as the port-relative offset (home is NOT touched — it's displaced)
+    this._updateScopeHomeBtn(sc);
+    // Restore interactivity AFTER the current click resolves against whatever's beneath it, so the deposit
+    // click can't also land on the freshly-dropped scope face.
+    setTimeout(() => { sc.el.style.pointerEvents = ''; }, 0);
+    this.onChange();
+  }
+
+  // Roster: a scope is either shown on the panel or PARKED (hidden) in the list. Parking keeps everything
+  // — its tap, settings, size — so it costs nothing to bring back; the draw loop and reprojection skip it
+  // while hidden. The knob right-click Scopes menu is the roster (see _openScopeMenuForControl).
+  _hideScope(sc) {
+    if (!sc || sc.hidden) return;
+    if (sc.following) this._stopScopeFollow(sc);   // detach from the pointer before tucking it away
+    sc.hidden = true;
+    sc.el.style.display = 'none';
+    if (sc.ring) sc.ring.style.display = 'none';
+    if (sc.line) sc.line.style.display = 'none';
+    if (sc.dot) sc.dot.style.display = 'none';
+    if (this._scopeTip) this._scopeTip.classList.remove('show');   // the button vanished under the pointer
+    this.onChange();
+  }
+  // Un-hide a parked scope IN PLACE — it reappears exactly where it last sat (home or displaced), no
+  // follow. This is what the roster's eye does when a scope is hidden. Home/displaced state is untouched.
+  _unhideScope(sc) {
+    if (!sc || !sc.hidden) return;
+    sc.hidden = false;
+    sc.el.style.display = '';
+    if (sc.ring) sc.ring.style.display = '';
+    if (sc.line) sc.line.style.display = '';
+    if (sc.dot) sc.dot.style.display = '';
+    sc.fade = 0; sc.el.style.opacity = '0';   // ease back in
+    this._reprojectViewers();                 // place from its port-relative offset at the current view
+    this._updateCallout(sc);
+    this._startScopeLoop();
+    this.onChange();
+  }
+  // Grab a scope to the pointer (a roster row-click): un-hide it first if it was parked, then follow so a
+  // click drops it wherever you want. This DISPLACES it (via _startScopeFollow) — home stays where it was.
+  _showScope(sc, e) {
+    if (!sc) return;
+    this._unhideScope(sc);
+    this._startScopeFollow(sc, e);
+  }
+  // Send a scope back to its home spot beside its terminal (the ← button). No-op / dimmed when it's already
+  // home. Freezes the anchor recompute during the short glide so the home offset isn't re-read mid-move.
+  _sendScopeHome(sc) {
+    if (!sc || sc.hidden || sc.homeOffX == null || !sc.displaced) return;
+    sc.displaced = false;
+    const port = this._jackPosMm(sc.key, sc.portId);
+    if (port) {
+      const rect = this.container.getBoundingClientRect();
+      const s = (this.pxPerMm || 1);
+      sc.offMmX = sc.homeOffX; sc.offMmY = sc.homeOffY;
+      const left = r2(rect.left + this._tx + (port.x + sc.homeOffX) * s * this.zoom);
+      const top = r2(rect.top + this._ty + (port.y + sc.homeOffY) * s * this.zoom);
+      this._panBusyUntil = performance.now() + 280;   // hold the anchor recompute still so home isn't corrupted mid-glide
+      sc.el.style.transition = 'left 0.2s ease, top 0.2s ease';
+      sc.el.style.left = left + 'px'; sc.el.style.top = top + 'px';
+      setTimeout(() => { sc.el.style.transition = ''; }, 240);
+    }
+    this._updateCallout(sc);
+    this._updateScopeHomeBtn(sc);
+    this.onChange();
+  }
+  // Dim the send-home button while the scope is already home (nothing to send).
+  _updateScopeHomeBtn(sc) {
+    if (sc.homeBtn) sc.homeBtn.classList.toggle('athome', !sc.displaced);
+  }
+  // Minimize a scope to a small sine-wave token (the yellow control); a click on the token springs it back
+  // to full size exactly as it was. Purely visual — the tap keeps running, so it fills back in at once.
+  _toggleScopeMin(sc) { if (sc.minimized) this._expandScope(sc); else this._minimizeScope(sc); }
+  _minimizeScope(sc) {
+    if (!sc || sc.minimized) return;
+    if (sc.following) this._stopScopeFollow(sc);   // can't ride the pointer while collapsed
+    // A minimized scope only ever lives at its home spot — collapsing always snaps it back there.
+    if (sc.displaced && sc.homeOffX != null) { sc.offMmX = sc.homeOffX; sc.offMmY = sc.homeOffY; }
+    sc.displaced = false;
+    sc.minimized = true;
+    sc.el.classList.add('minimized');
+    if (sc.valuesEl) sc.valuesEl.classList.remove('show');       // close the settings panel if it was open
+    if (sc.trigLine) sc.trigLine.style.display = 'none';         // hide the orange trigger line while collapsed
+    this._reprojectViewers();                                    // places the token at home (from its offset), token-sized
+    this._updateCallout(sc);                                     // it stays connected to its terminal: line + loop + handle
+    this.onChange();
+  }
+  _expandScope(sc) {
+    if (!sc || !sc.minimized) return;
+    sc.minimized = false;
+    sc.el.classList.remove('minimized');
+    if (sc.trigLine) sc.trigLine.style.display = '';             // hand the trigger line back to the draw logic
+    this._sizeScopeCanvas(sc); this._placeScopeValues(sc);
+    this._reprojectViewers();
+    this._updateCallout(sc);
+    this.onChange();
+  }
+
   _scopeTapConnect(sc) {
     // Resume the (no-autoplay) context so the analyser actually receives samples — the modules only
     // process while it's running. Read-only: the engine still gates the speakers, so no sound.
@@ -2279,11 +2479,13 @@ export class Rack {
       const t = now || performance.now();
       const dt = this._scopeLast ? Math.min(0.05, (t - this._scopeLast) / 1000) : 0.016;
       this._scopeLast = t;
-      // Suspended for the whole navigation gesture — Option held, or the frozen overview up — so scope
+      // Suspended for the whole navigation gesture — Option held, the frozen overview up, or CONTROL held
+      // (the macOS accessibility-zoom gesture) — so scope
       // drawing can't steal main-thread time from panning / tracking the pointer.
-      if (this._ovActive || this._optDown) { this._scopeRaf = requestAnimationFrame(tick); return; }
+      if (this._ovActive || this._optDown || this._ctrlDown) { this._scopeRaf = requestAnimationFrame(tick); return; }
       const k = 1 - Math.exp(-dt / SCOPE_FADE_TAU);
       for (const sc of this._scopes) {
+        if (sc.hidden) continue;   // parked in the roster — no draw, anchor, or callout while off the panel
         // One-shot autoset: frame the signal once it's present (or give up after the budget),
         // then hold — the trace is free to grow and shrink so its dynamics stay readable.
         if (sc.autosetPending) {
@@ -2294,8 +2496,11 @@ export class Rack {
           else if (this.host.ctx.state === 'running' && --sc.autosetBudget <= 0) sc.autosetPending = false;
         }
         this._fadeInStep(sc, k);
-        this._anchorViewer(sc);   // keep its scene-anchor current, so it reprojects with the zoom
-        this._drawScope(sc); if (!sc.regrabbing) this._updateCallout(sc);
+        if (!sc.following) this._anchorViewer(sc);   // keep its scene-anchor current, so it reprojects with the zoom (frozen while it rides the pointer)
+        // While it's AT HOME, its home offset tracks wherever it sits — so dragging the body re-homes it.
+        // Once displaced (fetched by Follow / the menu), home is frozen until the ← button sends it back.
+        if (!sc.following && !sc.displaced && sc.offMmX != null) { sc.homeOffX = sc.offMmX; sc.homeOffY = sc.offMmY; }
+        if (!sc.minimized) this._drawScope(sc); if (!sc.regrabbing) this._updateCallout(sc);
         if ((sc.valMode === 'freq' || sc.valMode === 'peak') && sc.valuesEl && sc.valuesEl.classList.contains('show')) this._refreshScopeValues(sc);   // live CPS / min-mean-max
       }
       for (const m of this._monitors) { this._fadeInStep(m, k); this._anchorViewer(m); if (!m.regrabbing) this._updateCallout(m); }
@@ -2643,10 +2848,24 @@ export class Rack {
     grid.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); grid.setPointerCapture && grid.setPointerCapture(e.pointerId); grid.classList.add('pressed'); sc.gridOn = !sc.gridOn; });
     const gridUp = () => grid.classList.remove('pressed');
     grid.addEventListener('pointerup', gridUp); grid.addEventListener('pointercancel', gridUp);
-    // Close button (upper-right ×): remove the scope. Only visible on hover.
-    const close = document.createElement('div'); close.className = 'scope-closebtn'; close.textContent = '×';
-    close.addEventListener('pointerdown', (e) => e.stopPropagation());
-    close.addEventListener('click', (e) => { e.stopPropagation(); this._closeScope(sc); });
+    // A scope behaves like a little window. Upper-LEFT are Mac-style controls: a red CLOSE (×) that deletes
+    // it and a yellow MINIMIZE (−) that shrinks it to a token AT ITS HOME spot. Upper-RIGHT is FOLLOW
+    // (carry it to the pointer). Send-home was folded into minimize — a minimized scope only lives at home.
+    const del = document.createElement('div'); del.className = 'scope-close'; del.textContent = '×';
+    del.addEventListener('pointerdown', (e) => e.stopPropagation());
+    del.addEventListener('click', (e) => { e.stopPropagation(); this._closeScope(sc); });
+    const min = document.createElement('div'); min.className = 'scope-min'; min.textContent = '–';
+    min.addEventListener('pointerdown', (e) => e.stopPropagation());
+    min.addEventListener('click', (e) => { e.stopPropagation(); this._toggleScopeMin(sc); });
+    const follow = document.createElement('div'); follow.className = 'scope-followbtn'; follow.textContent = 'F';
+    follow.addEventListener('pointerdown', (e) => e.stopPropagation());
+    follow.addEventListener('click', (e) => { e.stopPropagation(); this._startScopeFollow(sc, e); });
+    // The minimized token: a small square showing a generic sine wave (it stands for "a wave display",
+    // not the actual trace). A click on it springs the scope back to full size. Shown only when minimized.
+    const token = document.createElement('div'); token.className = 'scope-token'; token.innerHTML = SCOPE_WAVE_SVG;
+    // No handlers of its own — pointerdown bubbles to the scope's own drag handler, which drags the token
+    // and (on a plain click, no drag) opens it. See the el 'pointerdown' listener and _moveScope.
+    this._attachScopeTip(token, 'drag to move · click to open');
     // Trigger-level line: an orange horizontal line (shown only while triggered) you drag up/down.
     // Trigger-level line: purely a readout (pointer-events:none in CSS), adjusted only by scrolling
     // over the T button — so even when it sits at the top, over T, the scroll reaches T.
@@ -2657,9 +2876,11 @@ export class Rack {
     this._attachScopeTip(trig, 'triggered mode · scroll = level');
     this._attachScopeTip(auto, 'auto scale');
     this._attachScopeTip(grid, 'grid');
-    this._attachScopeTip(close, 'close');
-    sc.el.appendChild(panel); sc.el.appendChild(play); sc.el.appendChild(trig); sc.el.appendChild(auto); sc.el.appendChild(grid); sc.el.appendChild(close); sc.el.appendChild(trigLine);
-    sc.valuesEl = panel; sc.playBtn = play; sc.trigBtn = trig;
+    this._attachScopeTip(follow, 'follow pointer');
+    this._attachScopeTip(del, 'close');
+    this._attachScopeTip(min, 'minimize');
+    sc.el.appendChild(panel); sc.el.appendChild(play); sc.el.appendChild(trig); sc.el.appendChild(auto); sc.el.appendChild(grid); sc.el.appendChild(del); sc.el.appendChild(min); sc.el.appendChild(follow); sc.el.appendChild(token); sc.el.appendChild(trigLine);
+    sc.valuesEl = panel; sc.playBtn = play; sc.trigBtn = trig; sc.followBtn = follow; sc.minBtn = min;
     this._updateScopePlayPause(sc); this._updateScopeTrigBtn(sc);
     this._placeScopeValues(sc);
     this._refreshScopeValues(sc);
@@ -2972,7 +3193,7 @@ export class Rack {
     };
     const onUp = () => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
-      if (!moved) this._toggleScopeValues(sc);   // a click (not a drag) on the face toggles the settings box
+      if (!moved) { if (sc.minimized) this._expandScope(sc); else this._toggleScopeValues(sc); }   // a click (not a drag): open the token, else toggle the settings box
     };
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
   }
@@ -3045,6 +3266,7 @@ export class Rack {
       const drop = this._jackFromPoint(e2.clientX, e2.clientY);   // hit-test while the dot is still pe:none, so it finds the jack, not the dot
       sc.dot.style.pointerEvents = '';
       if (!drop) { this._closeScope(sc); return; }   // loop dropped on the panel → delete it (like a cable pulled off a terminal)
+      if (this._scopeOnTerminal(drop.key, drop.portId, sc)) { sc.regrabbing = false; this._updateCallout(sc); return; }   // that terminal already has a scope — snap back, one per terminal
       this._scopeTapDisconnect(sc); sc.hist.fill(null); sc.histIdx = 0;
       sc.frozen = false; sc.armed = false; this._updateScopePlayPause(sc);   // moving to a new terminal resumes live display
       sc.autosetPending = true; sc.autosetBudget = 180;   // re-frame for the newly probed signal
@@ -3056,6 +3278,7 @@ export class Rack {
   }
 
   _closeScope(sc, immediate = false) {
+    if (sc.following) { sc.following = false; this._teardownFollow(sc); }   // drop follow listeners before it goes
     this._scopeTapDisconnect(sc);
     if (this._scopeTip) this._scopeTip.classList.remove('show');   // the button vanishes before its pointerleave → hide the stuck tooltip
     this._scopes.delete(sc);   // gone from the live set at once; only the DOM lingers to fade
@@ -4108,7 +4331,7 @@ export class Rack {
     // The vertical title up the left edge: right-click it for the delete pie.
     const title = svg.querySelector('.module-title');
     if (title) {
-      title.style.cursor = 'grab';   // the title is the drag handle now (right-click still opens its pie)
+      title.style.cursor = 'var(--grip)';   // the title is the drag handle now (right-click still opens its pie)
       title.addEventListener('contextmenu', (e) => this._onTitleContextMenu(e, rec));
     }
   }
@@ -4150,7 +4373,7 @@ export class Rack {
       if (e.ctrlKey) return;   // Control held = macOS accessibility-zoom gesture; skip the getBoundingClientRect
                                // read + cursor write, which only fires over a module and fed the zoom feedback loop
       const inBand = (e.clientX - el.getBoundingClientRect().left) <= TITLE_BAND_MM * this.pxPerMm;
-      el.style.cursor = inBand ? 'grab' : '';
+      el.style.cursor = inBand ? 'var(--grip)' : '';
     });
 
     this.records.set(rec.key, rec);
@@ -4522,8 +4745,44 @@ export class Rack {
   _onModuleContextMenu(e, rec) {
     e.preventDefault();
     e.stopPropagation();
-    if (e.target.closest && e.target.closest('[data-wcoast-param]')) return;   // no menu over a knob or any control
+    if (e.target.closest && e.target.closest('[data-wcoast-param]')) { this._openScopeMenuForControl(e, rec); return; }   // over a knob/control → the Scopes roster
     this.onAppMenu(e.clientX, e.clientY, rec, rec.row);   // Add module appends to this module's row; Delete targets rec
+  }
+
+  // Right-click a knob or any control → the Scopes roster. It lists every scope by the terminal it
+  // watches: click one to bring it back (handed to the pointer to place) or to put it away, checked when
+  // it's on the panel. Scopes NOT in this control's signal chain — the ones turning it wouldn't change —
+  // are dimmed and sorted below the relevant ones. A "Remove a scope" submenu deletes for good.
+  _openScopeMenuForControl(e, rec) {
+    const origin = this._netOriginAt(rec, e.clientX, e.clientY);
+    const net = origin ? this._computeNet(origin) : null;
+    const inChain = (sc) => !net ? true : net.sections.has(this._sectionKey(sc.key, sc.portId));
+    // Label: the module's compact `abbreviation` + the terminal's FULL name, e.g. "QFG Function A", so the
+    // module stays short but the port is spelled out unambiguously (port names are disambiguated in the
+    // descriptors — e.g. the oscillator's Mod vs Prin inputs).
+    const nameOf = (sc) => {
+      const r = this.records.get(sc.key);
+      const d = r && this.host.registry.descriptor(r.descriptorId);
+      const port = d && (d.ports || []).find((p) => p.id === sc.portId);
+      const mod = (d && d.abbreviation) || (r ? r.name : sc.key);
+      const term = (port && port.name) || sc.portId;
+      return `${mod} ${term}`;
+    };
+    const scopes = [...this._scopes].filter((sc) => sc.showCallout !== false && sc.key);
+    const items = [];
+    if (!scopes.length) {
+      items.push({ label: 'No scopes — add one from a terminal', disabled: true });
+    } else {
+      scopes.sort((a, b) => (inChain(b) - inChain(a)) || nameOf(a).localeCompare(nameOf(b)));   // relevant first
+      for (const sc of scopes) {
+        items.push({
+          label: nameOf(sc),
+          dim: !inChain(sc),
+          action: (ev) => this._showScope(sc, ev),                                     // row = grab the scope to the pointer (send-home / delete live on the scope itself)
+        });
+      }
+    }
+    this._openMenu(e.clientX, e.clientY, items);
   }
 
   // Delete a module chosen from Rack ▸ Delete this module (the right-clicked panel). Pinned modules
@@ -4560,6 +4819,7 @@ export class Rack {
     document.addEventListener('pointermove', this._menuMoveHandler, true);
     const menu = document.createElement('div');
     menu.className = 'rack-menu' + (this.isDark() ? ' theme-dark' : '');   // border: dark line in light mode, light line in dark
+    if (opts.minWidth) menu.style.minWidth = opts.minWidth + 'px';   // widen (e.g. the Scopes roster) so right-aligned row marks sit in a clear right column
     let focusEl = null;
 
     const pad = 8;
@@ -4612,10 +4872,25 @@ export class Rack {
       const item = document.createElement('div');
       item.className = 'rack-menu-item' + (it.dim ? ' dim' : '');
       const isOn = it.checkFn ? it.checkFn() : !!it.checked;
+      // EYE (Scopes roster) at the FAR LEFT of the row — toggles show/hide (bright when shown, dim when
+      // hidden). Stops propagation so it never triggers the row's own action (grab-to-pointer).
+      if (it.onEye || it.shownFn) {
+        const shown = it.shownFn ? it.shownFn() : true;
+        const eye = document.createElement('span'); eye.className = 'rack-menu-eye' + (shown ? '' : ' off'); eye.innerHTML = MENU_EYE_SVG; eye.title = shown ? 'hide' : 'show';
+        if (it.onEye) { eye.addEventListener('pointerdown', (ev) => ev.stopPropagation()); eye.addEventListener('click', (ev) => { ev.stopPropagation(); this._closeMenu(); it.onEye(ev); }); }
+        item.appendChild(eye);
+      }
       if (it.icon) { const ic = document.createElement('span'); ic.className = 'rack-menu-icon'; ic.innerHTML = it.icon; item.appendChild(ic); }   // left of the label
       const lbl = document.createElement('span');
       lbl.textContent = it.label;
       item.appendChild(lbl);
+      // TRASH immediately after the label — deletes the scope. Stops propagation.
+      if (it.onDelete) {
+        const tr = document.createElement('span'); tr.className = 'rack-menu-trash'; tr.innerHTML = MENU_TRASH_SVG; tr.title = 'delete';
+        tr.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+        tr.addEventListener('click', (ev) => { ev.stopPropagation(); this._closeMenu(); it.onDelete(); });
+        item.appendChild(tr);
+      }
       // A checkable item (Engine, Dark mode, a connection): the tick sits at the RIGHT
       // edge, so the label isn't indented and lines up with the submenu labels.
       if (it.checkFn || it.checked !== undefined) {

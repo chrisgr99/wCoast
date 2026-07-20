@@ -56,7 +56,7 @@ export default {
   id: 'mixer',
   apiVersion: 1,
   name: 'Mixer',
-  abbreviation: 'Mixer',
+  abbreviation: 'Mix',
   worklets: [],          // native Web Audio nodes only
   sectioned: true,       // six independent channel strips — net highlight scopes to the hovered channel
   channels: CH,

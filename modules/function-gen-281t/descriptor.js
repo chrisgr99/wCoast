@@ -30,14 +30,15 @@ const params = [];
 // order fixes its output indices (the factory asserts both). Grouped by type so
 // inputs come out as [trig A-D, cycle A-D, attackCv A-D, decayCv A-D] and outputs
 // as [fn A-D, pulse A-D, quad AB, quad CD].
+// Port names mirror the faceplate labels (the user-facing text on the panel), plus the channel letter.
 for (const L of CH) ports.push({ id: `trig${L}`, name: `Trig ${L}`, section: 'channel', domain: 'trigger', dir: 'in' });
 for (const L of CH) ports.push({ id: `cycleIn${L}`, name: `Cycle ${L}`, section: 'channel', domain: 'trigger', dir: 'in' });
 for (const L of CH) ports.push({ id: `attackCv${L}`, name: `Attack CV ${L}`, section: 'channel', domain: 'control', dir: 'in' });
 for (const L of CH) ports.push({ id: `decayCv${L}`, name: `Decay CV ${L}`, section: 'channel', domain: 'control', dir: 'in' });
-for (const L of CH) ports.push({ id: `fn${L}`, name: `Function ${L}`, section: 'channel', domain: 'control', dir: 'out' });
-for (const L of CH) ports.push({ id: `pulse${L}`, name: `Pulse ${L}`, section: 'channel', domain: 'trigger', dir: 'out' });
-ports.push({ id: 'quadOutAB', name: 'Quad A-B', section: 'quad', domain: 'control', dir: 'out' });
-ports.push({ id: 'quadOutCD', name: 'Quad C-D', section: 'quad', domain: 'control', dir: 'out' });
+for (const L of CH) ports.push({ id: `fn${L}`, name: `CV out ${L}`, section: 'channel', domain: 'control', dir: 'out' });
+for (const L of CH) ports.push({ id: `pulse${L}`, name: `Pulse out ${L}`, section: 'channel', domain: 'trigger', dir: 'out' });
+ports.push({ id: 'quadOutAB', name: 'A-B out', section: 'quad', domain: 'control', dir: 'out' });
+ports.push({ id: 'quadOutCD', name: 'C-D out', section: 'quad', domain: 'control', dir: 'out' });
 
 // Params. ATTACK/DECAY are exponential time knobs (0.001–10 s, no glide — a time
 // control shouldn't smear). TRIG is a momentary button (each press fires once).
@@ -62,7 +63,7 @@ export default {
   id: 'wcoast.quadFn281t',
   apiVersion: 1,
   name: 'Quad Function Generator',
-  abbreviation: 'Fn Gen',
+  abbreviation: 'QFG',
   sectioned: true,   // four independent channels — net highlight scopes to one
   worklets: ['modules/function-gen-281t/function-gen-281t-processor.js'],
   channels: CH,

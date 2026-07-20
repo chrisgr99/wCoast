@@ -64,7 +64,7 @@ export default {
   id: 'lpg-292',
   apiVersion: 1,
   name: 'Quad Low Pass Gate',
-  abbreviation: 'Low Gate',
+  abbreviation: 'QLPGate',
   sectioned: true,   // four independent channels — net highlight scopes to one
   worklets: ['modules/lpg-292/lpg-292-processor.js'],
   channels: CH,

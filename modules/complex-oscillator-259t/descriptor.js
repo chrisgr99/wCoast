@@ -176,49 +176,49 @@ export default {
   //   pure signal inputs (audio FM, phase lock) and on all outputs.
   ports: [
     // Modulation oscillator inputs
-    { id: "modPitchIn", section: "modOsc", name: "1V/Oct", domain: "control",
+    { id: "modPitchIn", section: "modOsc", name: "Mod 1V/Oct", domain: "control",
       dir: "in", target: "modFreq", role: "pitch" },  // 1V/oct pitch/keyboard in (green jack)
-    { id: "modCvIn", section: "modOsc", name: "CV In", domain: "control",
+    { id: "modCvIn", section: "modOsc", name: "Mod CV In", domain: "control",
       dir: "in", target: "modFreq", via: "modCvAmount" }, // attenuverted CV
-    { id: "modFmIn", section: "modOsc", name: "FM In", domain: "audio",
+    { id: "modFmIn", section: "modOsc", name: "Mod FM In", domain: "audio",
       dir: "in" },                                    // audio-rate FM, scaled by modFmAmount
     // Modulation oscillator outputs
-    { id: "modTriOut", section: "modOsc", name: "Triangle", domain: "audio",
+    { id: "modTriOut", section: "modOsc", name: "Mod Triangle", domain: "audio",
       dir: "out" },                                   // fixed triangle, always available
-    { id: "modSigOut", section: "modOsc", name: "Signal", domain: "audio",
+    { id: "modSigOut", section: "modOsc", name: "Mod Signal", domain: "audio",
       dir: "out" },                                   // shape set by modWave
-    { id: "modCvOut", section: "modOsc", name: "CV Out", domain: "control",
+    { id: "modCvOut", section: "modOsc", name: "Mod CV Out", domain: "control",
       dir: "out" },                                   // for use as a control source
 
     // Principal oscillator inputs
-    { id: "prinPitchIn", section: "prinOsc", name: "1V/Oct", domain: "control",
+    { id: "prinPitchIn", section: "prinOsc", name: "Prin 1V/Oct", domain: "control",
       dir: "in", target: "prinFreq", role: "pitch" },
-    { id: "prinCvIn", section: "prinOsc", name: "CV In", domain: "control",
+    { id: "prinCvIn", section: "prinOsc", name: "Prin CV In", domain: "control",
       dir: "in", target: "prinFreq", via: "prinCvAmount" },
-    { id: "prinFmIn", section: "prinOsc", name: "FM In", domain: "audio",
+    { id: "prinFmIn", section: "prinOsc", name: "Prin FM In", domain: "audio",
       dir: "in" },                                    // scaled by prinFmAmount
     // Principal oscillator outputs
-    { id: "prinSineOut", section: "prinOsc", name: "Sine", domain: "audio",
+    { id: "prinSineOut", section: "prinOsc", name: "Prin Sine", domain: "audio",
       dir: "out" },
-    { id: "prinSquareOut", section: "prinOsc", name: "Square", domain: "audio",
+    { id: "prinSquareOut", section: "prinOsc", name: "Prin Square", domain: "audio",
       dir: "out" },
-    { id: "prinFinalOut", section: "prinOsc", name: "Final", domain: "audio",
+    { id: "prinFinalOut", section: "prinOsc", name: "Prin Final", domain: "audio",
       dir: "out" },                                   // post Timbre/Harmonics
 
     // Timbre / Harmonics CV inputs. Timbre has its own attenuverter; Order and
     // Symmetry go straight in (no attenuator) — confirmed from the faceplate.
-    { id: "timbreCvIn", section: "timbre", name: "Timbre CV", domain: "control",
+    { id: "timbreCvIn", section: "timbre", name: "Timbre CV", abbr: "Tmb CV", domain: "control",
       dir: "in", target: "timbre", via: "timbreCvAmount" },
-    { id: "orderCvIn", section: "timbre", name: "Order CV", domain: "control",
+    { id: "orderCvIn", section: "timbre", name: "Order CV", abbr: "Ord CV", domain: "control",
       dir: "in", target: "order" },
-    { id: "symmetryCvIn", section: "timbre", name: "Symmetry CV", domain: "control",
+    { id: "symmetryCvIn", section: "timbre", name: "Symmetry CV", abbr: "Sym CV", domain: "control",
       dir: "in", target: "symmetry" },
 
     // Middle section: Mod Index CV (attenuverted) and the phase-lock audio
     // input (its level set by the phaseLockAmount "gain" knob).
-    { id: "modIndexCvIn", section: "middle", name: "Mod Index CV", domain: "control",
+    { id: "modIndexCvIn", section: "middle", name: "Mod Index CV", abbr: "Idx CV", domain: "control",
       dir: "in", target: "modIndex", via: "modIndexCvAmount" },
-    { id: "phaseLockIn", section: "middle", name: "Phase Lock In", domain: "audio",
+    { id: "phaseLockIn", section: "middle", name: "Phase Lock In", abbr: "PhLock", domain: "audio",
       dir: "in" },
   ],
 };
