@@ -26,6 +26,7 @@ This is the tutorial wCoast shows in its floating cards, on a first run and from
 
 **Coming up:**
 
+- [**Vocabulary**](#vocabulary) — a few modular terms; skip it if you already patch
 - [**Basic interaction**](#basic-interaction) — panels, menus, and the controls
 - [**First sound**](#first-sound) — the shortest path to hearing something
 - [**Building a patch**](#building-a-patch) — adding modules, and how cables behave here
@@ -33,15 +34,27 @@ This is the tutorial wCoast shows in its floating cards, on a first run and from
 - [**Watching and hearing**](#watching-and-hearing) — scopes and monitors on any terminal
 - [**Keeping your work**](#keeping-your-work) — saving, loading, and what carries over
 
+Coming next: **Vocabulary**.
+
+## Vocabulary
+
+If you already patch modular synths, this is nothing new — press **Next** to skip ahead. If you're new to it, these are the words the rest of the tutorial leans on:
+
+- **Synthesizer** — an electronic instrument that makes sound. A *modular* synthesizer, like wCoast, isn't one fixed instrument but a set of separate parts you connect however you like, so you build the instrument as you go.
+- **Module** — one piece of the instrument: a single faceplate with its own knobs and jacks, like the oscillator, the low-pass gate, or the mixer here.
+- **Rack** — the surface the modules sit on, arranged in rows like a physical modular case. A rack usually holds a number of modules wired together with cables so one feeds into the next; that flow of signal from module to module is what turns a handful of separate parts into a single instrument that makes sound.
+- **Jack (terminal)** — the sockets on a module. An **output** sends a signal out; an **input** takes one in.
+- **Signal** — what travels along a cable. Three kinds: **audio** (what you hear), **control voltage** or **CV** (a voltage that moves a control for you instead of being heard), and **triggers or gates** (on-off pulses that start or time things). wCoast colours the cables by kind.
+- **Cable (patch cord)** — the connection you draw from an output to an input.
+- **Patch** — the whole arrangement: which modules you have, how they're wired, and every setting. "Patching" is the act of wiring it up; your patch is your current setup, and it's what you save.
+
 Coming next: **Basic interaction**.
 
 ## Basic interaction
 
-**Panels:** a module's faceplate — the background behind its knobs and jacks. Its name runs vertically up the left edge, to save vertical space.
+**Focus:** as you move around, whatever you're over brightens and everything else dims back — so the module, a single band of a quad, and all the modules in a wired-up signal chain you're pointing at stand out from the rest.
 
-**Focus:** as you move around, the rack follows your pointer — whatever you're over brightens and everything else dims back. It's not decoration; it's how wCoast helps you read a patch. Hover a module and it stands out; on a multi-part module like a quad, hover just one band and only that band lights. Once things are wired, hovering lights the whole chain the signal runs through — every module from source to output — so the structure shows itself instead of hiding among equally bright cables and panels.
-
-> **Do this** — Move your pointer over the "Complex Oscillator" (the top-left module) without clicking, and watch the whole module brighten while the rest dims. Now move to a single band of the "Quad Low Pass Gate" — just that band lights.
+> **Do this** — Move your pointer over the "Complex Oscillator" (the top-left module) without clicking, and watch the whole module brighten while the rest dims. Now move to band A of the "Quad Low Pass Gate" (the module in the lower right) — just that band lights. Point at other modules to see this in action.
 
 **Commands:** right-click a panel — or click the hamburger in the top corner — for the main menu: Engine, File, Edit, View, Rack and Help.
 
