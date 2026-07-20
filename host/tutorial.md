@@ -31,8 +31,8 @@ This is the tutorial wCoast shows in its floating cards, on a first run and from
 - [**First sound**](#first-sound) — the shortest path to hearing something
 - [**Building a patch**](#building-a-patch) — adding modules, and how cables behave here
 - [**Getting around**](#getting-around) — panning and zooming a rack bigger than the window
-- [**Watching and hearing**](#watching-and-hearing) — scopes and monitors on any terminal
-- [**Keeping your work**](#keeping-your-work) — saving, loading, and what carries over
+- [**Seeing and hearing**](#seeing-and-hearing) — scopes and monitors on any terminal
+- [**Saving your work**](#saving-your-work) — saving, loading, and what carries over
 
 Coming next: **Vocabulary**.
 
@@ -153,9 +153,9 @@ Coming next: **Getting around**.
 
 > **Do this** — If you don't already have a scope in your rack, attach one to an output that's producing sound — the "Complex Oscillator" **Final** output, say. Hover over the scope, hold **Option**, and roll the wheel to zoom in, nudging the pointer to keep the scope in view. Now it's as large as you want; zoom back out when you've seen enough.
 
-Coming next: **Watching and hearing**.
+Coming next: **Seeing and hearing**.
 
-## Watching and hearing
+## Seeing and hearing
 
 **Listen with the monitor:** many outputs carry a signal even with no cable plugged into them, so you can listen to a point in the circuit on its own — and not just audio: even a slower output like an LFO or a clock may carry a signal you can listen to, unless it's a very low frequency. Right-click a terminal and hover **Monitor** to listen to just that point; move off and it stops. It's separate from your mix — the "Mixer" is the sound you're building, while a monitor checks any single signal, even one that isn't in the mix, brought up to a comfortable level.
 
@@ -187,9 +187,9 @@ Coming next: **Watching and hearing**.
 
 The scope can do more — triggering, and comparing two signals at once — which a later section covers.
 
-Coming next: **Keeping your work**.
+Coming next: **Saving your work**.
 
-## Keeping your work
+## Saving your work
 
 **Nothing is lost when you close:** you don't have to save to hang on to your work — wCoast quietly remembers your session as you go, in the desktop app and in any web browser, so the next time you open it you're right back where you left off: the same modules, cables, knob settings, and any scopes or monitors you'd placed. Saving is for something different — keeping a named version you can return to, or hand to someone else.
 
