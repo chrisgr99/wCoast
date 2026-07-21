@@ -56,7 +56,7 @@ Coming next: **Basic interaction**.
 
 > **Do this** — Move your pointer over the "Complex Oscillator" (the top-left module) without clicking, and watch the whole module brighten while the rest dims. Now move to band A of the "Quad Low Pass Gate" (the module in the lower right) — just that band lights. Point at other modules to see this in action.
 
-**Commands:** right-click a panel — or click the hamburger in the top corner — for the main menu: Engine, File, Edit, View, Rack and Help.
+**Commands:** right-click a panel — or click the hamburger in the top-left corner — for the main menu: Engine, File, Edit, View, Rack and Help.
 
 > **Do this** — Right-click a panel, go to View, and set light or dark to your taste. Everything re-skins, including this card, and your choice sticks between sessions.
 

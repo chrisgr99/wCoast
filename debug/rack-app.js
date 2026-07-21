@@ -488,7 +488,7 @@ async function boot() {
   document.getElementById('burger').addEventListener('click', async (e) => {
     const r = e.currentTarget.getBoundingClientRect();
     await refreshRecent();
-    openAppMenu(Math.max(4, r.right - 190), r.bottom + 4);   // hang it INWARD from a top-right button
+    openAppMenu(r.left, r.bottom + 4);   // drop it DOWNWARD from a top-left button, like a menu bar
   });
 
   // The interactive tutorial: modeless cards the reader drives with Next/Back. Opens on a first
@@ -549,6 +549,18 @@ async function boot() {
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     e.preventDefault();
     rack.openMenu(window.innerWidth / 2, window.innerHeight / 2, rack.helpMenuItems(), { centred: true });
+  });
+
+  // Spacebar toggles the engine on/off — a hands-on-keyboard alternative to the sound wedge and the
+  // mixer's master lamp. Ignored while typing in a field, and when a button has focus (Space would
+  // "click" it and double-toggle). No modifier, so Cmd/Ctrl-Space and friends pass straight through.
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== ' ' && e.code !== 'Space') return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.isContentEditable)) return;
+    e.preventDefault();
+    setSound(!started);
   });
 
   // Standard shortcuts, for the BROWSER only: in Electron the native menu carries the same
