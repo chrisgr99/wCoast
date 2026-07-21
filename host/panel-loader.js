@@ -650,6 +650,96 @@ function ensureLedGradient(svg) {
   defs.appendChild(g);
 }
 
+// ---- Module identity strip -------------------------------------------------
+// A set of coloured stripes down the title column, whose colour(s) are the signal type(s) the module
+// OUTPUTS — the same palette as the jacks — so a rack's structure reads at a glance from the pattern
+// of module colours. Derived from the module's output ports (primary = the type it outputs most),
+// unless the descriptor names it explicitly via `signalIdentity` (an ordered list like
+// ['cv','trigger']). The stripes run SIDE BY SIDE, each the full height of the module (primary on the
+// LEFT), so every colour spans the whole module and reads as one identity — not a top vs a bottom.
+// They break around the vertical title so they never run behind the label.
+const IDENTITY_KEY_COLOR = { audio: JACK.audio, cv: JACK.cv, control: JACK.cv, trigger: JACK.trigger, gate: JACK.trigger, pitch: JACK.pitch };
+
+// The band is a large block of colour, so it reads brighter than the small jacks that use the same
+// palette. Knock the band's brightness down (hue and saturation kept: every channel scaled equally)
+// so it sits back without changing which colour it is. The jacks/cables keep the full palette.
+const BAND_DIM = 0.8;
+function dimColor(hex, f) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+  if (!m) return hex;
+  const to = (v) => Math.round(parseInt(v, 16) * f).toString(16).padStart(2, '0');
+  return '#' + to(m[1]) + to(m[2]) + to(m[3]);
+}
+
+function moduleIdentityColors(descriptor, ports) {
+  const decl = descriptor && descriptor.signalIdentity;
+  if (Array.isArray(decl) && decl.length) return decl.map((k) => IDENTITY_KEY_COLOR[k] || JACK.cv).slice(0, 3);
+  const tally = new Map();
+  for (const p of ports.values()) {
+    if (!p.meta || p.meta.dir !== 'out') continue;
+    const c = jackFill(p.meta);
+    tally.set(c, (tally.get(c) || 0) + 1);
+  }
+  return [...tally.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c).slice(0, 3);   // primary (most outputs) first
+}
+
+// [a,b] with the label gap [ga,gb] cut out → 0, 1 or 2 sub-intervals.
+function minusGap(a, b, ga, gb) {
+  if (gb <= ga || gb <= a || ga >= b) return [[a, b]];
+  const out = [];
+  if (a < ga) out.push([a, Math.min(ga, b)]);
+  if (b > gb) out.push([Math.max(gb, a), b]);
+  return out;
+}
+
+function drawIdentityStrip(svg, descriptor, ports, name) {
+  const old = svg.querySelector('.module-identity');
+  if (old) old.remove();
+  const colors = moduleIdentityColors(descriptor, ports);
+  if (!colors.length) return;
+  const doc = svg.ownerDocument;
+  const g = doc.createElementNS(SVG_NS, 'g');
+  g.setAttribute('class', 'module-identity');
+  g.setAttribute('pointer-events', 'none');
+  const N = colors.length;
+  // The band spans the vertical title's WIDTH (the glyph height — a font-fixed constant, not the name
+  // length). The rotated glyph block sits ~1.1mm toward the OUTER side of the baseline (ascenders reach
+  // further than descenders), so centre the band on the glyph block, not on the baseline, or the label
+  // reads off-centre in its box.
+  const cx = FACE_LEFT_MM + 3.4;                            // title baseline column (x = 7.3)
+  const labelCenter = cx - 1.12;                            // the glyph block's actual centre
+  const glyphHalf = 1.79, margin = 0.25;                    // half the glyph height + a hair of breathing room
+  const outerX = round3(labelCenter - glyphHalf - margin);  // band outer (left) edge
+  const innerX = round3(labelCenter + glyphHalf + margin);  // band inner (right) edge — just past the label
+  const w = (innerX - outerX) / N;                          // stripe width; PRIMARY on the RIGHT, nearest the label
+  const top = FACE_TOP_MM, H = FACE_H_MM, bottom = top + H, centerY = top + H / 2;
+  // The vertical title's length (name-dependent) — estimated at ~1.5mm/char, since a detached SVG can't
+  // measure text — with a small pad so the stripes HUG the name. An empty name leaves no gap.
+  let gapTop = centerY, gapBot = centerY;
+  if (name) { const half = (name.length * 1.5) / 2 + 0.8; gapTop = Math.max(top, centerY - half); gapBot = Math.min(bottom, centerY + half); }
+  // The primary (inner) edge continues straight down through the gap as a hair-thin line, UNDERLINING
+  // the label — joining the stripes above and below so the name sits in a colour "box".
+  const lineW = 0.3;
+  const line = doc.createElementNS(SVG_NS, 'rect');
+  line.setAttribute('x', round3(innerX - lineW)); line.setAttribute('y', round3(top));
+  line.setAttribute('width', lineW); line.setAttribute('height', round3(H));
+  line.setAttribute('fill', dimColor(colors[0], BAND_DIM));  // primary colour, dimmed
+  g.appendChild(line);
+  for (let i = 0; i < N; i++) {
+    const x = round3(outerX + i * w);
+    const col = colors[N - 1 - i];                          // reversed: primary rightmost, nearest the label
+    for (const [a, b] of minusGap(top, bottom, gapTop, gapBot)) {   // each stripe runs full height, broken at the label
+      if (b - a < 0.6) continue;
+      const r = doc.createElementNS(SVG_NS, 'rect');
+      r.setAttribute('x', x); r.setAttribute('y', round3(a));
+      r.setAttribute('width', round3(w)); r.setAttribute('height', round3(b - a));
+      r.setAttribute('fill', dimColor(col, BAND_DIM));
+      g.appendChild(r);
+    }
+  }
+  svg.appendChild(g);   // above the faceplate art, below the title text (appended next)
+}
+
 function decoratePanel(parsed, descriptor, opts) {
   const { svg, controls, ports } = parsed;
   ensureLedGradient(svg);
@@ -657,6 +747,7 @@ function decoratePanel(parsed, descriptor, opts) {
   for (const port of ports.values()) paintJack(port, opts.dark);
   // Vertical title up the left edge, fitted into the existing left margin.
   const name = (descriptor && descriptor.name) || '';
+  drawIdentityStrip(svg, descriptor, ports, name);   // colour bar in the title column (breaks around the label below)
   if (name) {
     const t = svg.ownerDocument.createElementNS(SVG_NS, 'text');
     t.setAttribute('transform', `translate(${round2(FACE_LEFT_MM + 3.4)} ${round2(FACE_TOP_MM + FACE_H_MM / 2)}) rotate(-90)`);
