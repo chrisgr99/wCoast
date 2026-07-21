@@ -1,7 +1,7 @@
 {
   "name": "wcoast",
   "version": "0.1.0",
-  "description": "DreamRack - a West Coast (Buchla-style) modular synthesizer for Web Audio, native Mac build via Electron.",
+  "description": "DreamRack - an exploration of ideas for an easier-to-use, more powerful modular synthesis environment, in the browser and on the Mac.",
   "main": "electron-main.js",
   "scripts": {
     "start": "electron .",

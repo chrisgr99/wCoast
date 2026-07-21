@@ -1,48 +1,41 @@
 # DreamRack
 
-DreamRack is a modular synthesizer that runs in a web browser, built on Web Audio. You place modules on a rack, wire their jacks with virtual cables, turn the knobs, and listen — the feel of a hardware modular, with a few things a screen can do that hardware can't. It's a personal project: non-commercial, free, open source once it's a little further along, and — I hope — something you'll enjoy using as much as I do. Your mileage may vary. 😌
+DreamRack is a modular synthesizer that runs in a web browser, built on Web Audio. You place modules on a rack, wire their jacks with virtual cables, turn the knobs, and listen — the feel of a hardware modular, with a few things a screen can do that hardware can't.
 
-Two ideas drive it. The first is the interface — making a modular easier to read, explore, and understand — which is where most of the effort below has gone. The second is an open architecture: each module is just a folder holding a descriptor and its DSP, and the host builds the panel and handles patching, saving, and the rest from that descriptor alone — pure JavaScript (and a bit of SVG), without reaching into the core. New modules of any kind, with or without a hardware ancestor, drop in as plug-ins; in time, if there's interest, so could modules contributed by others.
+More than that, it's an exploration. It began as an attempt to build the modular I've always wished I could patch on, and to try out ideas for making one easier to use and more powerful. It's a personal project: free, with source code available on GitHub, for non-commercial use with attribution, and shared in the hope that others enjoy it as much as I do. Your mileage may vary. 😌
 
-The modules that ship today are a West Coast-style complex oscillator, a quad low-pass gate, a quad function generator, and a mixer. The name comes from my interest in West Coast synthesis (Buchla and Serge style), but nothing in the architecture ties it to that — it's meant for modules of any kind.
+## My goals — the dream list
 
-## What makes it different
-
-**Cables and terminals you can read at a glance.**
-
-- A cable takes its colour from the terminal it plugs into, not the one it comes from — so a cable shows its job. Run an audio output into a trigger input and the cable is a trigger cable, because that's how the signal is being used.
-- Input and output terminals in a family share a colour but are drawn differently, so a terminal's direction is always clear.
-- A slow dashed pattern crawls along each cable in the direction the signal flows.
-- Cables stay out of the way: drawn semi-transparent, brightening only when relevant, and fading to let a click pass straight through to any control they cover. Drag a cable's middle to reshape its path.
-
-**Watching, hearing, and driving any point — without rewiring.**
-
-- Clip a full oscilloscope onto any terminal. It floats above the panels, takes no rack space, and needs no extra cable. Freeze the trace to study its shape, and read its frequency or its minimum, mean, and maximum level. Add as many as you like.
-- Clip an audio monitor onto any terminal the same way to listen at that point in the chain. Monitors feed their own bus on the mixer, so you can balance them against the main output.
-- Or just peek: right-click a terminal for a menu whose items act the moment you rest on one. Rest on Scope or Monitor and it shows or plays only while you hover, then vanishes when you leave — or click to drop it in place and keep it. (Rest on Engine and the whole patch sounds for as long as you hover.)
-- Planned, as the input-side counterpart: floating signal sources you clip to a terminal the same way — a control-voltage knob, a push button, or a toggle — to drive a control from off-panel without a module or any rack space; and signal injectors that feed a test sine or square wave into any terminal for probing a patch.
-
-**Focusing on one part of a patch.**
-
-- Hovering a module lights up the cables feeding it and the cables it feeds, so you can see what a change here will touch.
-- Right-click a terminal to isolate its subnet — just the cables, modules, and controls that shape the signal arriving there — so you can work on one branch of a large patch at a time. Each terminal then pulses gently in time and size with the signal passing through it.
-
-Patching itself stays direct, and you never hold the mouse button down: left-click a terminal and the cable comes with you — hands free, so you can scroll, zoom and roam to find the far end — then left-click where it lands. (Right-click or Escape drops it.) You can also chain input terminals to share one incoming signal — a mult, like a hardware multiple — so a source can feed several inputs without a cable running back to it each time, which keeps the patch tidier. The panels are compact and consistent, keeping a lot of the instrument in view and behaving the same from module to module, in matching light and dark faceplates.
+- **A consistent design language across every module**, so knowledge carries from one to the next — input/output terminals colour-coded by signal type (a hint, not a restriction), inputs and outputs told apart instantly, panels compact and consistent in light and dark. *(done)*
+- **Interaction kept drag-free** — a click, on a mouse or trackpad, is easier on the wrist than a drag, so controls turn with the scroll wheel and patching is click to grab, click to drop, with nothing held down. *(done)*
+- **See what affects what** — what feeds a module, what it feeds, and the whole chain shaping any one point. *(done)*
+- **See at a glance what every cable is doing** — where it runs from and to, and the role it plays at the end it plugs into. *(done)*
+- **Hear the signal at any terminal** effortlessly, without rewiring. *(done)*
+- **See the signal at any terminal** just as easily — scopes you clip on and take off, as many as you want at once, and can pull up beside any knob that affects that terminal to watch the trace as you turn it — full featured dual trace, triggered, sampling scopes. *(partly TBD — dual trace still to come)*
+- **Know the numbers at any terminal** effortlessly — its frequency in cycles per second, the maximum and minimum level of the signal, and its DC offset. *(done)*
+- **Inject a signal into any jack** without disturbing the patch cables — a button to fire a trigger, a toggle to hold a gate, or a simple sine or square wave — to drive or probe any input from outside the patch. *(TBD)*
+- **Take input from outside** — an interface module that receives events from Web Audio sequencers and hosts and converts them into DreamRack signals to play. *(TBD)*
+- **Play it polyphonically** — more than one voice at a time, not the single voice it is today. *(TBD)*
+- **Let any developer create new modules, and anyone snap them into their rack** — each a self-contained folder of plain JavaScript that drops in without altering the core framework and without a build step or separate development tools. *(done)*
+- **Explore how AI might help understand and create patches** — describing what a patch does, suggesting changes, or building one from a request. *(partly TBD)*
 
 ## Current state
 
-DreamRack is in alpha — fully usable, but expect rough edges and things to change. What works today:
+DreamRack is in alpha — fully usable, but expect rough edges and things to change. Each goal above is tagged with where it stands: *(done)*, *(partly TBD)*, or *(TBD — to be done)*. Even the parts marked done may still change as I work on perfecting the design and receive feedback from users.
 
-- A **rack** you place modules on, and **save and load** for whole patches.
-- **Modules:** Complex Oscillator, Quad Low Pass Gate, Quad Function Generator, and a Mixer — plus a "gallery" module used to exercise every control and jack type.
+The modules that ship today are a Complex Oscillator, a Quad Low Pass Gate, a Quad Function Generator, and a Mixer. Many more modules are planned; suggestions are welcome.
 
-Still ahead, designed but not yet built: the floating signal sources and injectors above, polyphony (it's one voice today), and an interface module that conforms to the Web Audio Modules (WAM) plugin standard, so other in-browser audio hosts and sequencers can drive DreamRack and embed it as a sound source. Many other modules are planned; suggestions are welcome.
+## Background
+
+The modules that ship today lean West Coast — Buchla- and Serge-flavoured — which is where my own interest lies and where the earliest work went. But nothing in the architecture ties DreamRack to that style: modules of any kind drop in as plug-ins, with or without a hardware ancestor.
 
 Share thoughts, bugs, and ideas in the [discussions](https://github.com/chrisgr99/wCoast/discussions).
 
 ## Running it
 
-There's nothing to download or install. Open the GitHub Pages build at [chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/) and follow the getting-started notes that appear on first run. A cross-platform desktop version, built on Electron, is coming in the near future.
+There's nothing to download or install. Open the GitHub Pages build at [chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/) and follow the getting-started notes that appear on first run.
+
+A desktop version, built on Electron, is fully running now. A packaged, one-click download will follow once the app settles a little — code-signing and notarizing it (so that macOS opens it without a security warning) is worth doing when the build is less subject to change. Until then you can run the desktop app yourself: with [Node.js](https://nodejs.org/) installed, clone the project from GitHub, open its folder in Terminal, and run `npm start`. A Windows or Linux desktop build is possible too — Electron is cross-platform — but for now the easiest way to run DreamRack on those systems is in the browser.
 
 It works in most browsers — Chrome, Edge, Firefox, or Safari. Saving and loading patches as files relies on the browser's File System Access feature, which today is only in Chrome and Edge, so use one of those if you want to keep your patches; everything else works the same everywhere.
 
