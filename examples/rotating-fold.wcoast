@@ -1,0 +1,25 @@
+{
+  "format": "wcoast-patch",
+  "version": 1,
+  "rack": { "rows": 2 },
+  "mixerPos": { "row": 1, "x": 0 },
+  "modules": [
+    { "id": "m0", "type": "wcoast.complexOsc259t", "row": 0, "x": 0 },
+    { "id": "m1", "type": "wcoast.quadFn281t", "row": 0, "x": 171.33 }
+  ],
+  "wiring": [
+    { "from": { "module": "m1", "port": "fnA" }, "to": { "module": "m0", "port": "timbreCvIn" } },
+    { "from": { "module": "m1", "port": "fnB" }, "to": { "module": "m0", "port": "orderCvIn" } },
+    { "from": { "module": "m0", "port": "prinFinalOut" }, "to": { "module": "mixer", "port": "chanA" } }
+  ],
+  "settings": {
+    "params": {
+      "m0": { "prinFreq": 220, "timbre": 0.3, "timbreCvAmount": 0.7, "order": 0.0, "symmetry": 0 },
+      "m1": { "modeA": "cyclic", "attackA": 0.4, "decayA": 0.4, "attackB": 0.4, "decayB": 0.4, "quadEnAB": "on", "quadTimeAB": 0.5 },
+      "mixer": { "levelA": 0.5, "master": 0.4 }
+    }
+  },
+  "probes": [],
+  "notes": "Rotating fold — a quadrature demo. The Quad Function Generator's channel A free-runs as an LFO, and channel B follows it a quarter-cycle behind (Quadrature A-B is on). CV out A drives the oscillator's Timbre and CV out B drives its Order, so the wavefolder orbits through two dimensions instead of just pulsing back and forth.\n\nTurn the sound engine on to hear it. Try the attack and decay on channels A and B for the rotation speed, and the oscillator's Timbre CV Amount for how far the fold ranges.",
+  "notesOpen": true
+}

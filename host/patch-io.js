@@ -59,7 +59,7 @@ export function serialize(rack, mixer) {
   // position and settings — so a bench of monitors/scopes reopens with the patch.
   const probes = rack.serializeProbes ? rack.serializeProbes() : [];
 
-  return {
+  const out = {
     format: FORMAT,
     version: VERSION,
     rack: { rows: rack.rowCount },
@@ -69,6 +69,10 @@ export function serialize(rack, mixer) {
     settings: { params },
     probes,
   };
+  // A free-text note about the patch (plain text), and whether it auto-opens on load. Omitted when empty.
+  if (rack.patchNotes) out.notes = rack.patchNotes;
+  if (rack.patchNotesOpen) out.notesOpen = true;
+  return out;
 }
 
 export async function restore(obj, rack, mixer) {
@@ -76,6 +80,8 @@ export async function restore(obj, rack, mixer) {
   if (obj.version !== VERSION) throw new Error(`Unsupported patch version ${obj.version}.`);
 
   rack.clear();
+  rack.patchNotes = typeof obj.notes === 'string' ? obj.notes : '';   // the patch's own note (plain text) + whether it greets on load
+  rack.patchNotesOpen = !!obj.notesOpen;
   if (obj.rack && typeof obj.rack.rows === 'number') rack.setRowCount(obj.rack.rows);
 
   // Recreate modules, mapping each saved id to the fresh session key. The mixer

@@ -1,0 +1,5 @@
+[
+  { "name": "First drone", "file": "first-drone.wcoast" },
+  { "name": "Rotating fold (quadrature)", "file": "rotating-fold.wcoast" },
+  { "name": "Clocked pluck", "file": "clocked-pluck.wcoast" }
+]

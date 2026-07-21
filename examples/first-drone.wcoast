@@ -1,0 +1,21 @@
+{
+  "format": "wcoast-patch",
+  "version": 1,
+  "rack": { "rows": 2 },
+  "mixerPos": { "row": 1, "x": 0 },
+  "modules": [
+    { "id": "m0", "type": "wcoast.complexOsc259t", "row": 0, "x": 0 }
+  ],
+  "wiring": [
+    { "from": { "module": "m0", "port": "prinFinalOut" }, "to": { "module": "mixer", "port": "chanA" } }
+  ],
+  "settings": {
+    "params": {
+      "m0": { "prinFreq": 110, "timbre": 0.45, "order": 0.3, "symmetry": 0.2 },
+      "mixer": { "levelA": 0.5, "master": 0.4 }
+    }
+  },
+  "probes": [],
+  "notes": "A first drone. The Complex Oscillator's principal oscillator runs straight into the mixer, and its wavefolder (Timbre, Order, Symmetry) is turned up to add harmonics.\n\nTurn the sound engine on (Engine, in the menu) to hear it. Then scroll the Frequency knob for pitch, and Timbre, Order, and Symmetry to reshape the tone.",
+  "notesOpen": true
+}

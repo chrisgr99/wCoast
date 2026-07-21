@@ -1,0 +1,24 @@
+{
+  "format": "wcoast-patch",
+  "version": 1,
+  "rack": { "rows": 2 },
+  "mixerPos": { "row": 1, "x": 0 },
+  "modules": [
+    { "id": "m0", "type": "wcoast.complexOsc259t", "row": 0, "x": 0 },
+    { "id": "m1", "type": "lpg-292", "row": 1, "x": 114 }
+  ],
+  "wiring": [
+    { "from": { "module": "m0", "port": "prinSquareOut" }, "to": { "module": "m1", "port": "inA" } },
+    { "from": { "module": "m1", "port": "outA" }, "to": { "module": "mixer", "port": "chanA" } }
+  ],
+  "settings": {
+    "params": {
+      "m0": { "prinFreq": 165, "timbre": 0.3 },
+      "m1": { "levelA": 0.8, "decayA": 0.35, "lpA": "on", "vcaA": "on", "clkOnA": "on", "divA": 1, "clkModeA": "div", "rate": 0.3, "run": "on" },
+      "mixer": { "levelA": 0.5, "master": 0.4 }
+    }
+  },
+  "probes": [],
+  "notes": "Clocked pluck. The oscillator's Square output runs into a Low Pass Gate channel, and the gate's own clock strikes it in time — so you get repeating plucks that each open bright and decay.\n\nTurn the sound engine on to hear it. Turn the Low Pass Gate's Rate to change the tempo, its Decay for how long each pluck rings, and the oscillator's Frequency for pitch.",
+  "notesOpen": true
+}

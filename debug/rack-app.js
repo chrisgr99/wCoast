@@ -26,6 +26,8 @@ import { createStorage } from '../host/storage.js';
 import { buildCatalogue, createMirror } from '../host/mirror.js';
 import { createAudioTrace } from '../host/audio-trace.js';
 import { createTour, tourSeen } from '../host/tour.js';
+import { createPatchNotes } from '../host/patch-notes.js';
+import { createComposer } from '../host/feedback.js';
 import { loadTutorial } from '../host/tutorial-md.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
@@ -95,7 +97,7 @@ async function boot() {
   // reads `dirty` — so `dirty` must already be initialized (no temporal dead zone).
   // `menuStateTimer` is here for exactly the same reason: onEdit/markClean also push the native
   // menu's state, and pushMenuState is hoisted while a `let` beside it would not be.
-  let dirty = false, patchName = null, mirror = null, booted = false, menuStateTimer = null;
+  let dirty = false, patchName = null, mirror = null, booted = false, menuStateTimer = null, notes = null, examples = [];
   rack = new Rack(document.getElementById('rack'), {
     host, moduleTypes: MODULE_TYPES, rowCount: 2, dark: darkMode, onChange: () => onEdit(),
   });
@@ -117,6 +119,9 @@ async function boot() {
   function markClean() { dirty = false; updateTitle(); window.wcoast?.patch?.setDirty?.(false); if (mirror) mirror.project(); pushMenuState(); }
   // Any patch edit: mark dirty and re-project the mirror.
   function onEdit() { markDirty(); autosaveSession(); if (mirror) mirror.project(); pushMenuState(); }
+  // After loading any patch (open/recent/reopen/session-resume/AI-apply): refresh the notes card, and let
+  // a note that asked to greet the user pop open.
+  function afterLoad() { if (!notes) return; notes.refresh(); if (rack.patchNotesOpen) notes.open(); }
 
   // Master level lives on the mixer module's own faceplate; this is just the last read of
   // it, kept for the AI mirror's `master` field. Re-read it whenever the fader may have
@@ -253,6 +258,13 @@ async function boot() {
   // Save/load: the environment-chosen storage adapter drives the shared core.
   const storage = createStorage();
   const patchText = () => JSON.stringify(serialize(rack, mixerIO), null, 2);
+  // A compact patch JSON for embedding in a GitHub bug report / shared post: the bulky frozen-scope trace
+  // blobs are stripped (a bug reproduces from the topology + settings, not the captured pixels).
+  const trimmedPatchText = () => {
+    const obj = serialize(rack, mixerIO);
+    for (const p of (obj.probes || [])) { if (p && p.frozen) { p.frozen = false; delete p.wave; delete p.hist; delete p.histIdx; delete p.fastVotes; delete p.forceMode; } }
+    return JSON.stringify(obj, null, 2);
+  };
   // Session autosave: persist the live patch to localStorage on every edit
   // (debounced) so a relaunch resumes exactly where you left off. Separate from
   // named File saves — this just remembers the last working state.
@@ -267,14 +279,14 @@ async function boot() {
 
   async function newPatch() {
     if (!okToDiscard()) return;
-    rack.clear(); storage.forget(); setPatchName(null); markClean();
+    rack.clear(); storage.forget(); setPatchName(null); markClean(); afterLoad();
   }
   async function openPatch() {
     if (!okToDiscard()) return;
     let f;
     try { f = await storage.open(); } catch (e) { log(`open failed: ${e.message}`); return; }
     if (!f) return;
-    try { await restore(JSON.parse(f.text), rack, mixerIO); setPatchName(f.name); markClean(); }
+    try { await restore(JSON.parse(f.text), rack, mixerIO); setPatchName(f.name); markClean(); afterLoad(); }
     catch (e) { log(`restore failed: ${e.message}`); window.alert(`Could not open patch: ${e.message}`); }
   }
   async function savePatch() {
@@ -291,7 +303,7 @@ async function boot() {
     let f;
     try { f = await storage.openRecent(id); } catch (e) { log(`open failed: ${e.message}`); return; }
     if (!f) { window.alert('That patch could not be opened — it may have been moved or renamed.'); return; }
-    try { await restore(JSON.parse(f.text), rack, mixerIO); setPatchName(f.name); markClean(); }
+    try { await restore(JSON.parse(f.text), rack, mixerIO); setPatchName(f.name); markClean(); afterLoad(); }
     catch (e) { log(`restore failed: ${e.message}`); window.alert(`Could not open patch: ${e.message}`); }
   }
 
@@ -305,8 +317,34 @@ async function boot() {
     let f;
     try { f = await storage.reopenLast(); } catch (e) { log(`reopen failed: ${e.message}`); return; }
     if (!f) return;
-    try { await restore(JSON.parse(f.text), rack, mixerIO); setPatchName(f.name); markClean(); }
+    try { await restore(JSON.parse(f.text), rack, mixerIO); setPatchName(f.name); markClean(); afterLoad(); }
     catch (e) { log(`restore failed: ${e.message}`); window.alert(`Could not open patch: ${e.message}`); }
+  }
+
+  // Bundled example patches (examples/index.json), loaded once. Opening one loads it as a STARTING POINT:
+  // storage.forget() means a following Save behaves like Save As, since it isn't a file of the user's own.
+  const loadExamples = async () => { try { const r = await fetch('examples/index.json'); if (r.ok) examples = await r.json(); } catch (_e) { examples = []; } pushMenuState(); };
+  async function openExample(file, name) {
+    if (!okToDiscard()) return;
+    let obj;
+    try { const r = await fetch('examples/' + file); if (!r.ok) throw new Error('not found'); obj = await r.json(); }
+    catch (e) { log(`example load failed: ${e.message}`); window.alert('Could not load that example.'); return; }
+    try { await restore(obj, rack, mixerIO); storage.forget(); setPatchName(name); markClean(); afterLoad(); }
+    catch (e) { log(`restore failed: ${e.message}`); window.alert(`Could not open example: ${e.message}`); }
+  }
+  // Edit ▸ Create patch from clipboard — load a patch someone shared (e.g. copied from a GitHub post).
+  async function createFromClipboard() {
+    if (!okToDiscard()) return;
+    let text;
+    try { text = await navigator.clipboard.readText(); }
+    catch (e) { log(`clipboard read failed: ${e.message}`); window.alert('Could not read the clipboard.'); return; }
+    text = (text || '').trim().replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '').trim();   // tolerate a pasted code fence
+    let obj;
+    try { obj = JSON.parse(text); } catch (_e) { window.alert('The clipboard doesn’t contain a patch (it isn’t readable as JSON).'); return; }
+    const v = validate(obj, registry);
+    if (!v.ok) { window.alert(`That isn’t a valid Wcoast patch: ${v.error}`); return; }
+    try { await restore(obj, rack, mixerIO); storage.forget(); setPatchName('from clipboard'); markClean(); afterLoad(); }
+    catch (e) { window.alert(`Could not open the patch: ${e.message}`); }
   }
 
   // Apply an AI-proposed patch (an external write to the mirror's patch.json):
@@ -319,7 +357,7 @@ async function boot() {
     const cur = serialize(rack, mixerIO);
     const summary = `${cur.modules.length} → ${obj.modules.length} modules, ${cur.wiring.length} → ${obj.wiring.length} cables`;
     if (!window.confirm(`Apply the AI-proposed patch?\n\n${summary}`)) return { ok: false, error: 'cancelled by the user' };
-    try { await restore(obj, rack, mixerIO); } catch (e) { return { ok: false, error: `apply failed: ${e.message}` }; }
+    try { await restore(obj, rack, mixerIO); afterLoad(); } catch (e) { return { ok: false, error: `apply failed: ${e.message}` }; }
     markDirty();
     return { ok: true };
   }
@@ -330,6 +368,8 @@ async function boot() {
     const d = !rack.isDark();
     rack.setDarkMode(d);   // re-skins every module, the pinned mixer included
     if (tour) tour.applyTheme();   // ...and the tutorial card, which is dressed as a faceplate
+    if (notes) notes.applyTheme();
+    if (composer) composer.applyTheme();
     try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
     pushMenuState();
   };
@@ -345,7 +385,7 @@ async function boot() {
       menuStateTimer = null;
       let recent = [];
       try { recent = await storage.recent(); } catch (_e) { /* none */ }
-      m.setState({ dark: rack.isDark(), rows: rack.rowCount, canUndo: rack.canUndo(), canRedo: rack.canRedo(), recent });
+      m.setState({ dark: rack.isDark(), rows: rack.rowCount, canUndo: rack.canUndo(), canRedo: rack.canRedo(), recent, examples });
     }, 200);
   }
 
@@ -363,6 +403,12 @@ async function boot() {
       // Run the same items the in-window Help menu offers, rather than restating their URLs here.
       readme: () => { const it = rack.helpMenuItems().find((i) => i.label === 'README'); if (it) it.action(); },
       tutorial: () => { if (rack.onTutorial) rack.onTutorial(); },
+      patchNotes: () => { if (notes) notes.toggle(); },
+      openExample: (e) => openExample(e.file, e.name),
+      createFromClipboard: () => createFromClipboard(),
+      feedback: () => composer.feedback(),
+      reportBug: () => composer.reportBug(),
+      sharePatch: () => composer.sharePatch(),
     };
     window.wcoast.menu.onAction(({ action, arg }) => { const fn = actions[action]; if (fn) fn(arg); });
   }
@@ -376,7 +422,9 @@ async function boot() {
       { label: 'Open…', action: () => openPatch() },
       { label: 'Save', action: () => savePatch() },
       { label: 'Save As…', action: () => saveAsPatch() },
+      { label: 'Patch notes', action: () => notes.toggle() },
     ];
+    if (examples.length) file.push({ label: 'Examples', submenu: examples.map((e) => ({ label: e.name, action: () => openExample(e.file, e.name) })) });
     if (storage.hasLast && storage.hasLast()) file.push({ label: `Reopen ${storage.lastName()}`, action: () => reopenPatch() });
     // Newest first, in a submenu of its own — a header over a flat run of filenames just reads as
     // more File commands. The file you already have open is listed like any other: clicking it
@@ -387,6 +435,7 @@ async function boot() {
     const edit = [
       { label: 'Undo', disabled: !rack.canUndo(), action: () => rack.undo() },
       { label: 'Redo', disabled: !rack.canRedo(), action: () => rack.redo() },
+      { label: 'Create patch from clipboard', action: () => createFromClipboard() },
       { label: 'Clear connections & controls…', action: () => rack.confirmDeleteAllCables() },
     ];
     // View (Dark/Light mode is self-describing: the label names the mode it switches to).
@@ -436,6 +485,26 @@ async function boot() {
   // run (unless "Don't show on startup" is set), and always available from Help ▸ Interactive tutorial.
   // The copy lives in host/tutorial.md — one file that is both the tutorial and a readable document.
   // A failure here must not take the app down with it: no tutorial is survivable, a dead boot isn't.
+  notes = createPatchNotes({
+    getNotes: () => rack.patchNotes,
+    setNotes: (v) => { rack.patchNotes = v; },
+    getOpen: () => rack.patchNotesOpen,
+    setOpen: (v) => { rack.patchNotesOpen = v; },
+    isDark: () => rack.isDark(),
+    onChange: () => onEdit(),
+  });
+  rack.onPatchNotes = () => notes.toggle();
+  const composer = createComposer({
+    repo: 'chrisgr99/wCoast',
+    isDark: () => rack.isDark(),
+    getPatchJSON: () => trimmedPatchText(),
+    openExternal: (url) => rack._openExternal(url),
+  });
+  rack.onFeedback = () => composer.feedback();
+  rack.onReportBug = () => composer.reportBug();
+  rack.onSharePatch = () => composer.sharePatch();
+  loadExamples();   // populate the Examples menu (async; refreshes the native menu when ready)
+
   let tour = null;
   try {
     const steps = await loadTutorial();
@@ -491,7 +560,7 @@ async function boot() {
       // Require at least one module — a module-less session is boot-transient junk,
       // not a patch worth resuming; fall through to the default instead.
       if (v.ok && obj.modules && obj.modules.length) {
-        await restore(obj, rack, mixerIO); syncMaster(); resumed = true;
+        await restore(obj, rack, mixerIO); syncMaster(); afterLoad(); resumed = true;
         // Re-adopt the file this session was editing, so File > Save writes back to it (not a fresh prompt).
         try { const n = await storage.adoptLast(); if (n) patchName = n; } catch (_e) { /* fileless resume */ }
       }

@@ -159,6 +159,7 @@ export class Rack {
     this.onSelect = opts.onSelect || (() => {});   // module the pointer entered (deixis)
     // Panel-pie hooks into app-level actions the rack doesn't own (set by rack-app).
     this.onTutorial = null;   // set by the app to (re)open the in-app tutorial; Help omits the item without it
+    this.onPatchNotes = null; this.onFeedback = null; this.onReportBug = null; this.onSharePatch = null;   // Help hooks, set by the app
     this.onAppMenu = opts.onAppMenu || (() => {});    // open the app (File) menu at (x,y)
     this.onTransport = opts.onTransport || (() => {}); // toggle start/stop sound
     this.isPlaying = opts.isPlaying || (() => false); // current sound-on state (LED + wedge highlight)
@@ -190,6 +191,8 @@ export class Rack {
     this._undoStack = [];    // { undo, redo } ops for cable/module topology + scope/monitor create/delete/move (not knob values)
     this._redoStack = [];
     this._probeSeq = 0;      // stable id per permanent scope/monitor, so undo entries survive delete-and-recreate
+    this.patchNotes = '';    // free-text note about the current patch (plain text)
+    this.patchNotesOpen = false;   // does the note greet the user when the patch opens?
     this._openSubs = [];     // open submenu elements of the current pop-up menu
     this._isolateSwells = []; // enlarged jack records (el + live tap) to restore when isolate mode ends
     this._isolateJackByTag = new Map();
@@ -399,6 +402,7 @@ export class Rack {
   // pulled so a restore rewires from a clean slate.
   clear() {
     this._exitIsolate(); this._clearHoverFocus(); this._netOrigin = null;   // no stale focus pointing at removed jacks
+    this.patchNotes = ''; this.patchNotesOpen = false;   // a fresh/loaded patch starts with no leftover note
     for (const sc of [...this._scopes]) this._closeScope(sc, true);
     for (const m of [...this._monitors]) this._closeMonitor(m, true);
     for (const rec of [...this.records.values()]) {
@@ -1567,8 +1571,21 @@ export class Rack {
   // The channel letter an id belongs to (its last char, if that's one of the module's channels),
   // else null. Covers A–D (quads) and A–F (mixer) from the descriptor, not a hard-coded range.
   _channelOf(desc, id) {
-    const last = id && id.slice(-1);
-    return (desc && desc.channels && desc.channels.includes(last)) ? last : null;
+    if (!id || !desc || !desc.channels) return null;
+    const last = id.slice(-1);
+    if (!desc.channels.includes(last)) return null;
+    // A PAIR suffix (a channel letter preceded by another channel letter, e.g. "AB"/"CD") is not a single
+    // channel — those are the quadrature pair controls/ports. Don't guess a channel from their name; let
+    // them fall back to their module-declared section (e.g. 'quad').
+    if (desc.channels.includes(id.slice(-2, -1))) return null;
+    return last;
+  }
+  // The channel PAIR an id belongs to (its last two chars matching a declared pair, e.g. "AB"), else null.
+  // Used to give the quadrature pair controls/ports a pair-section identity of their own.
+  _pairOf(desc, id) {
+    if (!id || !desc || !desc.pairs) return null;
+    const two = id.slice(-2);
+    return desc.pairs.some(([a, b]) => a + b === two) ? two : null;
   }
   _sectionKey(key, portId) {
     const rec = this.records.get(key);
@@ -1579,6 +1596,8 @@ export class Rack {
     // join their channel's net too, not just the audio input). Others form their named-section node.
     const ch = this._channelOf(desc, portId);
     if (ch) return `${key}:${ch}`;
+    const pr = this._pairOf(desc, portId);
+    if (pr) return `${key}:${pr}`;
     const port = rec.panel.ports.get(portId);
     const sec = port && port.meta && port.meta.section;
     return `${key}:${sec || 'x'}`;
@@ -1670,8 +1689,26 @@ export class Rack {
     };
     const down = closure(seeds, fwd), up = closure(seeds, bwd);
     const net = new Set();
-    for (const { e, s, d } of pair) if (down.has(s) || up.has(d)) net.add(e.id);
     const sections = new Set([...down, ...up]);   // every section the net touches (for the control-dim)
+    const sink = (S) => this._isSink(S.split(':')[0]);
+    for (const { e, s, d } of pair) {
+      const inChain = down.has(s) || up.has(d);
+      // Also light a SIBLING source that feeds a module you drive — its output is shaped by both of you, so
+      // it belongs to the same picture (two modulators into one oscillator light together). But never at a
+      // SINK (the mixer), where everything converges — that would light the whole patch.
+      const convergent = !inChain && down.has(d) && !down.has(s) && !sink(d);
+      if (inChain || convergent) { net.add(e.id); if (convergent) sections.add(s); }
+    }
+    // A quadrature PAIR's shared controls (Quad A-B) light when that pair is enabled and either of its
+    // channels is in the net — the shared control is then actively shaping both.
+    for (const rec of this.records.values()) {
+      const desc = this.host.registry.descriptor(rec.descriptorId);
+      if (!desc || !desc.pairs) continue;
+      for (const [a, b] of desc.pairs) {
+        const on = rec.values.get(`quadEn${a}${b}`) === 'on';
+        if (on && (sections.has(`${rec.key}:${a}`) || sections.has(`${rec.key}:${b}`))) sections.add(`${rec.key}:${a}${b}`);
+      }
+    }
     return { edges: net, sections, seeds };       // seeds = the sections you're DIRECTLY on (kept fully lit)
   }
 
@@ -1938,6 +1975,8 @@ export class Rack {
     if (!desc || !desc.sectioned) return rec.key;
     const ch = this._channelOf(desc, b.id);
     if (ch) return `${rec.key}:${ch}`;
+    const pr = this._pairOf(desc, b.id);
+    if (pr) return `${rec.key}:${pr}`;
     const param = desc.params && desc.params.find((p) => p.id === b.id);
     const sec = (b.meta && b.meta.section) || (param && param.section);
     return `${rec.key}:${sec || 'x'}`;
@@ -5085,6 +5124,10 @@ export class Rack {
     return [
       { label: 'README', action: () => this._openExternal(DOCS_README_URL) },
       ...(this.onTutorial ? [{ label: 'Interactive tutorial', action: () => this.onTutorial() }] : []),
+      ...(this.onPatchNotes ? [{ label: 'Patch notes', action: () => this.onPatchNotes() }] : []),
+      ...(this.onFeedback ? [{ label: 'Send feedback…', action: () => this.onFeedback() }] : []),
+      ...(this.onReportBug ? [{ label: 'Report a bug…', action: () => this.onReportBug() }] : []),
+      ...(this.onSharePatch ? [{ label: 'Share this patch…', action: () => this.onSharePatch() }] : []),
       { label: 'Reference — coming soon', disabled: true },
     ];
   }

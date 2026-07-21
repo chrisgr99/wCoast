@@ -144,6 +144,11 @@ function applyAppMenu() {
         { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => menuSend('open') },
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => menuSend('save') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => menuSend('saveAs') },
+        { type: 'separator' },
+        { label: 'Patch Notes', click: () => menuSend('patchNotes') },
+        ...(s.examples && s.examples.length ? [
+          { label: 'Examples', submenu: s.examples.map((e) => ({ label: e.name, click: () => menuSend('openExample', e) })) },
+        ] : []),
         ...(s.recent.length ? [
           { type: 'separator' },
           { label: 'Open Recent', submenu: s.recent.map((f) => ({ label: f.name, click: () => menuSend('openRecent', f.id) })) },
@@ -157,6 +162,7 @@ function applyAppMenu() {
         // clipboard roles stay below so macOS dictation and copy/paste keep working.
         { label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: s.canUndo, click: () => menuSend('undo') },
         { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', enabled: s.canRedo, click: () => menuSend('redo') },
+        { label: 'Create Patch from Clipboard', click: () => menuSend('createFromClipboard') },
         { type: 'separator' },
         { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
         { type: 'separator' },
@@ -179,6 +185,11 @@ function applyAppMenu() {
       submenu: [
         { label: 'README', click: () => menuSend('readme') },
         { label: 'Interactive Tutorial', click: () => menuSend('tutorial') },
+        { label: 'Patch Notes', click: () => menuSend('patchNotes') },
+        { type: 'separator' },
+        { label: 'Send Feedback…', click: () => menuSend('feedback') },
+        { label: 'Report a Bug…', click: () => menuSend('reportBug') },
+        { label: 'Share This Patch…', click: () => menuSend('sharePatch') },
         { label: 'Reference — coming soon', enabled: false },
       ],
     },

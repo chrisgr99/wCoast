@@ -147,6 +147,13 @@
        it covers); the corner grabs both. Custom, because CSS `resize` only draws the corner grip. */
     .tour-resize-y { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; cursor: ns-resize; touch-action: none; }
     .tour-resize-xy { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; z-index: 1; }
+    .notes-text { white-space: pre-wrap; word-break: break-word; }
+    .notes-empty { color: var(--t-dim); font-style: italic; }
+    .notes-edit { display: block; width: 100%; box-sizing: border-box; min-height: 160px; resize: vertical; border: 1px solid var(--t-edge); border-radius: 6px; background: var(--t-face); color: var(--t-ink); font: inherit; line-height: 1.4; padding: 6px 8px; }
+    .notes-edit:focus { outline: none; border-color: var(--t-ink); }
+    .compose-card { width: 380px; }
+    .compose-prompt { color: var(--t-dim); margin-bottom: 8px; line-height: 1.4; }
+    .compose-edit { min-height: 120px; }
     .tour-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 11px;
       border-bottom: 1px solid var(--t-sep); cursor: move; touch-action: none; }
     .tour-title { flex: 1 1 auto; font-weight: 600; }
