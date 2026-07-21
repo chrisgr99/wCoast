@@ -18,8 +18,13 @@
 
 'use strict';
 
-export const FORMAT = 'wcoast-patch';
-export const VERSION = 1;
+export const FORMAT = 'wcoast-patch';   // INTERNAL format id — never rename (identifies the file shape)
+export const VERSION = 1;               // format version (bump only when the shape changes)
+
+// User-facing product identity, stamped into every saved patch for traceability.
+// APP_VERSION is deliberately pinned; do not increment it without an explicit request.
+export const APP_NAME = 'DreamRack';
+export const APP_VERSION = '0.1';
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
@@ -62,6 +67,8 @@ export function serialize(rack, mixer) {
   const out = {
     format: FORMAT,
     version: VERSION,
+    app: APP_NAME,
+    appVersion: APP_VERSION,
     rack: { rows: rack.rowCount },
     mixerPos: mixRec ? { row: mixRec.row, x: round2(mixRec.x) } : null,
     modules,
@@ -69,6 +76,10 @@ export function serialize(rack, mixer) {
     settings: { params },
     probes,
   };
+  // The exact source revision that produced this file, so a bug report carrying a patch can be
+  // traced back to a checkout. Present only in Electron-from-source (see rack.buildInfo); omitted
+  // in the browser build, where there is no repository to point at.
+  if (rack.buildInfo) out.build = rack.buildInfo;
   // A free-text note about the patch (plain text), and whether it auto-opens on load. Omitted when empty.
   if (rack.patchNotes) out.notes = rack.patchNotes;
   if (rack.patchNotesOpen) out.notesOpen = true;

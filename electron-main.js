@@ -27,22 +27,47 @@
 const { app, BrowserWindow, protocol, ipcMain, dialog, Menu, shell, session } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const { execFileSync } = require('node:child_process');
 const { initMirror } = require('./electron-mirror');
+
+// The source revision the running app was built from, computed once and handed to the renderer
+// (which stamps it into saved patches as `build`) so a bug report carrying a patch can be traced
+// back to an exact checkout. Runs git in the app directory; from a packaged build with no .git
+// present every field comes back empty and buildInfo() returns null, so the stamp is simply omitted.
+let buildInfoCache;
+function buildInfo() {
+  if (buildInfoCache !== undefined) return buildInfoCache;
+  const git = (args) => {
+    try { return execFileSync('git', args, { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
+    catch (_e) { return ''; }
+  };
+  const commit = git(['rev-parse', 'HEAD']);
+  buildInfoCache = commit ? {
+    commit,                                                              // full SHA — the traceable push descriptor
+    short: git(['rev-parse', '--short', 'HEAD']) || commit.slice(0, 7),
+    branch: git(['rev-parse', '--abbrev-ref', 'HEAD']) || null,
+    describe: git(['describe', '--tags', '--always', '--dirty']) || null,
+    dirty: git(['status', '--porcelain']) !== '',                       // uncommitted changes were present when saved
+    committedAt: git(['show', '-s', '--format=%cI', 'HEAD']) || null,
+  } : null;
+  return buildInfoCache;
+}
 
 // Patch save/load lives in the app's own hamburger menu, not the native menu.
 // The main process owns the native dialogs and the file writes; the renderer
 // reaches them over the preload bridge (window.wcoast.patch).
-const PATCH_FILTER = [{ name: 'Wcoast Patch', extensions: ['wcoast'] }];
+const PATCH_FILTER = [{ name: 'DreamRack Patch', extensions: ['drack', 'wcoast'] }];   // save defaults to .drack; open still accepts old .wcoast
 
-// Patches live in a WCOAST folder in the user's Documents by default; create it
+// Patches live in a DreamRack folder in the user's Documents by default; create it
 // on demand and use it as the dialogs' starting location.
 async function patchesDir() {
-  const dir = path.join(app.getPath('documents'), 'WCOAST');
+  const dir = path.join(app.getPath('documents'), 'DreamRack');
   await fs.promises.mkdir(dir, { recursive: true });
   return dir;
 }
 
-const PATCH_EXT = '.wcoast';
+const PATCH_EXT = '.drack';   // default save extension; old .wcoast files still open (see isPatchFile)
+const isPatchFile = (p) => { const s = (p || '').toLowerCase(); return s.endsWith('.drack') || s.endsWith('.wcoast'); };
 const RECENT_MAX = 20;           // how many recent saves the File menu offers
 // Paths this process handed the renderer via a dialog, so a patch kept OUTSIDE the patches folder
 // still shows in Recent and can still be re-read. It's also the read guard's allow-list: the user
@@ -61,6 +86,8 @@ function registerPatchIpc() {
   ipcMain.handle('open-external', async (_e, url) => {
     if (typeof url === 'string' && /^https?:\/\//i.test(url)) await shell.openExternal(url);
   });
+  // The source revision, for stamping into saved patches (null from a packaged, git-less build).
+  ipcMain.handle('app:build', async () => buildInfo());
   ipcMain.handle('patch:open', async () => {
     const r = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: PATCH_FILTER, defaultPath: await patchesDir() });
     if (r.canceled || !r.filePaths[0]) return null;
@@ -76,7 +103,7 @@ function registerPatchIpc() {
     const seen = new Map();
     const add = async (filePath) => {
       const abs = path.normalize(filePath);
-      if (seen.has(abs) || !abs.toLowerCase().endsWith(PATCH_EXT)) return;
+      if (seen.has(abs) || !isPatchFile(abs)) return;
       try { seen.set(abs, { path: abs, name: path.basename(abs), at: (await fs.promises.stat(abs)).mtimeMs }); } catch (_e) { /* gone */ }
     };
     try {
@@ -91,7 +118,7 @@ function registerPatchIpc() {
   // session. Extension-checked either way.
   ipcMain.handle('patch:read', async (_e, filePath) => {
     try {
-      if (typeof filePath !== 'string' || !filePath.toLowerCase().endsWith(PATCH_EXT)) return null;
+      if (typeof filePath !== 'string' || !isPatchFile(filePath)) return null;
       const abs = path.normalize(filePath);
       const inPatchesDir = path.dirname(abs) === path.normalize(await patchesDir());
       if (!inPatchesDir && !granted.has(abs)) return null;
@@ -102,7 +129,7 @@ function registerPatchIpc() {
   ipcMain.handle('patch:save', async (_e, arg) => {
     let filePath = arg && arg.path;
     if (!filePath) {
-      const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath: path.join(await patchesDir(), 'patch.wcoast') });
+      const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath: path.join(await patchesDir(), 'patch.drack') });
       if (r.canceled || !r.filePath) return null;
       filePath = r.filePath;
     }
@@ -111,7 +138,7 @@ function registerPatchIpc() {
     return { path: filePath };
   });
   ipcMain.handle('patch:saveAs', async (_e, arg) => {
-    const defaultPath = (arg && arg.path) ? arg.path : path.join(await patchesDir(), 'patch.wcoast');
+    const defaultPath = (arg && arg.path) ? arg.path : path.join(await patchesDir(), 'patch.drack');
     const r = await dialog.showSaveDialog(mainWindow, { filters: PATCH_FILTER, defaultPath });
     if (r.canceled || !r.filePath) return null;
     await fs.promises.writeFile(r.filePath, arg.text, 'utf8');
@@ -239,7 +266,11 @@ process.on('uncaughtException', (err) => {
   logMainProcessFault('uncaughtException', err);
 });
 
-app.setName('Wcoast');
+// User-facing app name (macOS menu bar, About). The userData directory is pinned to the pre-rename
+// "Wcoast" folder BEFORE renaming, so the display rename doesn't move Electron's profile and orphan the
+// existing session/prefs (localStorage lives there). The invisible codename stays "wcoast".
+app.setPath('userData', path.join(app.getPath('appData'), 'Wcoast'));
+app.setName('DreamRack');
 
 let mainWindow;
 
@@ -327,7 +358,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 720,
-    title: 'Wcoast',
+    title: 'DreamRack',
     show: false,
     backgroundColor: '#14110d',
     webPreferences: {

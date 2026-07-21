@@ -22,7 +22,7 @@ const MODES = {
     prompt: 'Tell people what’s interesting about it. Your current patch is attached so they can open it.' },
 };
 
-export function createComposer({ repo, isDark, getPatchJSON, openExternal, appVersion }) {
+export function createComposer({ repo, isDark, getPatchJSON, openExternal, appName = 'DreamRack', appVersion, getBuild }) {
   let el, titleEl, promptEl, ta, mode = 'feedback';
 
   const startDrag = (e) => {
@@ -86,7 +86,11 @@ export function createComposer({ repo, isDark, getPatchJSON, openExternal, appVe
   function composeUrl(cfg, text, patch) {
     const base = `https://github.com/${repo}`;
     let body = text || '';
-    if (cfg === MODES.bug) body += `\n\n---\nApp: wCoast${appVersion ? ' ' + appVersion : ''}`;
+    if (cfg === MODES.bug) {
+      const b = typeof getBuild === 'function' ? getBuild() : null;
+      const rev = b && b.short ? ` (${b.short}${b.dirty ? '-dirty' : ''})` : '';
+      body += `\n\n---\nApp: ${appName}${appVersion ? ' ' + appVersion : ''}${rev}`;
+    }
     // Embed the patch in a collapsed block, unless doing so would overflow the URL.
     if (cfg.patch && patch) {
       const withPatch = body + '\n\n<details><summary>Patch JSON</summary>\n\n```json\n' + patch + '\n```\n</details>\n';
@@ -94,7 +98,7 @@ export function createComposer({ repo, isDark, getPatchJSON, openExternal, appVe
         ? `${base}/issues/new?labels=${cfg.label}&title=${enc(cfg.prefTitle)}&body=${enc(withPatch)}`
         : `${base}/discussions/new?category=${cfg.category}&title=${enc(cfg.prefTitle)}&body=${enc(withPatch)}`;
       if (probe.length <= URL_LIMIT) body = withPatch;
-      else body += '\n\n_(Patch too large to embed here — use File ▸ Save and drag the .wcoast file into this post.)_';
+      else body += '\n\n_(Patch too large to embed here — use File ▸ Save and drag the .drack file into this post.)_';
     }
     return cfg.dest === 'issue'
       ? `${base}/issues/new?labels=${cfg.label}&title=${enc(cfg.prefTitle)}&body=${enc(body)}`

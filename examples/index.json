@@ -1,5 +1,5 @@
 [
-  { "name": "First drone", "file": "first-drone.wcoast" },
-  { "name": "Rotating fold (quadrature)", "file": "rotating-fold.wcoast" },
-  { "name": "Clocked pluck", "file": "clocked-pluck.wcoast" }
+  { "name": "First drone", "file": "first-drone.drack" },
+  { "name": "Rotating fold (quadrature)", "file": "rotating-fold.drack" },
+  { "name": "Clocked pluck", "file": "clocked-pluck.drack" }
 ]

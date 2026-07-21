@@ -1,4 +1,4 @@
-# wCoast — Interactive tutorial
+# DreamRack — Interactive tutorial
 
 <!--
 This file is BOTH the document you are reading and the exact copy the app shows in its tutorial cards. Editing it here changes the tutorial; there is no build step.
@@ -14,15 +14,15 @@ Inline: **bold**, *italic*, [text](url), `code`. Text above the first ## is prea
 House style: the reader has probably used a software modular before, and they all differ in interface and terminology — so the job is to map, not to teach. One card per heading, each a complete covering of it. No sales pitch; they've read the README.
 -->
 
-This is the tutorial wCoast shows in its floating cards, on a first run and from Help ▸ Interactive tutorial. It's written for someone who has used a software modular before, so rather than teaching synthesis it maps what you already know onto this one — and points out where wCoast differs.
+This is the tutorial DreamRack shows in its floating cards, on a first run and from Help ▸ Interactive tutorial. It's written for someone who has used a software modular before, so rather than teaching synthesis it maps what you already know onto this one — and points out where DreamRack differs.
 
 ## Before you start
 
-**Before you start,** please turn off any browser extension that recolours pages — Dark Reader and the like — for this site. wCoast has its own light and dark modes, and those extensions distort its panels.
+**Before you start,** please turn off any browser extension that recolours pages — Dark Reader and the like — for this site. DreamRack has its own light and dark modes, and those extensions distort its panels.
 
 **These cards:** each explains one part of the instrument, then asks you to do something. A card stays open while you work, so you never have to dismiss it to follow it — park it anywhere by its title bar, and resize it like any other window. Marked blocks are your cue to act, like this one:
 
-> **Do this** — Read the [README](https://github.com/chrisgr99/wCoast/blob/main/README.md) if you haven't — it covers what wCoast is, and what it isn't, which this tutorial won't repeat.
+> **Do this** — Read the [README](https://github.com/chrisgr99/wCoast/blob/main/README.md) if you haven't — it covers what DreamRack is, and what it isn't, which this tutorial won't repeat.
 
 **Coming up:**
 
@@ -40,11 +40,11 @@ Coming next: **Vocabulary**.
 
 If you already patch modular synths, this is nothing new — press **Next** to skip ahead. If you're new to it, these are the words the rest of the tutorial leans on:
 
-- **Synthesizer** — an electronic instrument that makes sound. A *modular* synthesizer, like wCoast, isn't one fixed instrument but a set of separate parts you connect however you like, so you build the instrument as you go.
+- **Synthesizer** — an electronic instrument that makes sound. A *modular* synthesizer, like DreamRack, isn't one fixed instrument but a set of separate parts you connect however you like, so you build the instrument as you go.
 - **Module** — one piece of the instrument: a single faceplate with its own knobs and jacks, like the oscillator, the low-pass gate, or the mixer here.
 - **Rack** — the surface the modules sit on, arranged in rows like a physical modular case. A rack usually holds a number of modules wired together with cables so one feeds into the next; that flow of signal from module to module is what turns a handful of separate parts into a single instrument that makes sound.
 - **Jack (terminal)** — the sockets on a module. An **output** sends a signal out; an **input** takes one in.
-- **Signal** — what travels along a cable. Three kinds: **audio** (what you hear), **control voltage** or **CV** (a voltage that moves a control for you instead of being heard), and **triggers or gates** (on-off pulses that start or time things). wCoast colours the cables by kind.
+- **Signal** — what travels along a cable. Three kinds: **audio** (what you hear), **control voltage** or **CV** (a voltage that moves a control for you instead of being heard), and **triggers or gates** (on-off pulses that start or time things). DreamRack colours the cables by kind.
 - **Cable (patch cord)** — the connection you draw from an output to an input.
 - **Patch** — the whole arrangement: which modules you have, how they're wired, and every setting. "Patching" is the act of wiring it up; your patch is your current setup, and it's what you save.
 
@@ -76,7 +76,7 @@ Coming next: **First sound**.
 
 ## First sound
 
-**Cables:** left-click a terminal and the cable follows the pointer — no button held. (Almost everything in wCoast works without a held button — gentler on the hand than dragging.) Left-click another terminal to connect it, or left-click anywhere else to drop it. A cable takes the colour of the input it plugs into, so you can read its job at a glance.
+**Cables:** left-click a terminal and the cable follows the pointer — no button held. (Almost everything in DreamRack works without a held button — gentler on the hand than dragging.) Left-click another terminal to connect it, or left-click anywhere else to drop it. A cable takes the colour of the input it plugs into, so you can read its job at a glance.
 
 > **Do this** — Left-click the **"Complex Oscillator"** Final output (near the centre top of the module), move to **channel A** of the **"Mixer"** (bottom-left, top row of inputs), and click to connect. The cable is yellow — its destination is an audio terminal.
 
@@ -191,7 +191,7 @@ Coming next: **Saving your work**.
 
 ## Saving your work
 
-**Nothing is lost when you close:** you don't have to save to hang on to your work — wCoast quietly remembers your session as you go, in the desktop app and in any web browser, so the next time you open it you're right back where you left off: the same modules, cables, knob settings, and any scopes or monitors you'd placed. Saving is for something different — keeping a named version you can return to, or hand to someone else.
+**Nothing is lost when you close:** you don't have to save to hang on to your work — DreamRack quietly remembers your session as you go, in the desktop app and in any web browser, so the next time you open it you're right back where you left off: the same modules, cables, knob settings, and any scopes or monitors you'd placed. Saving is for something different — keeping a named version you can return to, or hand to someone else.
 
 > **Do this** — Change something small — turn a knob, drop a monitor — then quit and reopen. It all comes back exactly as you left it.
 

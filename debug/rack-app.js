@@ -21,7 +21,7 @@ import fnDescriptor from '../modules/function-gen-281t/descriptor.js';
 import { create as fnCreate } from '../modules/function-gen-281t/factory.js';
 import galleryDescriptor from '../modules/gallery/descriptor.js';
 import { create as galleryCreate } from '../modules/gallery/factory.js';
-import { serialize, restore, validate } from '../host/patch-io.js';
+import { serialize, restore, validate, APP_NAME, APP_VERSION } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
 import { buildCatalogue, createMirror } from '../host/mirror.js';
 import { createAudioTrace } from '../host/audio-trace.js';
@@ -103,6 +103,13 @@ async function boot() {
   });
   rack.relayout();
 
+  // Stamp the exact source revision into saved patches (serialize reads rack.buildInfo), so a bug
+  // report carrying a patch traces to a checkout. Electron-from-source only; the browser build has
+  // no repository and leaves this undefined, which patch-io omits.
+  if (window.wcoast && window.wcoast.build) {
+    try { rack.buildInfo = await window.wcoast.build(); } catch (_e) { /* leave unstamped */ }
+  }
+
   // The output mixer is now a pinned rack module — a terminal singleton placed
   // once at the bottom row (draggable, not deletable) that stays the stable
   // "mixer" patch endpoint. Muted until On (via masterMute, set below).
@@ -113,7 +120,7 @@ async function boot() {
   // Unsaved-changes tracking (state declared above the rack). Any knob, switch,
   // cable, or mixer change dirties the patch; loading or saving cleans it. The
   // title shows a dot while dirty, mirrored to the main process to guard close.
-  function updateTitle() { document.title = `Wcoast — ${patchName || 'untitled'}${dirty ? ' •' : ''}`; }
+  function updateTitle() { document.title = `DreamRack — ${patchName || 'untitled'}${dirty ? ' •' : ''}`; }
   function setPatchName(n) { patchName = n; updateTitle(); if (mirror) mirror.project(); }
   function markDirty() { if (dirty) return; dirty = true; updateTitle(); window.wcoast?.patch?.setDirty?.(true); }
   function markClean() { dirty = false; updateTitle(); window.wcoast?.patch?.setDirty?.(false); if (mirror) mirror.project(); pushMenuState(); }
@@ -499,6 +506,9 @@ async function boot() {
     isDark: () => rack.isDark(),
     getPatchJSON: () => trimmedPatchText(),
     openExternal: (url) => rack._openExternal(url),
+    appName: APP_NAME,
+    appVersion: APP_VERSION,
+    getBuild: () => rack.buildInfo,
   });
   rack.onFeedback = () => composer.feedback();
   rack.onReportBug = () => composer.reportBug();

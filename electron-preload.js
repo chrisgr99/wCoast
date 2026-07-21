@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('wcoast', {
   // Open an external URL (docs / help links) in the user's default browser,
   // rather than a new Electron window.
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  // The source revision this app was built from ({ commit, short, branch, describe, dirty,
+  // committedAt } | null), stamped into saved patches for bug-report traceability.
+  build: () => ipcRenderer.invoke('app:build'),
   versions: {
     electron: process.versions.electron,
     chrome: process.versions.chrome,

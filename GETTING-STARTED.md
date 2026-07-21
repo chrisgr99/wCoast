@@ -1,10 +1,10 @@
-# Getting Started with wCoast
+# Getting Started with DreamRack
 
-*Working document — a proposed structure for the getting-started guide, not the final copy. Audience: someone already fluent in modular synthesis. The job of this guide is to map their existing knowledge onto wCoast's specific interface, and to surface the few things that have no hardware equivalent. We deliberately do not teach modular basics.*
+*Working document — a proposed structure for the getting-started guide, not the final copy. Audience: someone already fluent in modular synthesis. The job of this guide is to map their existing knowledge onto DreamRack's specific interface, and to surface the few things that have no hardware equivalent. We deliberately do not teach modular basics.*
 
 ## Guiding principle
 
-Good soft-modular guides (VCV Rack, Cardinal, Softube Modular, Voltage Modular, Audulus) optimize for **time to first sound**: hear something in under a minute, learn the core patching loop, then discover what makes the instrument worth staying in. Because our reader already knows modular, we compress the basics and spend most of the wordcount on our interface conventions and on the watching / hearing / focusing tools that hardware can't do. That is wCoast's whole pitch, so the guide should be mostly that.
+Good soft-modular guides (VCV Rack, Cardinal, Softube Modular, Voltage Modular, Audulus) optimize for **time to first sound**: hear something in under a minute, learn the core patching loop, then discover what makes the instrument worth staying in. Because our reader already knows modular, we compress the basics and spend most of the wordcount on our interface conventions and on the watching / hearing / focusing tools that hardware can't do. That is DreamRack's whole pitch, so the guide should be mostly that.
 
 ---
 
@@ -31,7 +31,7 @@ Good soft-modular guides (VCV Rack, Cardinal, Softube Modular, Voltage Modular, 
 
 9. **Floating scopes and monitors.** Clip an oscilloscope or an audio monitor onto any terminal — no rack space, no extra cable. Freeze a trace and read its frequency, or its minimum, mean, and maximum. Monitors feed their own mixer bus, so you can balance them against the main output. Our strongest single differentiator — give it room.
 10. **Peek menus in full.** Right-click any terminal; items act the moment you rest on them; Scope and Monitor show or play only while you hover, then vanish — or click to keep. Frame it as "try before you commit."
-11. **Focusing a large patch.** Hover a module — or a single mixer channel — to light just the cables that feed it and that it feeds; isolate a terminal's subnet to work on one branch, with terminals pulsing in time with their signal. Positions wCoast for *understanding* a patch, not only building one.
+11. **Focusing a large patch.** Hover a module — or a single mixer channel — to light just the cables that feed it and that it feeds; isolate a terminal's subnet to work on one branch, with terminals pulsing in time with their signal. Positions DreamRack for *understanding* a patch, not only building one.
 
 ### Phase 5 — Keep your work, and go further
 

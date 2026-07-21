@@ -36,7 +36,7 @@ let projected = false;       // the renderer has projected at least once this ru
 let writeChain = Promise.resolve();   // serialises mirror:write — see the handler for why it must
 let getWindow = () => null;  // returns the BrowserWindow (set by initMirror)
 
-const mirrorDir = () => path.join(app.getPath('documents'), 'WCOAST', MIRROR_DIR_NAME);
+const mirrorDir = () => path.join(app.getPath('documents'), 'DreamRack', MIRROR_DIR_NAME);
 const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
 
 async function readSettings() {
