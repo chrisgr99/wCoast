@@ -28,6 +28,7 @@ import { createAudioTrace } from '../host/audio-trace.js';
 import { createTour, tourSeen } from '../host/tour.js';
 import { createPatchNotes } from '../host/patch-notes.js';
 import { createComposer } from '../host/feedback.js';
+import { createAbout } from '../host/about.js';
 import { loadTutorial } from '../host/tutorial-md.js';
 
 function log(msg) { console.log('[wcoast]', msg); }
@@ -377,6 +378,7 @@ async function boot() {
     if (tour) tour.applyTheme();   // ...and the tutorial card, which is dressed as a faceplate
     if (notes) notes.applyTheme();
     if (composer) composer.applyTheme();
+    if (about) about.applyTheme();
     try { localStorage.setItem('wcoast.dark', d ? '1' : '0'); } catch (_e) { /* no storage */ }
     pushMenuState();
   };
@@ -416,6 +418,7 @@ async function boot() {
       feedback: () => composer.feedback(),
       reportBug: () => composer.reportBug(),
       sharePatch: () => composer.sharePatch(),
+      about: () => about.toggle(),
     };
     window.wcoast.menu.onAction(({ action, arg }) => { const fn = actions[action]; if (fn) fn(arg); });
   }
@@ -513,6 +516,16 @@ async function boot() {
   rack.onFeedback = () => composer.feedback();
   rack.onReportBug = () => composer.reportBug();
   rack.onSharePatch = () => composer.sharePatch();
+  const about = createAbout({
+    appName: APP_NAME,
+    appVersion: APP_VERSION,
+    getBuild: () => rack.buildInfo,
+    isDark: () => rack.isDark(),
+    openExternal: (url) => rack._openExternal(url),
+    repoUrl: 'https://github.com/chrisgr99/wCoast',
+    onTutorial: () => { if (rack.onTutorial) rack.onTutorial(); },
+  });
+  rack.onAbout = () => about.toggle();
   loadExamples();   // populate the Examples menu (async; refreshes the native menu when ready)
 
   let tour = null;

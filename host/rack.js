@@ -4948,6 +4948,7 @@ export class Rack {
 
     let group = null;   // the current collapsible group's item container
     for (const it of items) {
+      if (it.separator) { const s = document.createElement('div'); s.className = 'rack-menu-sep'; (group || menu).appendChild(s); continue; }
       if (it.header) {
         const h = document.createElement('div');
         h.className = 'rack-menu-header';
@@ -5129,6 +5130,7 @@ export class Rack {
       ...(this.onReportBug ? [{ label: 'Report a bug…', action: () => this.onReportBug() }] : []),
       ...(this.onSharePatch ? [{ label: 'Share this patch…', action: () => this.onSharePatch() }] : []),
       { label: 'Reference — coming soon', disabled: true },
+      ...(this.onAbout ? [{ separator: true }, { label: 'About DreamRack', action: () => this.onAbout() }] : []),
     ];
   }
   // The Engine menu item's glyph: the same reddish push-button as the mixer's master lamp
@@ -5166,6 +5168,7 @@ export class Rack {
     const sub = document.createElement('div');
     sub.className = 'rack-menu rack-submenu' + (this.isDark() ? ' theme-dark' : '');
     for (const it of items) {
+      if (it.separator) { const s = document.createElement('div'); s.className = 'rack-menu-sep'; sub.appendChild(s); continue; }
       if (it.header) { const h = document.createElement('div'); h.className = 'rack-menu-header'; h.textContent = it.label; sub.appendChild(h); continue; }
       const item = document.createElement('div');
       item.className = 'rack-menu-item';

@@ -218,6 +218,8 @@ function applyAppMenu() {
         { label: 'Report a Bug…', click: () => menuSend('reportBug') },
         { label: 'Share This Patch…', click: () => menuSend('sharePatch') },
         { label: 'Reference — coming soon', enabled: false },
+        { type: 'separator' },
+        { label: 'About DreamRack', click: () => menuSend('about') },
       ],
     },
   ];
