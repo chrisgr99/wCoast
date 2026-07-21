@@ -78,11 +78,11 @@ Coming next: **First sound**.
 
 **Cables:** left-click a terminal and the cable follows the pointer — no button held. (Almost everything in DreamRack works without a held button — gentler on the hand than dragging.) Left-click another terminal to connect it, or left-click anywhere else to drop it. A cable takes the colour of the input it plugs into, so you can read its job at a glance.
 
-> **Do this** — Left-click the **"Complex Oscillator"** Final output (near the centre top of the module), move to **channel A** of the **"Mixer"** (bottom-left, top row of inputs), and click to connect. The cable is yellow — its destination is an audio terminal.
+> **Do this** — Left-click the **"Complex Oscillator"** Final output (near the centre top of the module), move to **channel A** of the **"Mixer / Output"** (bottom-left, top row of inputs), and click to connect. The cable is yellow — its destination is an audio terminal.
 
 **Unplug or move a cable:** to remove or re-route a cable, left-click the terminal it's plugged into — the cable lifts off and follows the pointer again, just as if you'd started it there. Left-click another terminal to plug it in instead, or left-click empty space to remove it. Press Escape while carrying to cancel and leave the cable where it was. If more than one cable meets at that terminal, pull away in the direction of the one you want — the cable whose path matches your drag is the one that lifts off.
 
-> **Do this** — Left-click the **"Mixer"** channel A input where your cable lands: it lifts off and follows the pointer. Left-click channel A again to plug it back in, and leave it connected there for what follows. (To remove a cable for good, you'd drop it on empty space instead.)
+> **Do this** — Left-click the **"Mixer / Output"** channel A input where your cable lands: it lifts off and follows the pointer. Left-click channel A again to plug it back in, and leave it connected there for what follows. (To remove a cable for good, you'd drop it on empty space instead.)
 
 **Sound:** nothing plays until the sound engine is on.
 
@@ -109,13 +109,13 @@ Here it's trivial — one oscillator into one channel — but in a rack full of 
 Coming next: **Building a patch**.
 ## Building a patch
 
-**Your modules:** you already have a useful set of four — the "Complex Oscillator", "Quad Function Generator", "Quad Low Pass Gate", and "Mixer" — enough to build real patches. Adding and removing modules comes later; for now, build with these. (The sound engine should still be running from **First sound**; if it's off, turn it on from the menu's **Engine** item.)
+**Your modules:** you already have a useful set of four — the "Complex Oscillator", "Quad Function Generator", "Quad Low Pass Gate", and "Mixer / Output" — enough to build real patches. Adding and removing modules comes later; for now, build with these. (The sound engine should still be running from **First sound**; if it's off, turn it on from the menu's **Engine** item.)
 
 > **Do this** — This section works mostly with the "Quad Low Pass Gate", the module at the lower right. If this card covers it, pull its bottom edge up until the whole module is visible.
 
 **Create a pluck or percussive sound:** a plucked sound is a brief pulse of sound, made by passing a signal through a gate that opens and closes quickly — which is how a low pass gate works. To give it something to gate, send a signal from the oscillator into the gate's input.
 
-> **Do this** — Cable the "Complex Oscillator" **Square** output to the "Quad Low Pass Gate" **channel A** input (its **IN** jack), then the gate's **channel A** output (**OUT**) to the "Mixer" **channel B**. Nothing yet — the gate stays shut until it's struck.
+> **Do this** — Cable the "Complex Oscillator" **Square** output to the "Quad Low Pass Gate" **channel A** input (its **IN** jack), then the gate's **channel A** output (**OUT**) to the "Mixer / Output" **channel B**. Nothing yet — the gate stays shut until it's struck.
 
 **Play it:** the **Strike** button opens the gate for an instant — the sound bursts through, then decays. **Decay** sets how long the tail rings.
 
@@ -133,13 +133,13 @@ Coming next: **Building a patch**.
 
 > **Do this** — If channel A's **Enable** button on the mixer is illuminated, press it so it is not — that mutes the drone. Now explore: on the "Complex Oscillator" work the **Pitch**, **Timbre**, **Order**, **Symmetry**, **Mod Index** and the modulation buttons; on the gate, channel A's **Level** and **Decay**. Have fun — there's a wide range of sounds in here.
 
-> **Bonus** — Add a second voice: cable the "Complex Oscillator" **Sine** output to the gate's **channel B** input, and the gate's **channel B** output to the "Mixer" **channel C**. Turn on channel B's **Clock**, and set its **clock ratio** to a different value than channel A's — the two plucks cross in and out of step, building a shifting rhythm.
+> **Bonus** — Add a second voice: cable the "Complex Oscillator" **Sine** output to the gate's **channel B** input, and the gate's **channel B** output to the "Mixer / Output" **channel C**. Turn on channel B's **Clock**, and set its **clock ratio** to a different value than channel A's — the two plucks cross in and out of step, building a shifting rhythm.
 
 Coming next: **Getting around**.
 
 ## Getting around
 
-**Your rack:** the *rack* is the surface your modules sit on; a *module* is a single panel — the "Complex Oscillator", the "Mixer", and so on. Your four fit the window at once for now, but the moment you zoom in for a closer look — or add more modules later — the rack reaches past what the window can show, and you'll want to move around it and magnify parts of it. That's what this section covers. (Reshaping the rack itself — its rows, and adding or removing modules — will be covered later.)
+**Your rack:** the *rack* is the surface your modules sit on; a *module* is a single panel — the "Complex Oscillator", the "Mixer / Output", and so on. Your four fit the window at once for now, but the moment you zoom in for a closer look — or add more modules later — the rack reaches past what the window can show, and you'll want to move around it and magnify parts of it. That's what this section covers. (Reshaping the rack itself — its rows, and adding or removing modules — will be covered later.)
 
 **The Option key:** one key handles both moving and magnifying: **Option** (Alt on Windows). Hold it and the rack switches to a navigate mode: move the pointer to slide the view, and roll the wheel to zoom in and out on wherever the pointer is. The cursor becomes a four-way arrow while you navigate; let go and you're back to normal, ready to turn a knob or pull a cable.
 
@@ -157,7 +157,7 @@ Coming next: **Seeing and hearing**.
 
 ## Seeing and hearing
 
-**Listen with the monitor:** many outputs carry a signal even with no cable plugged into them, so you can listen to a point in the circuit on its own — and not just audio: even a slower output like an LFO or a clock may carry a signal you can listen to, unless it's a very low frequency. Right-click a terminal and hover **Monitor** to listen to just that point; move off and it stops. It's separate from your mix — the "Mixer" is the sound you're building, while a monitor checks any single signal, even one that isn't in the mix, brought up to a comfortable level.
+**Listen with the monitor:** many outputs carry a signal even with no cable plugged into them, so you can listen to a point in the circuit on its own — and not just audio: even a slower output like an LFO or a clock may carry a signal you can listen to, unless it's a very low frequency. Right-click a terminal and hover **Monitor** to listen to just that point; move off and it stops. It's separate from your mix — the "Mixer / Output" is the sound you're building, while a monitor checks any single signal, even one that isn't in the mix, brought up to a comfortable level.
 
 > **Do this** — Right-click a few different outputs on the "Complex Oscillator" — the modulation oscillator's **Triangle**, the principal **Sine**, the **Final** — and hover **Monitor** on each to hear how they differ, without wiring anything. If you built the patch last section, try it on the "Quad Low Pass Gate" too: hover **Monitor** on its **Clk Out**, and on channel A's **Clk A** output, to hear the clock ticking.
 
@@ -165,7 +165,7 @@ Coming next: **Seeing and hearing**.
 
 > **Do this** — Right-click a terminal, click **Monitor**, then drag the monitor to a spot near the terminal and click to set it down. Notice the callout: a ring appears around the terminal, joined to the monitor by a line, marking which signal it hears. Drop a couple more monitors on terminals — including ones with no cable — then hold the pointer over each and scroll to set its level, then click it to mute it and click again to bring it back.
 
-**Master and monitor buses:** the "Mixer" carries two output buses, side by side in its master section. **Master** is the mix you build from the six channels; **Monitor** is the sum of every monitor you've dropped — a second, independent sub-mix, like the monitor or aux bus on a real desk. Each bus has its own level fader and its own enable lamp beneath it, and the two are independent: play either, both, or neither. Dropping a monitor switches the Monitor bus on for you; turning it off silences all your monitors at once without removing them, and turning **Master** off leaves just the monitor sub-mix. Both buses are gated by the engine.
+**Master and monitor buses:** the "Mixer / Output" carries two output buses, side by side in its master section. **Master** is the mix you build from the six channels; **Monitor** is the sum of every monitor you've dropped — a second, independent sub-mix, like the monitor or aux bus on a real desk. Each bus has its own level fader and its own enable lamp beneath it, and the two are independent: play either, both, or neither. Dropping a monitor switches the Monitor bus on for you; turning it off silences all your monitors at once without removing them, and turning **Master** off leaves just the monitor sub-mix. Both buses are gated by the engine.
 
 > **Do this** — With a monitor or two running, find the **Master** and **Monitor** faders in the mixer's master section, each with an enable lamp below it. Set the **Monitor** level against the **Master**, then toggle the two enables — **Master** off to hear only your monitors, **Monitor** off to silence them and keep just the mix.
 

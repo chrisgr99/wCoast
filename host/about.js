@@ -12,7 +12,7 @@
 
 'use strict';
 
-export function createAbout({ appName, appVersion, author, getBuild, isDark, openExternal, repoUrl, onTutorial }) {
+export function createAbout({ appName, appVersion, author, getBuild, isDark, openExternal, repoUrl, contactUrl, onTutorial }) {
   let el;
 
   function applyTheme() { if (el) el.classList.toggle('theme-dark', !!(isDark && isDark())); }
@@ -75,6 +75,7 @@ export function createAbout({ appName, appVersion, author, getBuild, isDark, ope
 
     const links = document.createElement('div'); links.className = 'about-links';
     if (repoUrl) links.appendChild(extLink('Project on GitHub', repoUrl));
+    if (contactUrl) links.appendChild(extLink('Contact me on GitHub', contactUrl));
     if (onTutorial) {
       const t = document.createElement('a'); t.className = 'about-link'; t.href = '#'; t.textContent = 'Interactive tutorial';
       t.addEventListener('click', (e) => { e.preventDefault(); hide(); onTutorial(); });

@@ -55,7 +55,7 @@ params.push({ id: 'monitorEnable', name: 'Monitor enable', section: 'master', cu
 export default {
   id: 'mixer',
   apiVersion: 1,
-  name: 'Mixer',
+  name: 'Mixer / Output',
   abbreviation: 'Mix',
   worklets: [],          // native Web Audio nodes only
   sectioned: true,       // six independent channel strips — net highlight scopes to the hovered channel

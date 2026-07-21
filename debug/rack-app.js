@@ -68,7 +68,7 @@ const MODULE_TYPES = [{
   // The mixer is a pinned singleton placed at boot, so it's hidden from the
   // "Add module" menu (no second mixer). Still a normal module type otherwise.
   descriptorId: mixerDescriptor.id,
-  name: 'Mixer',
+  name: 'Mixer / Output',
   hp: 32,
   panelUrl: 'modules/mixer/panel.svg',
   descriptor: mixerDescriptor,
@@ -524,6 +524,7 @@ async function boot() {
     isDark: () => rack.isDark(),
     openExternal: (url) => rack._openExternal(url),
     repoUrl: 'https://github.com/chrisgr99/wCoast',
+    contactUrl: 'https://github.com/chrisgr99',
     onTutorial: () => { if (rack.onTutorial) rack.onTutorial(); },
   });
   rack.onAbout = () => about.toggle();
