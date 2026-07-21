@@ -519,6 +519,7 @@ async function boot() {
   const about = createAbout({
     appName: APP_NAME,
     appVersion: APP_VERSION,
+    author: 'Chris Graham',
     getBuild: () => rack.buildInfo,
     isDark: () => rack.isDark(),
     openExternal: (url) => rack._openExternal(url),

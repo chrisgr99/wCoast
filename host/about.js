@@ -12,7 +12,7 @@
 
 'use strict';
 
-export function createAbout({ appName, appVersion, getBuild, isDark, openExternal, repoUrl, onTutorial }) {
+export function createAbout({ appName, appVersion, author, getBuild, isDark, openExternal, repoUrl, onTutorial }) {
   let el;
 
   function applyTheme() { if (el) el.classList.toggle('theme-dark', !!(isDark && isDark())); }
@@ -58,7 +58,9 @@ export function createAbout({ appName, appVersion, getBuild, isDark, openExterna
     const ver = document.createElement('div'); ver.className = 'about-ver'; ver.textContent = 'Version ' + appVersion;
     const desc = document.createElement('div'); desc.className = 'about-desc';
     desc.textContent = 'An exploration of ideas for an easier-to-use, more powerful modular synthesis environment.';
-    body.appendChild(name); body.appendChild(ver); body.appendChild(desc);
+    body.appendChild(name); body.appendChild(ver);
+    if (author) { const by = document.createElement('div'); by.className = 'about-author'; by.textContent = 'Created by ' + author; body.appendChild(by); }
+    body.appendChild(desc);
 
     // The running revision, when known (Electron-from-source). Absent in the browser build.
     const b = typeof getBuild === 'function' ? getBuild() : null;
