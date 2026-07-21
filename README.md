@@ -16,7 +16,7 @@ More than that, it's an exploration. It began as an attempt to build the modular
 - **Inject a signal into any jack** without disturbing the patch cables — a button to fire a trigger, a toggle to hold a gate, or a simple sine or square wave — to drive or probe any input from outside the patch. *(TBD)*
 - **Take input from outside** — an interface module that receives events from Web Audio sequencers and hosts and converts them into DreamRack signals to play. *(TBD)*
 - **Play it polyphonically** — more than one voice at a time, not the single voice it is today. *(TBD)*
-- **Let any developer create new modules, and anyone snap them into their rack** — each a self-contained folder of plain JavaScript that drops in without altering the core framework and without a build step or separate development tools. *(done)*
+- **Let any developer create new modules, and anyone snap them into their rack** — each a self-contained folder of plain JavaScript that drops in without altering the core framework and without a build step or separate development tools; see the [module-authoring reference](MODULE-AUTHORING.md). *(done)*
 - **Explore how AI might help understand and create patches** — describing what a patch does, suggesting changes, or building one from a request. *(partly TBD)*
 
 ## Current state

@@ -411,6 +411,7 @@ async function boot() {
       fitToWindow: () => rack.resetZoom(),
       // Run the same items the in-window Help menu offers, rather than restating their URLs here.
       readme: () => { const it = rack.helpMenuItems().find((i) => i.label === 'README'); if (it) it.action(); },
+      reference: () => { const it = rack.helpMenuItems().find((i) => i.label === 'Developer reference'); if (it) it.action(); },
       tutorial: () => { if (rack.onTutorial) rack.onTutorial(); },
       patchNotes: () => { if (notes) notes.toggle(); },
       openExample: (e) => openExample(e.file, e.name),
@@ -432,7 +433,6 @@ async function boot() {
       { label: 'Open…', action: () => openPatch() },
       { label: 'Save', action: () => savePatch() },
       { label: 'Save As…', action: () => saveAsPatch() },
-      { label: 'Patch notes', action: () => notes.toggle() },
     ];
     if (examples.length) file.push({ label: 'Examples', submenu: examples.map((e) => ({ label: e.name, action: () => openExample(e.file, e.name) })) });
     if (storage.hasLast && storage.hasLast()) file.push({ label: `Reopen ${storage.lastName()}`, action: () => reopenPatch() });
@@ -442,6 +442,7 @@ async function boot() {
     if (recentFiles.length) {
       file.push({ label: 'Recent', submenu: recentFiles.map((f) => ({ label: f.name, action: () => openRecent(f.id) })) });
     }
+    file.push({ label: 'Share this patch…', disabled: true });   // greyed until there's a person-to-person channel
     const edit = [
       { label: 'Undo', disabled: !rack.canUndo(), action: () => rack.undo() },
       { label: 'Redo', disabled: !rack.canRedo(), action: () => rack.redo() },
@@ -452,6 +453,7 @@ async function boot() {
     const view = [
       { label: rack.isDark() ? 'Light mode' : 'Dark mode', action: () => toggleDark() },
       { label: 'Fit to window', action: () => rack.resetZoom() },
+      { label: 'Patch notes', action: () => notes.toggle() },   // info about this patch
     ];
     // Rack: rack-shaping actions gathered in one place. "Delete this module" acts on the module that was
     // right-clicked (rec); it's disabled when the background was clicked, or the module is pinned (mixer).

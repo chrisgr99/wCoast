@@ -31,6 +31,7 @@ const SCOPE_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor
 const NET_ICON = '<svg viewBox="0 0 24 24"><g stroke="currentColor" stroke-linecap="round"><line x1="12" y1="12" x2="20" y2="4.5" stroke-width="2.1"/><line x1="12" y1="12" x2="18.5" y2="21" stroke-width="2.1"/><circle cx="20" cy="4.5" r="3.2" fill="currentColor" stroke="none"/><circle cx="18.5" cy="21" r="3.2" fill="currentColor" stroke="none"/><line x1="3.5" y1="6" x2="12" y2="12" stroke-width="2.9"/><circle cx="3.5" cy="6" r="3.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="3.7" fill="currentColor" stroke="none"/></g></svg>';
 // Help links open the repo docs in the user's browser (see _openExternal).
 const DOCS_README_URL = 'https://github.com/chrisgr99/wCoast/blob/main/README.md';
+const DOCS_MODULE_URL = 'https://github.com/chrisgr99/wCoast/blob/main/MODULE-AUTHORING.md';   // developer reference for authoring modules
 const EAR_ICON = '<svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">'
   + '<g stroke-width="2"><path d="M10 21c-1.2-1.6-2-3.2-2-5.9A6 6 0 0 1 20 15c0 2.5-1.8 3.6-3.5 3.6-1.4 0-2 .9-2 2 0 1.4-1 2.5-2.4 2.5-1.1 0-2.1-.9-2.1-2.1"/>'
   + '<path d="M11.4 14A2.6 2.6 0 0 1 16.2 14.4c0 1.6-1.5 2.1-1.5 3.5"/></g>'
@@ -5122,14 +5123,15 @@ export class Rack {
 
   // The Help submenu items (used by the main menu): doc links opened in the browser.
   helpMenuItems() {
-    return [
-      { label: 'README', action: () => this._openExternal(DOCS_README_URL) },
-      ...(this.onTutorial ? [{ label: 'Interactive tutorial', action: () => this.onTutorial() }] : []),
-      ...(this.onPatchNotes ? [{ label: 'Patch notes', action: () => this.onPatchNotes() }] : []),
+    const feedback = [
       ...(this.onFeedback ? [{ label: 'Send feedback…', action: () => this.onFeedback() }] : []),
       ...(this.onReportBug ? [{ label: 'Report a bug…', action: () => this.onReportBug() }] : []),
-      ...(this.onSharePatch ? [{ label: 'Share this patch…', action: () => this.onSharePatch() }] : []),
-      { label: 'Reference — coming soon', disabled: true },
+    ];
+    return [
+      { label: 'README', action: () => this._openExternal(DOCS_README_URL) },
+      ...(this.onTutorial ? [{ label: 'Tutorial', action: () => this.onTutorial() }] : []),
+      ...(feedback.length ? [{ separator: true }, { label: 'Feedback', submenu: feedback }] : []),
+      { label: 'Developer reference', action: () => this._openExternal(DOCS_MODULE_URL) },
       ...(this.onAbout ? [{ separator: true }, { label: 'About DreamRack', action: () => this.onAbout() }] : []),
     ];
   }
