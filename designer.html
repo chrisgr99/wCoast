@@ -2,8 +2,11 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="dark">
 <title>DreamRack — Panel Designer</title>
 <style>
+  :root { color-scheme: dark; }
+  html { background:#1a1a1c; }
   * { box-sizing:border-box; }
   body { margin:0; height:100vh; display:flex; flex-direction:column; font-family:-apple-system,system-ui,sans-serif; background:#1a1a1c; color:#ddd; transition:background .2s; }
   body[data-dark="false"] { background:#dcdcdc; color:#222; }
@@ -55,7 +58,6 @@
   <div id="bar">
     <strong>Panel Designer</strong>
     <select id="picker"></select>
-    <button id="darkBtn">Dark</button>
     <span class="sep"></span>
     <button id="saveBtn" disabled>Save</button>
     <button id="revertBtn" disabled>Revert</button>

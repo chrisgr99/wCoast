@@ -29,6 +29,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { initMirror } = require('./electron-mirror');
+const { savePanel } = require('./designer-save.js');   // shared with the dev server
 
 // The source revision the running app was built from, computed once and handed to the renderer
 // (which stamps it into saved patches as `build`) so a bug report carrying a patch can be traced
@@ -86,6 +87,10 @@ function registerPatchIpc() {
   ipcMain.handle('open-external', async (_e, url) => {
     if (typeof url === 'string' && /^https?:\/\//i.test(url)) await shell.openExternal(url);
   });
+  // Open the panel editor (developer tool) as its own window, optionally on a module.
+  ipcMain.handle('open-panel-editor', (_e, moduleId) => openPanelEditor(typeof moduleId === 'string' ? moduleId : undefined));
+  // The panel editor's save: write a module's files and regenerate its panels on disk.
+  ipcMain.handle('designer:save', (_e, msg) => savePanel(__dirname, msg));
   // The source revision, for stamping into saved patches (null from a packaged, git-less build).
   ipcMain.handle('app:build', async () => buildInfo());
   ipcMain.handle('patch:open', async () => {
@@ -160,6 +165,33 @@ function menuSend(action, arg) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('menu:action', { action, arg });
 }
 
+// The panel editor (a developer tool) opens as its own window in the app — no external
+// browser, no dev server. It loads the same page over app://, and saves through the
+// designer:save IPC below. `moduleId` (a descriptor id) opens it focused on that module.
+let editorWindow = null;
+function openPanelEditor(moduleId) {
+  if (editorWindow && !editorWindow.isDestroyed()) {
+    editorWindow.focus();
+    if (moduleId) editorWindow.webContents.send('designer:select-module', moduleId);
+    return;
+  }
+  editorWindow = new BrowserWindow({
+    width: 1200,
+    height: 860,
+    title: 'DreamRack — Panel Editor',
+    backgroundColor: '#1a1a1c',   // dark from the first frame — no white flash
+    webPreferences: {
+      preload: path.join(__dirname, 'electron-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  const suffix = moduleId ? `?module=${encodeURIComponent(moduleId)}` : '';
+  editorWindow.loadURL(`${APP_ORIGIN}/designer.html${suffix}`);
+  editorWindow.on('closed', () => { editorWindow = null; });
+}
+
 function applyAppMenu() {
   const s = menuState;
   const template = [
@@ -210,6 +242,13 @@ function applyAppMenu() {
         { label: 'Patch Notes', click: () => menuSend('patchNotes') },   // info about this patch
       ],
     },
+    {
+      label: 'Developer',
+      submenu: [
+        { label: 'Developer Guide', click: () => menuSend('reference') },
+        { label: 'Open Panel Editor', click: () => openPanelEditor() },
+      ],
+    },
     { role: 'windowMenu' },
     {
       role: 'help',
@@ -221,7 +260,6 @@ function applyAppMenu() {
           { label: 'Send Feedback…', click: () => menuSend('feedback') },
           { label: 'Report a Bug…', click: () => menuSend('reportBug') },
         ] },
-        { label: 'Developer Reference', click: () => menuSend('reference') },
         { type: 'separator' },
         { label: 'About DreamRack', click: () => menuSend('about') },
       ],

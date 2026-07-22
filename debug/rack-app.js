@@ -422,7 +422,7 @@ async function boot() {
       fitToWindow: () => rack.resetZoom(),
       // Run the same items the in-window Help menu offers, rather than restating their URLs here.
       readme: () => { const it = rack.helpMenuItems().find((i) => i.label === 'README'); if (it) it.action(); },
-      reference: () => { const it = rack.helpMenuItems().find((i) => i.label === 'Developer reference'); if (it) it.action(); },
+      reference: () => { const it = rack.developerMenuItems().find((i) => i.label === 'Developer guide'); if (it) it.action(); },
       tutorial: () => { if (rack.onTutorial) rack.onTutorial(); },
       patchNotes: () => { if (notes) notes.toggle(); },
       openExample: (e) => openExample(e.file, e.name),
@@ -490,6 +490,7 @@ async function boot() {
       { label: 'Edit', submenu: edit },
       { label: 'View', submenu: view },
       { label: 'Rack', submenu: rackMenu },
+      { label: 'Developer', submenu: rack.developerMenuItems(rec) },
       { label: 'Help', submenu: rack.helpMenuItems() },
     ]);
   };

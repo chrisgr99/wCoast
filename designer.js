@@ -37,7 +37,6 @@ const MODULES = [
 
 const stage = document.getElementById('stage');
 const picker = document.getElementById('picker');
-const darkBtn = document.getElementById('darkBtn');
 const saveBtn = document.getElementById('saveBtn');
 const revertBtn = document.getElementById('revertBtn');
 const status = document.getElementById('status');
@@ -46,7 +45,7 @@ const inspector = document.getElementById('inspector');
 const newBtn = document.getElementById('newBtn');
 const tools = document.getElementById('tools');
 
-let dark = true;
+const dark = true;   // the editor is always dark — a panel is always drawn in dark mode here
 let idx = 0;
 let selectedId = null;
 let currentLayout = null;   // the working layout of the last render (base + overrides)
@@ -221,9 +220,15 @@ async function save() {
     ? { dir: m.dir, editorOwned: true, layout: applyOverrides(clone(m.base), m.overrides), descriptor: m.workDesc }
     : { dir: m.dir, overrides: m.overrides };
   try {
-    const res = await fetch('/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.error || res.statusText);
+    let data;
+    if (window.wcoast && window.wcoast.designerSave) {
+      data = await window.wcoast.designerSave(body);   // in-app: IPC to the main process (no server)
+    } else {
+      const res = await fetch('/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });   // standalone dev server
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+    }
+    if (!data || !data.ok) throw new Error((data && data.error) || 'save failed');
     if (m.editorOwned) { m.savedLayout = clone(m.base); m.savedDesc = clone(m.workDesc); m.dirtyDraft = false; status.textContent = `Saved ${m.name} → modules/${m.dir}/ (layout + descriptor + panels)`; }
     else { m.saved = clone(m.overrides); status.textContent = `Saved ${m.name} — panel.svg + panel.dark.svg regenerated`; }
   } catch (e) {
@@ -570,6 +575,15 @@ function refreshStatus() {
   readout.textContent = MODULES[idx].editorOwned ? 'Pick a tool to add a control · click a control to select · drag or arrow-keys to move' : 'Click a control to select · drag or arrow-keys to move · Shift = ×5';
 }
 
+// Select a module by its descriptor id (e.g. from "Edit this panel…" in the rack, or ?module=).
+function selectModuleById(id) {
+  const i = MODULES.findIndex((m) => m.desc && m.desc.id === id);
+  if (i < 0) return false;
+  idx = i; picker.value = String(i); selectedId = null; activeTool = null;
+  clearInspector(); refreshToolbox(); scheduleRender();
+  return true;
+}
+
 // ---- load saved overrides, then first render -----------------------------
 async function boot() {
   await Promise.all(MODULES.map(async (m) => {
@@ -578,12 +592,14 @@ async function boot() {
       if (res.ok) { const ov = await res.json(); m.overrides = ov; m.saved = clone(ov); }
     } catch (_e) { /* none saved */ }
   }));
+  const wanted = new URLSearchParams(location.search).get('module');
+  if (wanted) selectModuleById(wanted);   // opened from "Edit this panel…"
+  if (window.wcoast && window.wcoast.onSelectModule) window.wcoast.onSelectModule(selectModuleById);
   clearInspector();
   scheduleRender();
 }
 
 picker.addEventListener('change', () => { idx = Number(picker.value); selectedId = null; activeTool = null; clearInspector(); refreshToolbox(); scheduleRender(); });
-darkBtn.addEventListener('click', () => { dark = !dark; darkBtn.textContent = dark ? 'Dark' : 'Light'; scheduleRender(); });
 saveBtn.addEventListener('click', save);
 revertBtn.addEventListener('click', revert);
 newBtn.addEventListener('click', newDraft);

@@ -5131,9 +5131,23 @@ export class Rack {
       { label: 'README', action: () => this._openExternal(DOCS_README_URL) },
       ...(this.onTutorial ? [{ label: 'Tutorial', action: () => this.onTutorial() }] : []),
       ...(feedback.length ? [{ separator: true }, { label: 'Feedback', submenu: feedback }] : []),
-      { label: 'Developer reference', action: () => this._openExternal(DOCS_MODULE_URL) },
       ...(this.onAbout ? [{ separator: true }, { label: 'About DreamRack', action: () => this.onAbout() }] : []),
     ];
+  }
+  // The Developer submenu items (used by the main menu): the authoring guide, and the
+  // panel editor — a developer tool for drawing module faceplates and interfaces. The
+  // editor is Electron-only (it needs Node to save), so its items appear only there.
+  // `rec` is the right-clicked module, if any: it adds "Edit this panel…", kept inside
+  // Developer so it reads as an advanced action, not something to reach for casually.
+  developerMenuItems(rec) {
+    const items = [{ label: 'Developer guide', action: () => this._openExternal(DOCS_MODULE_URL) }];
+    if (window.wcoast && window.wcoast.openPanelEditor) {
+      items.push({ label: 'Open panel editor', action: () => window.wcoast.openPanelEditor() });
+      if (rec && rec.descriptorId && !rec.pinned) {
+        items.push({ label: 'Edit this panel…', action: () => window.wcoast.openPanelEditor(rec.descriptorId) });
+      }
+    }
+    return items;
   }
   // The Engine menu item's glyph: the same reddish push-button as the mixer's master lamp
   // (and the old panel-pie sound wedge). A flat medium-gray disc when the engine is OFF; the

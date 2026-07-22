@@ -13,6 +13,11 @@ contextBridge.exposeInMainWorld('wcoast', {
   // Open an external URL (docs / help links) in the user's default browser,
   // rather than a new Electron window.
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  // Open the panel editor window (developer tool), optionally focused on a module (descriptor id).
+  openPanelEditor: (moduleId) => ipcRenderer.invoke('open-panel-editor', moduleId),
+  // The panel editor page uses these: write a module's files, and be told which module to focus.
+  designerSave: (msg) => ipcRenderer.invoke('designer:save', msg),
+  onSelectModule: (cb) => ipcRenderer.on('designer:select-module', (_e, id) => cb(id)),
   // The source revision this app was built from ({ commit, short, branch, describe, dirty,
   // committedAt } | null), stamped into saved patches for bug-report traceability.
   build: () => ipcRenderer.invoke('app:build'),
