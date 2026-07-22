@@ -6,7 +6,7 @@
 
 'use strict';
 
-const { evenScale } = require('../../panel/primitives');
+import { evenScale } from '../../panel/primitives.js';
 
 const CH = ['A', 'B', 'C', 'D'];
 const FACE_W = 99, FACE_H = 113.5912, FACE_LEFT = 3.9, FACE_TOP = 7.0994;
@@ -70,4 +70,4 @@ function quadRegion(knobId, portId, enId, cy, nm) {
 quadRegion('quadTimeAB', 'quadOutAB', 'quadEnAB', 34, 'A-B');
 quadRegion('quadTimeCD', 'quadOutCD', 'quadEnCD', 84, 'C-D');
 
-module.exports = { faceW: FACE_W, faceH: FACE_H, faceLeft: FACE_LEFT, faceTop: FACE_TOP, wrap: true, items };
+export default { faceW: FACE_W, faceH: FACE_H, faceLeft: FACE_LEFT, faceTop: FACE_TOP, wrap: true, items };

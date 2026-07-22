@@ -16,8 +16,8 @@
 
 'use strict';
 
-const { THEME } = require('./theme');
-const { defs, jack, knob, slider, button, vuMeter, label, radioGroup, bipolarMark, attachedLabel, ledLamp, stepButton } = require('./primitives');
+import { THEME } from './theme.js';
+import { defs, jack, knob, slider, button, vuMeter, label, radioGroup, bipolarMark, attachedLabel, ledLamp, stepButton } from './primitives.js';
 
 // A control's opts carry no colour in the layout; inject the theme the primitive
 // needs — `theme` for the ones that take it, and the ink into an attached `label`
@@ -88,4 +88,4 @@ function renderPanel(layout, dark) {
   return p.join('\n') + '\n';
 }
 
-module.exports = { renderPanel, renderItem };
+export { renderPanel, renderItem };

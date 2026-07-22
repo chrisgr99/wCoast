@@ -7,7 +7,7 @@
 
 'use strict';
 
-const { evenScale } = require('../../panel/primitives');
+import { evenScale } from '../../panel/primitives.js';
 
 const FACE_W = 142, FACE_H = 113.5912, FACE_LEFT = 3.9, FACE_TOP = 7.0994;
 const CH = ['A', 'B', 'C', 'D'];
@@ -87,4 +87,4 @@ ink(96, BOT, 'SUM', { size: 2.2 });
 items.push({ t: 'jack', id: 'mixOdd', x: 112, y: BOT, opts: { label: lab('ODD A C') } });
 items.push({ t: 'jack', id: 'mixEven', x: 126, y: BOT, opts: { label: lab('EVEN B D') } });
 
-module.exports = { faceW: FACE_W, faceH: FACE_H, faceLeft: FACE_LEFT, faceTop: FACE_TOP, wrap: true, items };
+export default { faceW: FACE_W, faceH: FACE_H, faceLeft: FACE_LEFT, faceTop: FACE_TOP, wrap: true, items };

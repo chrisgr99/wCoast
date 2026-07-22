@@ -7,7 +7,7 @@
 
 'use strict';
 
-const { evenScale } = require('../../panel/primitives');
+import { evenScale } from '../../panel/primitives.js';
 
 const FACE_W = 164.133, OX = 3.9, OY = 1.036;
 const HZ = [['27.5', 'A1'], ['55', 'A2'], ['110', 'A3'], ['220', 'A4'], ['440', 'A5'], ['880', 'A6'], ['1760', 'A7'], ['3520', 'A8'], ['7040', 'A9']];
@@ -86,4 +86,4 @@ K('order', kX, 53.7, 8.05, null); items.push({ t: 'attachedLabel', x: hX, y: 53.
 K('timbre', kX, 78.1, 7.45, null); items.push({ t: 'attachedLabel', x: hX, y: 78.1, hw: 7.45, hh: 7.45, opts: lab('TIMBRE') });
 K('timbreCvAmount', kX, 100.6, 6.98, null); items.push({ t: 'attachedLabel', x: hX, y: 100.6, hw: 6.98, hh: 6.98, opts: lab('c.v.') }); mark(kX, 100.6, 6.98); jp('timbreCvIn', 148.5, 111.6);
 
-module.exports = { faceW: FACE_W, wrap: false, items };
+export default { faceW: FACE_W, wrap: false, items };

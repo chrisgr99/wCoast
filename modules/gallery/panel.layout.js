@@ -6,7 +6,7 @@
 
 'use strict';
 
-const { evenScale } = require('../../panel/primitives');
+import { evenScale } from '../../panel/primitives.js';
 
 const FACE_W = 270, FACE_H = 113.5912, MID = 104, MID2 = 160, MID3 = 230;
 const FAMILIES = ['audio', 'cv', 'trig', 'pitch'];
@@ -79,4 +79,4 @@ ink(250, 15.5, 'VU meter · length · count · v/h', { size: 2.2 });
 items.push({ t: 'vu', role: 'vu', x: 243, y: 78, opts: { length: 42, orientation: 'v', segments: 12, chan: 'A', lit: 8 } });
 items.push({ t: 'vu', role: 'vu', x: 237, y: 98, opts: { length: 26, orientation: 'h', segments: 9, chan: 'B', lit: 5 } });
 
-module.exports = { faceW: FACE_W, faceH: FACE_H, faceLeft: 0, faceTop: 7.0994, wrap: true, wrapIndent: '', items };
+export default { faceW: FACE_W, faceH: FACE_H, faceLeft: 0, faceTop: 7.0994, wrap: true, wrapIndent: '', items };

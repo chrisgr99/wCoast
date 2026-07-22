@@ -1,13 +1,11 @@
-// Generator for the Quad Low Pass Gate faceplate.
-//
-// The layout now lives as data in panel.layout.js; this just renders it to the
-// light + dark SVGs through the shared table-driven renderer (panel/render.js).
-// See design/panel-editor.md.
-'use strict';
-const fs = require('fs');
-const { renderPanel } = require('../../panel/render.js');
-const layout = require('./panel.layout.js');
+// Generator — renders panel.layout.js to the light + dark SVGs via the shared
+// table-driven renderer (panel/render.js). See design/panel-editor.md.
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { renderPanel } from '../../panel/render.js';
+import layout from './panel.layout.js';
 
-fs.writeFileSync(__dirname + '/panel.svg', renderPanel(layout, false));
-fs.writeFileSync(__dirname + '/panel.dark.svg', renderPanel(layout, true));
+const dir = fileURLToPath(new URL('.', import.meta.url));
+fs.writeFileSync(dir + 'panel.svg', renderPanel(layout, false));
+fs.writeFileSync(dir + 'panel.dark.svg', renderPanel(layout, true));
 console.log('wrote panel.svg + panel.dark.svg');

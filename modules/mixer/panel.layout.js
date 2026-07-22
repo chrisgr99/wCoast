@@ -68,4 +68,4 @@ ink(ENGINE_X, Y_MUTE + 1, 'ENGINE', { size: 1.9 });
 vu('vuMonitor', MON_X, 'MON');
 vu('vuMaster', MSTR_X, 'M');
 
-module.exports = { faceW: FACE_W, faceH: FACE_H, faceLeft: FACE_LEFT, faceTop: FACE_TOP, wrap: true, items };
+export default { faceW: FACE_W, faceH: FACE_H, faceLeft: FACE_LEFT, faceTop: FACE_TOP, wrap: true, items };

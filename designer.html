@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>DreamRack — Panel Designer</title>
+<style>
+  body { margin:0; font-family:-apple-system,system-ui,sans-serif; background:#1a1a1c; color:#ddd; transition:background .2s; }
+  body[data-dark="false"] { background:#dcdcdc; color:#222; }
+  #bar { display:flex; align-items:center; gap:12px; padding:10px 14px; border-bottom:1px solid #333; }
+  body[data-dark="false"] #bar { border-color:#bbb; }
+  select, button { font:inherit; padding:5px 10px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; }
+  body[data-dark="false"] select, body[data-dark="false"] button { background:#eee; border-color:#aaa; }
+  #status { margin-left:auto; opacity:.7; font-size:13px; }
+  #stage { display:flex; justify-content:center; align-items:flex-start; padding:36px; overflow:auto; }
+</style>
+</head>
+<body data-dark="true">
+  <div id="bar">
+    <strong>Panel Designer</strong>
+    <select id="picker"></select>
+    <button id="darkBtn">Dark</button>
+    <span id="status"></span>
+  </div>
+  <div id="stage"></div>
+  <script type="module" src="designer.js"></script>
+</body>
+</html>

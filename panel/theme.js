@@ -31,4 +31,4 @@ const FAMILY = {
   pitch: '#39a85a',    // green (1V/oct)
 };
 
-module.exports = { THEME, JACK_NEUTRAL, JACK_HOLE, FAMILY };
+export { THEME, JACK_NEUTRAL, JACK_HOLE, FAMILY };

@@ -5,7 +5,7 @@
 // attributes the host reads (data-wcoast-port / -param / -cx / -cy). See
 // design/faceplate-system.md and DESIGN.md §5 (binding contract).
 
-const { JACK_NEUTRAL, JACK_HOLE } = require('./theme');
+import { JACK_NEUTRAL, JACK_HOLE } from './theme.js';
 
 // Shared <defs> every panel needs: soft drop shadow, the house blue knob ring
 // (theme-independent), and the knob cap gradient (theme-dependent — pass the theme
@@ -362,4 +362,4 @@ function bipolarMark(kx, ky, kr, { gap = 2.0, spanDeg = 23, r = 1.27, color = '#
   return `  <g>\n    ${parts.join('\n    ')}\n  </g>`;
 }
 
-module.exports = { defs, jack, knob, label, attachedLabel, evenScale, bipolarMark, ledLamp, waveGlyph, button, radioGroup, stepButton, slider, vuMeter, textWidth, wrapLines };
+export { defs, jack, knob, label, attachedLabel, evenScale, bipolarMark, ledLamp, waveGlyph, button, radioGroup, stepButton, slider, vuMeter, textWidth, wrapLines };
