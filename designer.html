@@ -18,11 +18,6 @@
   #barTitle { font-weight:700; }
   #status { margin-left:auto; opacity:.75; font-size:13px; }
   #readout { padding:6px 14px; font-size:12px; opacity:.6; font-variant-numeric:tabular-nums; border-bottom:1px solid #2a2a2a; flex:none; }
-  #tools { display:flex; align-items:center; gap:6px; padding:8px 12px; border-bottom:1px solid #2a2a2a; flex:none; flex-wrap:wrap; }
-  #tools .tlabel { font-size:11px; opacity:.5; text-transform:uppercase; letter-spacing:.06em; margin-right:4px; }
-  #tools button { padding:4px 10px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; font-size:12px; }
-  #tools button.active { border-color:#39a0ff; background:#233; color:#9dcbff; }
-  #tools button:disabled { opacity:.35; cursor:default; }
   #work { flex:1; display:flex; min-height:0; }
   /* Block flow (not flex) so the panel is unconditionally at the TOP of the scroll region;
      margin:auto centres it horizontally when it fits and left-aligns it (no clipping) when it's wider. */
@@ -53,6 +48,17 @@
   #floatRoot .float-title { flex:1; font-weight:700; font-variant-numeric:tabular-nums; }
   #floatRoot .float-close { flex:none; width:22px; height:22px; line-height:1; border-radius:5px; border:1px solid #555; background:#2a2a2e; color:#ccc; cursor:pointer; }
   #floatRoot .float-body { padding:7px 11px; overflow:auto; }
+  /* control gallery (palette float) + drag ghost */
+  #floatRoot .float[data-float="palette"] .float-body { padding:8px; }
+  .palette-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; width:154px; }
+  .palette-item { display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 4px; border:1px solid #3a3a42; border-radius:7px; background:#26262b; cursor:grab; user-select:none; }
+  .palette-item:hover { background:#2f2f36; border-color:#4a4a55; }
+  .palette-item.disabled { cursor:default; }
+  .palette-item svg { width:40px; height:30px; }
+  .palette-item span { font-size:11px; opacity:.78; }
+  .palette-note { grid-column:1 / -1; font-size:11px; opacity:.55; font-style:italic; padding:2px 2px 4px; }
+  .drag-ghost { position:fixed; transform:translate(-50%,-50%); pointer-events:none; z-index:1200; opacity:.85; width:46px; height:38px; }
+  .drag-ghost svg { width:100%; height:100%; }
   /* menus */
   #menuRoot .menu { position:absolute; min-width:180px; background:#25252a; border:1px solid #444; border-radius:8px; padding:5px; box-shadow:0 10px 30px rgba(0,0,0,0.5); font-size:13px; z-index:1000; }
   #menuRoot .menu-item { position:relative; display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:5px; cursor:pointer; white-space:nowrap; }
@@ -80,7 +86,6 @@
     <button id="closeBtn" title="Close editor" aria-label="Close editor">&times;</button>
   </div>
   <div id="readout"></div>
-  <div id="tools"></div>
   <div id="work">
     <div id="stage"></div>
   </div>

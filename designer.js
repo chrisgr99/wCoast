@@ -11,6 +11,8 @@
 import { renderPanel } from './panel/render.js';
 import { loadPanel } from './host/panel-loader.js';
 import { applyOverrides } from './panel/overrides.js';
+import { THEME } from './panel/theme.js';
+import { defs, jack, knob, radioGroup, button, slider, label } from './panel/primitives.js';   // control-gallery thumbnails
 
 import oscLayout from './modules/complex-oscillator-259t/panel.layout.js';
 import oscDesc from './modules/complex-oscillator-259t/descriptor.js';
@@ -38,7 +40,6 @@ const MODULES = [
 const stage = document.getElementById('stage');
 const status = document.getElementById('status');
 const readout = document.getElementById('readout');
-const tools = document.getElementById('tools');
 const burger = document.getElementById('burger');
 const menuRoot = document.getElementById('menuRoot');
 const dialogRoot = document.getElementById('dialogRoot');
@@ -54,7 +55,6 @@ let idx = 0;
 let selectedId = null;
 let currentLayout = null;   // the working layout of the last render (base + overrides)
 let currentSvg = null;
-let activeTool = null;      // a toolbox type armed for placement (editor-owned modules only)
 let lastWarnings = [];      // binding warnings from the last render — the validation signal
 let draftCount = 0;
 let resetScrollNext = true; // scroll the stage to the top on load / module change (not mid-edit)
@@ -92,13 +92,13 @@ function pushUndo(key) {
 }
 function canUndo() { return MODULES[idx].undo.length > 0; }
 function canRedo() { return MODULES[idx].redo.length > 0; }
-function undo() { const m = MODULES[idx]; if (!m.undo.length) return; m.redo.push(snapshot()); restoreSnap(m.undo.pop()); selectedId = null; closeFloats(); refreshToolbox(); scheduleRender(); }
-function redo() { const m = MODULES[idx]; if (!m.redo.length) return; m.undo.push(snapshot()); restoreSnap(m.redo.pop()); selectedId = null; closeFloats(); refreshToolbox(); scheduleRender(); }
+function undo() { const m = MODULES[idx]; if (!m.undo.length) return; m.redo.push(snapshot()); restoreSnap(m.undo.pop()); selectedId = null; closeFloats(); refreshPalette(); scheduleRender(); }
+function redo() { const m = MODULES[idx]; if (!m.redo.length) return; m.undo.push(snapshot()); restoreSnap(m.redo.pop()); selectedId = null; closeFloats(); refreshPalette(); scheduleRender(); }
 
 function selectModuleIndex(i) {
   if (i < 0 || i >= MODULES.length) return;
-  idx = i; selectedId = null; activeTool = null; resetScrollNext = true;
-  closeFloats(); refreshToolbox(); scheduleRender();
+  idx = i; selectedId = null; resetScrollNext = true;
+  closeFloats(); refreshPalette(); scheduleRender();
 }
 
 // ---- zoom (View menu, Cmd +/-) -------------------------------------------
@@ -166,6 +166,8 @@ function mainMenu() {
     { label: 'Zoom in', action: () => zoomBy(1.2) },
     { label: 'Zoom out', action: () => zoomBy(1 / 1.2) },
     { label: 'Actual size', action: zoomReset },
+    { separator: true },
+    { label: 'Controls palette', checked: paletteOpen(), action: togglePalette },
   ];
   const help = [
     { label: 'How to use the editor', action: showHelp },
@@ -270,6 +272,10 @@ async function renderOnce() {
 // and the selection highlight should cover the WHOLE control, so we size them from the
 // rendered element's bounds. Point controls (knob, jack, button) stay a centred circle.
 const GROUP_TYPES = new Set(['radio', 'stepButton', 'lampGroup', 'vu']);
+// A bound control still carrying its auto-generated placeholder id (knob1, jack2…) hasn't
+// had its identity defined — the id is the binding contract, so this flags "needs setup".
+function isUnconfigured(it, cid) { return !STRUCTURE_TYPES.has(it.t) && new RegExp('^' + it.t + '\\d+$').test(cid || ''); }
+function unconfiguredCount() { const m = MODULES[idx]; if (!m.editorOwned) return 0; return m.base.items.filter((it) => isUnconfigured(it, it.id || it.param)).length; }
 function buildOverlay(svg, layout) {
   const off = itemOffset(layout);
   const g = document.createElementNS(NS, 'g');
@@ -277,7 +283,7 @@ function buildOverlay(svg, layout) {
   layout.items.forEach((it) => {
     const cid = it.id || it.param;   // lamp groups carry `param`, not `id`
     if (!cid) return;
-    let handle, selection;
+    let handle, selection, markerAt = null;
     let box = null;
     if (GROUP_TYPES.has(it.t)) {
       const rendered = svg.querySelector(`[data-wcoast-param="${cid}"]`) || svg.querySelector(`[data-wcoast-port="${cid}"]`);
@@ -286,6 +292,7 @@ function buildOverlay(svg, layout) {
     if (box) {
       handle = document.createElementNS(NS, 'rect');
       handle.setAttribute('x', box.x); handle.setAttribute('y', box.y); handle.setAttribute('width', box.w); handle.setAttribute('height', box.h);
+      markerAt = { x: box.x + box.w, y: box.y };
       if (cid === selectedId) {
         selection = document.createElementNS(NS, 'rect');
         selection.setAttribute('x', box.x); selection.setAttribute('y', box.y); selection.setAttribute('width', box.w); selection.setAttribute('height', box.h);
@@ -297,6 +304,7 @@ function buildOverlay(svg, layout) {
       const cx = off.x + a.x, cy = off.y + a.y;
       handle = document.createElementNS(NS, 'circle');
       handle.setAttribute('cx', cx); handle.setAttribute('cy', cy); handle.setAttribute('r', a.r);
+      markerAt = { x: cx + a.r, y: cy - a.r };
       if (cid === selectedId) {
         selection = document.createElementNS(NS, 'circle');
         selection.setAttribute('cx', cx); selection.setAttribute('cy', cy); selection.setAttribute('r', a.r + 1.2);
@@ -312,12 +320,17 @@ function buildOverlay(svg, layout) {
     handle.style.cursor = 'grab';
     handle.addEventListener('pointerdown', (e) => startDrag(e, cid));
     g.appendChild(handle);
+    if (markerAt && MODULES[idx].editorOwned && isUnconfigured(it, cid)) {   // amber dot: still on its placeholder id
+      const dot = document.createElementNS(NS, 'circle');
+      dot.setAttribute('cx', markerAt.x); dot.setAttribute('cy', markerAt.y); dot.setAttribute('r', '1.3');
+      dot.setAttribute('fill', '#f0a020'); dot.setAttribute('stroke', '#1a1a1c'); dot.setAttribute('stroke-width', '0.3'); dot.setAttribute('pointer-events', 'none');
+      g.appendChild(dot);
+    }
   });
   svg.appendChild(g);
   svg.addEventListener('pointerdown', (e) => {
     if (e.target !== svg) return;
-    if (activeTool && MODULES[idx].editorOwned) placeControl(activeTool, e);
-    else { selectedId = null; scheduleRender(); }   // deselect; any open settings float stays
+    selectedId = null; scheduleRender();   // click empty space to deselect; open floats stay
   });
 }
 
@@ -781,7 +794,7 @@ function refreshSettings() {   // rebuild the settings float in place after a st
   showFloat('settings', `${it.t} · ${settingsId}`, body);
 }
 function closeSettings() { settingsId = null; const f = floatRoot.querySelector('.float[data-float="settings"]'); if (f) f.remove(); }
-function closeFloats() { floatRoot.replaceChildren(); settingsId = null; }   // module change / big state change
+function closeFloats() { floatRoot.querySelectorAll('.float:not([data-float="palette"])').forEach((f) => f.remove()); settingsId = null; }   // closes transient floats; the palette persists
 
 // Module settings (name / id / width) — a floating panel reached from the File menu.
 function openModuleSettings() {
@@ -795,29 +808,64 @@ function openModuleSettings() {
   showFloat('module', `Module · ${m.workDesc.id}`, root, 140, 120);
 }
 
-// ---- toolbox & authoring (editor-owned draft modules) --------------------
+// ---- control gallery (a floating palette; drag a control onto the panel) --
 const TOOLS = [
   { type: 'jack', label: 'Jack' }, { type: 'knob', label: 'Knob' },
   { type: 'radio', label: 'Radio' }, { type: 'button', label: 'Button' }, { type: 'slider', label: 'Slider' },
   { type: 'label', label: 'Label', structure: true }, { type: 'divider', label: 'Divider', structure: true },
 ];
 const STRUCTURE_TYPES = new Set(['label', 'divider']);
-function buildToolbox() {
-  tools.replaceChildren();
-  const lab = document.createElement('span'); lab.className = 'tlabel'; lab.textContent = 'Add'; tools.appendChild(lab);
-  for (const t of TOOLS) {
-    const b = document.createElement('button'); b.textContent = t.label; b.dataset.tool = t.type;
-    b.addEventListener('click', () => { activeTool = activeTool === t.type ? null : t.type; refreshToolbox(); });
-    tools.appendChild(b);
-  }
-  const hint = document.createElement('span'); hint.className = 'tlabel'; hint.id = 'toolHint'; tools.appendChild(hint);
-  refreshToolbox();
+
+// A small SVG preview of a sample control, drawn with the real primitives. The viewBox
+// bounds it loosely; the SVG scales/centres it into the thumbnail box.
+function thumbSVG(type) {
+  const th = THEME.dark;
+  let inner = '', vb = '0 0 12 12';
+  if (type === 'jack') { inner = jack('t', 4, 4, {}); vb = '0 0 8 8'; }
+  else if (type === 'knob') { inner = knob('t', 6, 6, { radius: 4.6, theme: th }); vb = '0 0 12 12'; }
+  else if (type === 'radio') { inner = radioGroup('t', 2.4, 3, { orientation: 'h', spacing: 3.6, ledR: 1.5, steps: [{ value: 'a' }, { value: 'b' }, { value: 'c' }], theme: th }); vb = '0 0 11 6'; }
+  else if (type === 'button') { inner = button('t', 4, 4, { r: 3, kind: 'red' }); vb = '0 0 8 8'; }
+  else if (type === 'slider') { inner = slider('t', 4, { top: 1, bot: 12, valuePos: 0.6, theme: th }); vb = '0 0 8 14'; }
+  else if (type === 'label') { inner = label(6, 7.5, 'Aa', { size: 4.5, fill: th.ink }); vb = '0 0 12 11'; }
+  else if (type === 'divider') { inner = `<line x1="1" y1="4" x2="13" y2="4" stroke="${th.frame}" stroke-width="0.7"/>`; vb = '0 0 14 8'; }
+  const [, , w, h] = vb.split(' ').map(Number);
+  const face = `<rect x="0" y="0" width="${w}" height="${h}" rx="1" fill="${th.face}"/>`;   // panel-face bg so the control reads at normal brightness
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}">${defs(th)}${face}${inner}</svg>`;
 }
-function refreshToolbox() {
+
+function buildPalette() {
   const owned = MODULES[idx] && MODULES[idx].editorOwned;
-  for (const b of tools.querySelectorAll('button')) { b.disabled = !owned; b.classList.toggle('active', !!owned && b.dataset.tool === activeTool); }
-  const hint = document.getElementById('toolHint');
-  if (hint) hint.textContent = !owned ? 'shipped module — start a new module to add controls' : activeTool ? 'click the panel to place' : '';
+  const grid = document.createElement('div'); grid.className = 'palette-grid';
+  for (const t of TOOLS) {
+    const cell = document.createElement('div'); cell.className = 'palette-item' + (owned ? '' : ' disabled'); cell.title = t.label;
+    cell.innerHTML = thumbSVG(t.type) + `<span>${t.label}</span>`;
+    if (owned) cell.addEventListener('pointerdown', (e) => startPaletteDrag(t.type, e));
+    grid.appendChild(cell);
+  }
+  if (!owned) { const n = document.createElement('div'); n.className = 'palette-note'; n.textContent = 'Start a new module (File menu) to add controls.'; grid.appendChild(n); }
+  showFloat('palette', 'Controls', grid);
+}
+function paletteOpen() { return !!floatRoot.querySelector('.float[data-float="palette"]'); }
+function openPalette() { if (!paletteOpen()) { buildPalette(); const f = floatRoot.querySelector('.float[data-float="palette"]'); f.style.left = '16px'; f.style.top = '150px'; } }
+function refreshPalette() { if (paletteOpen()) buildPalette(); }
+function togglePalette() { const f = floatRoot.querySelector('.float[data-float="palette"]'); if (f) f.remove(); else openPalette(); }
+
+// Drag a control from the palette: a ghost preview follows the pointer; dropping over
+// the panel places it there.
+function startPaletteDrag(type, e) {
+  if (e.button !== 0 || !MODULES[idx].editorOwned) return;
+  e.preventDefault(); e.stopPropagation();
+  const ghost = document.createElement('div'); ghost.className = 'drag-ghost'; ghost.innerHTML = thumbSVG(type);
+  document.body.appendChild(ghost);
+  const move = (ev) => { ghost.style.left = `${ev.clientX}px`; ghost.style.top = `${ev.clientY}px`; };
+  move(e);
+  const up = (ev) => {
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+    ghost.remove();
+    const r = currentSvg && currentSvg.getBoundingClientRect();
+    if (r && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) placeControl(type, ev.clientX, ev.clientY);
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
 }
 
 function newDraft() {
@@ -831,7 +879,7 @@ function newDraft() {
   const m = { name: `New Module ${n}`, dir: `draft-${n}`, base, desc, workDesc: clone(desc), overrides: {}, saved: {}, editorOwned: true, dirtyDraft: true, undo: [], redo: [] };
   MODULES.push(m);
   idx = MODULES.length - 1;
-  selectedId = null; activeTool = null; resetScrollNext = true; closeFloats(); refreshToolbox(); scheduleRender();
+  selectedId = null; resetScrollNext = true; closeFloats(); openPalette(); scheduleRender();
 }
 
 let idSeq = 0;
@@ -856,11 +904,11 @@ function makeControl(type, id, x, y) {
     default: return null;
   }
 }
-function placeControl(type, e) {
+function placeControl(type, clientX, clientY) {
   const m = MODULES[idx];
   const rect = currentSvg.getBoundingClientRect(), vb = viewBoxOf(currentSvg);
-  const ux = vb.x + (e.clientX - rect.left) * (vb.w / rect.width);
-  const uy = vb.y + (e.clientY - rect.top) * (vb.h / rect.height);
+  const ux = vb.x + (clientX - rect.left) * (vb.w / rect.width);
+  const uy = vb.y + (clientY - rect.top) * (vb.h / rect.height);
   const off = itemOffset(m.base);
   const made = makeControl(type, uniqueId(m, type), round3(ux - off.x), round3(uy - off.y));
   if (!made) return;
@@ -868,8 +916,8 @@ function placeControl(type, e) {
   m.base.items.push(made.item);
   if (made.kind === 'port') m.workDesc.ports.push(made.entry);
   else if (made.kind === 'param') m.workDesc.params.push(made.entry);
-  m.dirtyDraft = true; activeTool = null; refreshToolbox();
-  selectedId = made.item.id; openSettings(selectedId); scheduleRender();   // open its settings to configure
+  m.dirtyDraft = true;
+  selectedId = made.item.id; scheduleRender();   // select it (no dialog — so you can drop several); an amber dot flags it as unconfigured
 }
 function renameControl(oldId, newId) {
   const m = MODULES[idx]; if (!m.editorOwned) return;
@@ -899,7 +947,8 @@ function refreshStatus() {
   document.title = `${m.name}${m.editorOwned ? ' (draft)' : ''} — DreamRack Panel Editor`;   // window title bar
   if (m.editorOwned) {
     const np = (m.workDesc.params || []).length, npo = (m.workDesc.ports || []).length;
-    status.textContent = `${m.name} (draft) — ${npo} ports, ${np} params · ` + (lastWarnings.length === 0 ? 'validates ✓' : `${lastWarnings.length} binding issue(s)`);
+    const need = unconfiguredCount();
+    status.textContent = `${m.name} (draft) — ${npo} ports, ${np} params · ` + (lastWarnings.length === 0 ? 'validates ✓' : `${lastWarnings.length} binding issue(s)`) + (need ? ` · ${need} need setup` : '');
   } else {
     const n = Object.keys(m.overrides).length;
     status.textContent = `${m.name} — ${m.base.items.length} items` + (n ? `, ${n} moved${dirty() ? ' (unsaved)' : ''}` : '');
@@ -909,7 +958,7 @@ function refreshStatus() {
     if (it) { readout.textContent = `${selectedId}  ·  x ${it.x ?? '—'}  y ${it.y ?? '—'}`; return; }
   }
   readout.textContent = MODULES[idx].editorOwned
-    ? 'Pick a tool to add a control · click to select, drag or arrow-keys to move · right-click for settings'
+    ? 'Drag a control from the palette to add it · click to select, drag or arrow-keys to move · right-click for settings'
     : 'Click a control to select · drag or arrow-keys to move · right-click for settings · Shift = ×5';
 }
 
@@ -978,5 +1027,4 @@ window.addEventListener('keydown', (e) => {
   if (map[e.key]) { e.preventDefault(); nudge(...map[e.key]); }
 });
 
-buildToolbox();
 boot();
