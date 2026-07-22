@@ -12,6 +12,8 @@
          border:2px solid #e3e4e8; border-radius:10px; overflow:hidden; }  /* light frame so the editor edges read against the dark app behind; overflow:hidden keeps only #stage scrolling */
   #bar { display:flex; align-items:center; gap:12px; padding:8px 12px; border-bottom:1px solid #333; flex:none; -webkit-app-region: drag; }  /* drag the window by the top bar */
   #burger { font-size:18px; line-height:1; padding:4px 9px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; -webkit-app-region: no-drag; }
+  #closeBtn { -webkit-app-region: no-drag; font-size:17px; line-height:1; padding:2px 10px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:#ccc; cursor:pointer; }
+  #closeBtn:hover { background:#5c2a2f; border-color:#8a4a50; color:#fff; }
   #burger:hover { background:#34343a; }
   #barTitle { font-weight:700; }
   #status { margin-left:auto; opacity:.75; font-size:13px; }
@@ -26,20 +28,26 @@
      margin:auto centres it horizontally when it fits and left-aligns it (no clipping) when it's wider. */
   #stage { flex:1; display:block; padding:0 36px 36px; overflow:auto; user-select:none; }
   #stage > svg { display:block; margin:0 auto; }
-  #inspector { width:310px; flex:none; overflow:auto; border-left:1px solid #333; padding:14px 16px; font-size:13px; }
   .insp-empty { opacity:.5; font-size:13px; margin-top:8px; }
   .insp-head { font-weight:700; font-size:14px; margin-bottom:12px; font-variant-numeric:tabular-nums; }
-  .insp-section { margin-bottom:18px; }
-  .insp-section h4 { margin:0 0 8px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.6; border-bottom:1px solid #333; padding-bottom:4px; }
-  .insp-note { font-size:11px; opacity:.5; font-style:italic; margin:2px 0 8px; }
-  .insp-sub { font-size:11px; opacity:.6; margin:8px 0 4px; }
-  .insp-field { display:grid; grid-template-columns:96px 1fr; align-items:center; gap:8px; margin:6px 0; }
+  .insp-section { margin-bottom:8px; }
+  .insp-section h4 { margin:0 0 4px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.6; border-bottom:1px solid #333; padding-bottom:2px; }
+  .insp-note { font-size:11px; opacity:.5; font-style:italic; margin:1px 0 4px; }
+  .insp-sub { font-size:11px; opacity:.6; margin:5px 0 2px; }
+  .insp-field { display:grid; grid-template-columns:78px 1fr; align-items:center; gap:6px; margin:2px 0; }
   .insp-field > span { text-align:right; opacity:.75; }
-  .insp-field input, .insp-field select { width:100%; padding:3px 6px; border-radius:5px; border:1px solid #555; background:#242428; color:inherit; }
-  .insp-step { display:flex; gap:6px; margin:4px 0; align-items:center; }
+  .insp-field input, .insp-field select { width:100%; padding:2px 5px; border-radius:5px; border:1px solid #555; background:#242428; color:inherit; }
+  .insp-field input[type=number] { width:74px; }  /* narrow so the spin arrows sit by the value */
+  .insp-step { display:flex; gap:6px; margin:2px 0; align-items:center; }
   .insp-step input { flex:1; min-width:0; padding:3px 6px; border-radius:5px; border:1px solid #555; background:#242428; color:inherit; }
   .insp-del { flex:none; width:24px; border-radius:5px; border:1px solid #665; background:#332; color:#e99; cursor:pointer; }
-  .insp-add { margin-top:6px; padding:4px 10px; border-radius:5px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; font-size:12px; }
+  .insp-add { margin-top:4px; padding:2px 8px; border-radius:5px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; font-size:12px; }
+  /* floating panels (settings, module) — draggable by header, non-modal so the panel stays visible */
+  #floatRoot .float { position:absolute; min-width:250px; max-width:340px; max-height:80vh; display:flex; flex-direction:column; background:#222226; border:1px solid #4a4a52; border-radius:10px; box-shadow:0 16px 44px rgba(0,0,0,0.6); font-size:13px; z-index:900; }
+  #floatRoot .float-head { display:flex; align-items:center; gap:8px; padding:5px 8px 5px 10px; border-bottom:1px solid #3a3a42; cursor:move; }
+  #floatRoot .float-title { flex:1; font-weight:700; font-variant-numeric:tabular-nums; }
+  #floatRoot .float-close { flex:none; width:22px; height:22px; line-height:1; border-radius:5px; border:1px solid #555; background:#2a2a2e; color:#ccc; cursor:pointer; }
+  #floatRoot .float-body { padding:7px 11px; overflow:auto; }
   /* menus */
   #menuRoot .menu { position:absolute; min-width:180px; background:#25252a; border:1px solid #444; border-radius:8px; padding:5px; box-shadow:0 10px 30px rgba(0,0,0,0.5); font-size:13px; z-index:1000; }
   #menuRoot .menu-item { position:relative; display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:5px; cursor:pointer; white-space:nowrap; }
@@ -64,14 +72,15 @@
     <button id="burger" title="Menu" aria-label="Menu">&#9776;</button>
     <strong id="barTitle">Panel Editor</strong>
     <span id="status"></span>
+    <button id="closeBtn" title="Close editor" aria-label="Close editor">&times;</button>
   </div>
   <div id="readout"></div>
   <div id="tools"></div>
   <div id="work">
     <div id="stage"></div>
-    <aside id="inspector"></aside>
   </div>
   <div id="menuRoot"></div>
+  <div id="floatRoot"></div>
   <div id="dialogRoot"></div>
   <script type="module" src="designer.js"></script>
 </body>

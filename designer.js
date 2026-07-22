@@ -38,11 +38,11 @@ const MODULES = [
 const stage = document.getElementById('stage');
 const status = document.getElementById('status');
 const readout = document.getElementById('readout');
-const inspector = document.getElementById('inspector');
 const tools = document.getElementById('tools');
 const burger = document.getElementById('burger');
 const menuRoot = document.getElementById('menuRoot');
 const dialogRoot = document.getElementById('dialogRoot');
+const floatRoot = document.getElementById('floatRoot');
 const DEV_GUIDE_URL = 'https://github.com/chrisgr99/DreamRack/blob/main/MODULE-AUTHORING.md';
 // Render scale (px per mm). Opened from the rack, ?scale carries the rack's current
 // px/mm so the panel appears at the same size it does in the rack; else a rack-like default.
@@ -81,16 +81,24 @@ function restoreSnap(s) {
   m.overrides = clone(s.overrides); m.workDesc = clone(s.workDesc);
   if (m.editorOwned && s.base) m.base = clone(s.base);
 }
-function pushUndo() { const m = MODULES[idx]; m.undo.push(snapshot()); if (m.undo.length > 100) m.undo.shift(); m.redo.length = 0; }
+// A live edit (typing/spinning a field) fires many times; coalesce a stream with the
+// same key within a short window into ONE undo step. Discrete actions pass no key.
+let _undoKey = null, _undoAt = 0;
+function pushUndo(key) {
+  const now = Date.now();
+  if (key && key === _undoKey && now - _undoAt < 700) { _undoAt = now; return; }
+  const m = MODULES[idx]; m.undo.push(snapshot()); if (m.undo.length > 100) m.undo.shift(); m.redo.length = 0;
+  _undoKey = key || null; _undoAt = now;
+}
 function canUndo() { return MODULES[idx].undo.length > 0; }
 function canRedo() { return MODULES[idx].redo.length > 0; }
-function undo() { const m = MODULES[idx]; if (!m.undo.length) return; m.redo.push(snapshot()); restoreSnap(m.undo.pop()); selectedId = null; clearInspector(); refreshToolbox(); scheduleRender(); }
-function redo() { const m = MODULES[idx]; if (!m.redo.length) return; m.undo.push(snapshot()); restoreSnap(m.redo.pop()); selectedId = null; clearInspector(); refreshToolbox(); scheduleRender(); }
+function undo() { const m = MODULES[idx]; if (!m.undo.length) return; m.redo.push(snapshot()); restoreSnap(m.undo.pop()); selectedId = null; closeFloats(); refreshToolbox(); scheduleRender(); }
+function redo() { const m = MODULES[idx]; if (!m.redo.length) return; m.undo.push(snapshot()); restoreSnap(m.redo.pop()); selectedId = null; closeFloats(); refreshToolbox(); scheduleRender(); }
 
 function selectModuleIndex(i) {
   if (i < 0 || i >= MODULES.length) return;
   idx = i; selectedId = null; activeTool = null; resetScrollNext = true;
-  clearInspector(); refreshToolbox(); scheduleRender();
+  closeFloats(); refreshToolbox(); scheduleRender();
 }
 
 // ---- zoom (View menu, Cmd +/-) -------------------------------------------
@@ -142,6 +150,7 @@ function mainMenu() {
   const file = [
     { label: 'Open module', submenu: modules },
     { label: 'New module', action: newDraft },
+    { label: 'Module settings…', disabled: !MODULES[idx].editorOwned, action: openModuleSettings },
     { separator: true },
     { label: 'Save', disabled: !dirty(), action: save },
     { label: 'Revert', disabled: !dirty(), action: revert },
@@ -276,6 +285,7 @@ function buildOverlay(svg, layout) {
     const h = document.createElementNS(NS, 'circle');
     h.setAttribute('cx', cx); h.setAttribute('cy', cy); h.setAttribute('r', a.r);
     h.setAttribute('fill', 'transparent');
+    h.setAttribute('data-ctrl-id', it.id);   // so right-click can open this control's settings
     h.style.cursor = 'grab';
     h.addEventListener('pointerdown', (e) => startDrag(e, it.id));
     g.appendChild(h);
@@ -284,7 +294,7 @@ function buildOverlay(svg, layout) {
   svg.addEventListener('pointerdown', (e) => {
     if (e.target !== svg) return;
     if (activeTool && MODULES[idx].editorOwned) placeControl(activeTool, e);
-    else { selectedId = null; clearInspector(); scheduleRender(); }
+    else { selectedId = null; scheduleRender(); }   // deselect; any open settings float stays
   });
 }
 
@@ -298,9 +308,10 @@ function curPos(id) {
 }
 
 function startDrag(e, id) {
+  if (e.button !== 0) return;   // left-drag only; right-click opens the settings float
   e.preventDefault(); e.stopPropagation();
   selectedId = id;
-  buildInspector(id);
+  if (settingsId && settingsId !== id) openSettings(id);   // a dialog is open -> switch it to this control
   const m = MODULES[idx];
   const a = anchor(baseItem(id), m.base);
   const rect = currentSvg.getBoundingClientRect();
@@ -312,7 +323,7 @@ function startDrag(e, id) {
   scheduleRender();   // reflect the selection ring right away
 
   function move(ev) {
-    if (!moved) pushUndo();   // one undo entry per drag gesture, on the first move
+    if (!moved) pushUndo(`drag:${id}`);   // one undo entry per drag gesture, on the first move
     const nx = a.axes.includes('x') ? round3(baseX + (ev.clientX - startCX) * mmPerPxX) : baseX;
     const ny = a.axes === 'xy' ? round3(baseY + (ev.clientY - startCY) * mmPerPxY) : baseY;
     m.overrides[id] = a.axes === 'x' ? { x: nx } : { x: nx, y: ny };
@@ -333,7 +344,7 @@ function nudge(dx, dy) {
   const m = MODULES[idx];
   const it = baseItem(selectedId);
   if (!it) return;
-  pushUndo();
+  pushUndo(`nudge:${selectedId}`);
   const a = anchor(it, m.base);
   const p = curPos(selectedId);
   const nx = round3(p.x + (a.axes.includes('x') ? dx : 0));
@@ -378,7 +389,7 @@ function revert() {
     m.workDesc = clone(m.desc);   // data edits aren't persisted yet; drop them too
   }
   selectedId = null;
-  clearInspector();
+  closeFloats();
   scheduleRender();
 }
 
@@ -408,7 +419,7 @@ function descEntry(id) {
 }
 function optVal(id, path, dflt) { const it = workItem(id); return getPath(it && it.opts, path, dflt); }
 function setOpt(id, path, value) {
-  pushUndo();
+  pushUndo(`opt:${id}:${path}`);
   const m = MODULES[idx];
   if (m.editorOwned) {
     const it = m.base.items.find((x) => x.id === id);
@@ -421,10 +432,36 @@ function setOpt(id, path, value) {
   }
   scheduleRender();
 }
+// Apply several opts keys at once under one undo step.
+function setOptPatch(id, patch, undoKey) {
+  pushUndo(undoKey);
+  const m = MODULES[idx];
+  if (m.editorOwned) {
+    const it = m.base.items.find((x) => x.id === id);
+    if (it) { it.opts = it.opts || {}; Object.assign(it.opts, patch); }
+    m.dirtyDraft = true;
+  } else {
+    const ov = m.overrides[id] || (m.overrides[id] = {}); ov.opts = ov.opts || {};
+    Object.assign(ov.opts, patch);
+  }
+  scheduleRender();
+}
+// The knob "radius" field scales the WHOLE knob — radius plus its cap and skirt (if any) —
+// so a knob with a fixed outer skirt (e.g. the 259t's) still visibly changes size.
+function setKnobRadius(id, newR) {
+  if (!(newR > 0)) return;
+  const it = workItem(id);
+  const oldR = (it && it.opts && it.opts.radius) || 4.6;
+  const k = oldR ? newR / oldR : 1;
+  const patch = { radius: newR };
+  if (it && it.opts && it.opts.cap != null) patch.cap = +(it.opts.cap * k).toFixed(3);
+  if (it && it.opts && it.opts.skirt != null) patch.skirt = +(it.opts.skirt * k).toFixed(3);
+  setOptPatch(id, patch, `opt:${id}:radius`);
+}
 function setDesc(id, key, value) {
   const e = descEntry(id);
   if (!e) return;
-  pushUndo();
+  pushUndo(`desc:${id}:${key}`);
   e[key] = value;
   if (MODULES[idx].editorOwned) MODULES[idx].dirtyDraft = true;
   scheduleRender();
@@ -439,7 +476,7 @@ function syncStepped(id, steps) {
 }
 // A top-level item field (structure items: a label's text, a divider's len/thickness).
 function setItemField(id, key, value) {
-  pushUndo();
+  pushUndo(`item:${id}:${key}`);
   const m = MODULES[idx];
   if (m.editorOwned) { const it = m.base.items.find((x) => x.id === id); if (it) it[key] = value; m.dirtyDraft = true; }
   scheduleRender();
@@ -450,12 +487,19 @@ function fieldRow(labelText, controlEl) {
   const s = document.createElement('span'); s.textContent = labelText;
   row.append(s, controlEl); return row;
 }
+// Live inputs — apply as you type/spin. Undo is coalesced per field by pushUndo's key.
 function numberInput(value, onChange, step = 0.1) {
   const el = document.createElement('input'); el.type = 'number'; el.step = String(step); el.value = value ?? '';
-  el.addEventListener('change', () => onChange(el.value === '' ? undefined : Number(el.value)));
+  el.addEventListener('input', () => { if (el.value === '') return; const v = Number(el.value); if (Number.isFinite(v)) onChange(v); });
   return el;
 }
 function textInput(value, onChange) {
+  const el = document.createElement('input'); el.type = 'text'; el.value = value ?? '';
+  el.addEventListener('input', () => onChange(el.value));
+  return el;
+}
+// For an id/rename field: commit on blur/Enter, not per keystroke (renaming char-by-char is wrong).
+function textInputCommit(value, onChange) {
   const el = document.createElement('input'); el.type = 'text'; el.value = value ?? '';
   el.addEventListener('change', () => onChange(el.value));
   return el;
@@ -467,30 +511,32 @@ function selectInput(value, options, onChange) {
   return el;
 }
 
-// A radio/stepButton's positions: value + label (or glyph). Add/remove rebuilds the
-// inspector (a click, no focus to lose); text edits commit on change and re-render.
+// A radio/stepButton's positions: a "positions" count field sets how many, and each
+// position's value + label (or glyph) is edited below. The count field adds/trims from
+// the end (commit on change, then rebuild the rows); text edits are live.
 function stepsEditor(id) {
   const wrap = document.createElement('div'); wrap.className = 'insp-steps';
   const steps = (optVal(id, 'steps', []) || []).map((s) => ({ ...s }));
   const commit = () => setOpt(id, 'steps', steps.map((s) => ({ ...s })));
-  steps.forEach((s, i) => {
+  const isGlyph = steps.length && 'glyph' in steps[0];
+  const count = document.createElement('input'); count.type = 'number'; count.min = '1'; count.step = '1'; count.value = String(steps.length);
+  count.addEventListener('change', () => {
+    const n = Math.max(1, Math.round(Number(count.value) || 1));
+    while (steps.length < n) { const k = steps.length + 1; steps.push(isGlyph ? { value: `p${k}`, glyph: 'triangle' } : { value: `p${k}`, label: `${k}` }); }
+    while (steps.length > n) steps.pop();
+    setOpt(id, 'steps', steps.map((x) => ({ ...x }))); refreshSettings();
+  });
+  wrap.appendChild(fieldRow('positions', count));
+  steps.forEach((s) => {
     const row = document.createElement('div'); row.className = 'insp-step';
     const val = document.createElement('input'); val.type = 'text'; val.value = s.value ?? ''; val.placeholder = 'value';
-    val.addEventListener('change', () => { s.value = val.value; commit(); });
-    const isGlyph = 'glyph' in s;
-    const lab = document.createElement('input'); lab.type = 'text'; lab.value = (isGlyph ? s.glyph : s.label) ?? ''; lab.placeholder = isGlyph ? 'glyph' : 'label';
-    lab.addEventListener('change', () => { if (isGlyph) s.glyph = lab.value; else s.label = lab.value; commit(); });
-    const del = document.createElement('button'); del.className = 'insp-del'; del.textContent = '×'; del.title = 'remove position';
-    del.addEventListener('click', () => { steps.splice(i, 1); setOpt(id, 'steps', steps.map((x) => ({ ...x }))); buildInspector(id); });
-    row.append(val, lab, del); wrap.appendChild(row);
+    val.addEventListener('input', () => { s.value = val.value; commit(); });
+    const g = 'glyph' in s;
+    const lab = document.createElement('input'); lab.type = 'text'; lab.value = (g ? s.glyph : s.label) ?? ''; lab.placeholder = g ? 'glyph' : 'label';
+    lab.addEventListener('input', () => { if (g) s.glyph = lab.value; else s.label = lab.value; commit(); });
+    row.append(val, lab); wrap.appendChild(row);
   });
-  const add = document.createElement('button'); add.className = 'insp-add'; add.textContent = '+ position';
-  add.addEventListener('click', () => {
-    const last = steps[steps.length - 1] || {};
-    steps.push('glyph' in last ? { value: 'new', glyph: 'triangle' } : { value: 'new', label: 'new' });
-    setOpt(id, 'steps', steps.map((x) => ({ ...x }))); buildInspector(id);
-  });
-  wrap.appendChild(add); return wrap;
+  return wrap;
 }
 
 function section(title) {
@@ -501,13 +547,13 @@ function section(title) {
 }
 function note(body, text) { const d = document.createElement('div'); d.className = 'insp-note'; d.textContent = text; body.appendChild(d); }
 
-function buildInspector(id) {
+// Build the settings body (presentation + data) for a control, as a detached element
+// — the same fields the sidebar held, now shown in a floating panel. null if no item.
+function buildSettingsBody(id) {
   const it = workItem(id);
-  if (!it) { clearInspector(); return; }
+  if (!it) return null;
   const e = descEntry(id);
-  inspector.replaceChildren();
-  const head = document.createElement('div'); head.className = 'insp-head'; head.textContent = `${it.t} · ${id}`;
-  inspector.appendChild(head);
+  const root = document.createElement('div');
 
   // --- Structure items (label, divider): presentation only, no descriptor ---
   if (STRUCTURE_TYPES.has(it.t)) {
@@ -519,15 +565,15 @@ function buildInspector(id) {
       s.body.appendChild(fieldRow('length', numberInput(it.len, (v) => setItemField(id, 'len', v))));
       s.body.appendChild(fieldRow('thickness', numberInput(it.w, (v) => setItemField(id, 'w', v), 0.05)));
     }
-    if (MODULES[idx].editorOwned) s.body.appendChild(fieldRow('id', textInput(id, (v) => renameControl(id, v))));
-    inspector.appendChild(s.el);
-    return;
+    if (MODULES[idx].editorOwned) s.body.appendChild(fieldRow('id', textInputCommit(id, (v) => renameControl(id, v))));
+    root.appendChild(s.el);
+    return root;
   }
 
   // --- Presentation (layout) ---
   const pres = section('Presentation');
   const addP = (label, el) => pres.body.appendChild(fieldRow(label, el));
-  if (it.t === 'knob') addP('radius', numberInput(optVal(id, 'radius', 4.6), (v) => setOpt(id, 'radius', v)));
+  if (it.t === 'knob') addP('radius', numberInput(optVal(id, 'radius', 4.6), (v) => setKnobRadius(id, v)));
   if (it.opts && it.opts.label && typeof it.opts.label === 'object') {
     addP('label text', textInput(optVal(id, 'label.text', ''), (v) => setOpt(id, 'label.text', v)));
     addP('label place', selectInput(optVal(id, 'label.placement', 'below'), PLACEMENTS, (v) => setOpt(id, 'label.placement', v)));
@@ -542,7 +588,7 @@ function buildInspector(id) {
   }
   if (it.t === 'button') { addP('radius', numberInput(optVal(id, 'r', 2.0), (v) => setOpt(id, 'r', v))); addP('kind', textInput(optVal(id, 'kind', 'red'), (v) => setOpt(id, 'kind', v))); }
   if (!pres.body.children.length) note(pres.body, 'no presentation options for this control');
-  inspector.appendChild(pres.el);
+  root.appendChild(pres.el);
 
   // --- Data (descriptor) ---
   const data = section('Data');
@@ -550,7 +596,7 @@ function buildInspector(id) {
   note(data.body, owned ? 'generated into descriptor.js on Save' : 'live preview — written to descriptor.js in a later phase');
   const addD = (label, el) => data.body.appendChild(fieldRow(label, el));
   if (owned && e) {
-    addD('id', textInput(id, (v) => renameControl(id, v)));
+    addD('id', textInputCommit(id, (v) => renameControl(id, v)));
     note(data.body, 'id is the contract the factory + saved patches use — rename deliberately');
     const row = document.createElement('label'); row.className = 'insp-field';
     const s = document.createElement('span'); s.textContent = 'order'; row.appendChild(s);
@@ -577,23 +623,88 @@ function buildInspector(id) {
     addD('curve', selectInput(e.curve || 'linear', ['linear', 'exp', 'stepped'], (v) => setDesc(id, 'curve', v)));
     addD('unit', textInput(e.unit || '', (v) => setDesc(id, 'unit', v)));
   }
-  inspector.appendChild(data.el);
+  root.appendChild(data.el);
+  return root;
 }
 
-function clearInspector() {
-  inspector.replaceChildren();
-  const m = MODULES[idx];
-  if (m && m.editorOwned) {
-    const mod = section('Module');
-    mod.body.appendChild(fieldRow('name', textInput(m.workDesc.name, (v) => { m.workDesc.name = v; m.name = v; m.dirtyDraft = true; refreshStatus(); })));
-    mod.body.appendChild(fieldRow('id', textInput(m.workDesc.id, (v) => { m.workDesc.id = (v || '').trim() || m.workDesc.id; m.dirtyDraft = true; })));
-    mod.body.appendChild(fieldRow('width mm', numberInput(m.base.faceW, (v) => { m.base.faceW = v; m.base.items[0].w = v; m.base.items[1].w = v - 1; m.dirtyDraft = true; scheduleRender(); }, 1)));
-    inspector.appendChild(mod.el);
-    note(inspector, 'pick a tool above, then click the panel to add a control');
-    return;
+// ---- floating panels (settings, module) — draggable, non-modal ------------
+let settingsId = null;   // control id the settings float currently shows
+function makeDraggable(el, handle) {
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.float-close')) return;
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY;
+    const ox = parseFloat(el.style.left) || 0, oy = parseFloat(el.style.top) || 0;
+    const move = (ev) => { el.style.left = `${ox + ev.clientX - sx}px`; el.style.top = `${oy + ev.clientY - sy}px`; };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  });
+}
+function clampFloat(f) {
+  const r = f.getBoundingClientRect();
+  if (r.right > innerWidth) f.style.left = `${Math.max(4, innerWidth - r.width - 4)}px`;
+  if (r.bottom > innerHeight) f.style.top = `${Math.max(4, innerHeight - r.height - 4)}px`;
+}
+// Show/update a floating panel by key. x/y position it (undefined = keep current position).
+function showFloat(key, title, bodyEl, x, y) {
+  let f = floatRoot.querySelector(`.float[data-float="${key}"]`);
+  if (!f) {
+    f = document.createElement('div'); f.className = 'float'; f.dataset.float = key;
+    const head = document.createElement('div'); head.className = 'float-head';
+    const t = document.createElement('span'); t.className = 'float-title';
+    const close = document.createElement('button'); close.className = 'float-close'; close.textContent = '×';
+    close.addEventListener('click', () => { f.remove(); if (key === 'settings') settingsId = null; });
+    head.append(t, close); makeDraggable(f, head);
+    const body = document.createElement('div'); body.className = 'float-body';
+    f.append(head, body); floatRoot.appendChild(f);
+    if (x == null) { x = 120; y = 120; }
   }
-  const d = document.createElement('div'); d.className = 'insp-empty'; d.textContent = 'Select a control to edit its properties';
-  inspector.appendChild(d);
+  f.querySelector('.float-title').textContent = title;
+  f.querySelector('.float-body').replaceChildren(bodyEl);
+  if (x != null) { f.style.left = `${x}px`; f.style.top = `${y}px`; clampFloat(f); }
+}
+function openSettings(id) {
+  const body = buildSettingsBody(id);
+  if (!body) { closeSettings(); return; }
+  settingsId = id;
+  const it = workItem(id);
+  showFloat('settings', `${it.t} · ${id}`, body);
+  positionSettingsByControl(id);
+}
+// Pop the settings float just to the RIGHT of the control being edited (the knob/jack
+// itself), vertically centred on it; if there's no room, flip to its left.
+function positionSettingsByControl(id) {
+  const f = floatRoot.querySelector('.float[data-float="settings"]');
+  if (!f || !currentSvg) return;
+  const ctrl = currentSvg.querySelector(`[data-wcoast-param="${id}"]`) || currentSvg.querySelector(`[data-wcoast-port="${id}"]`) || currentSvg.querySelector(`[data-ctrl-id="${id}"]`);
+  if (!ctrl) return;
+  const a = ctrl.getBoundingClientRect();
+  const fh = f.getBoundingClientRect().height;
+  f.style.left = `${a.right + 12}px`;
+  f.style.top = `${a.top + a.height / 2 - fh / 2}px`;
+  if (f.getBoundingClientRect().right > innerWidth) f.style.left = `${Math.max(4, a.left - f.getBoundingClientRect().width - 12)}px`;
+  clampFloat(f);
+}
+function refreshSettings() {   // rebuild the settings float in place after a structural edit
+  if (!settingsId) return;
+  const body = buildSettingsBody(settingsId);
+  const it = workItem(settingsId);
+  if (!body || !it) { closeSettings(); return; }
+  showFloat('settings', `${it.t} · ${settingsId}`, body);
+}
+function closeSettings() { settingsId = null; const f = floatRoot.querySelector('.float[data-float="settings"]'); if (f) f.remove(); }
+function closeFloats() { floatRoot.replaceChildren(); settingsId = null; }   // module change / big state change
+
+// Module settings (name / id / width) — a floating panel reached from the File menu.
+function openModuleSettings() {
+  const m = MODULES[idx];
+  const root = document.createElement('div');
+  const mod = section('Module');
+  mod.body.appendChild(fieldRow('name', textInput(m.workDesc.name, (v) => { m.workDesc.name = v; m.name = v; m.dirtyDraft = true; refreshStatus(); })));
+  mod.body.appendChild(fieldRow('id', textInputCommit(m.workDesc.id, (v) => { m.workDesc.id = (v || '').trim() || m.workDesc.id; m.dirtyDraft = true; })));
+  mod.body.appendChild(fieldRow('width mm', numberInput(m.base.faceW, (v) => { pushUndo('modWidth'); m.base.faceW = v; m.base.items[0].w = v; m.base.items[1].w = v - 1; m.dirtyDraft = true; scheduleRender(); }, 1)));
+  root.appendChild(mod.el);
+  showFloat('module', `Module · ${m.workDesc.id}`, root, 140, 120);
 }
 
 // ---- toolbox & authoring (editor-owned draft modules) --------------------
@@ -632,7 +743,7 @@ function newDraft() {
   const m = { name: `New Module ${n}`, dir: `draft-${n}`, base, desc, workDesc: clone(desc), overrides: {}, saved: {}, editorOwned: true, dirtyDraft: true, undo: [], redo: [] };
   MODULES.push(m);
   idx = MODULES.length - 1;
-  selectedId = null; activeTool = null; resetScrollNext = true; clearInspector(); refreshToolbox(); scheduleRender();
+  selectedId = null; activeTool = null; resetScrollNext = true; closeFloats(); refreshToolbox(); scheduleRender();
 }
 
 let idSeq = 0;
@@ -670,18 +781,19 @@ function placeControl(type, e) {
   if (made.kind === 'port') m.workDesc.ports.push(made.entry);
   else if (made.kind === 'param') m.workDesc.params.push(made.entry);
   m.dirtyDraft = true; activeTool = null; refreshToolbox();
-  selectedId = made.item.id; buildInspector(selectedId); scheduleRender();
+  selectedId = made.item.id; openSettings(selectedId); scheduleRender();   // open its settings to configure
 }
 function renameControl(oldId, newId) {
   const m = MODULES[idx]; if (!m.editorOwned) return;
   newId = (newId || '').trim();
-  if (!newId || newId === oldId) { buildInspector(oldId); return; }
+  if (!newId || newId === oldId) { refreshSettings(); return; }
   const clash = m.base.items.some((i) => i.id === newId) || (m.workDesc.ports || []).some((p) => p.id === newId) || (m.workDesc.params || []).some((p) => p.id === newId);
-  if (clash) { status.textContent = `id "${newId}" is already used`; buildInspector(oldId); return; }
+  if (clash) { status.textContent = `id "${newId}" is already used`; refreshSettings(); return; }
   pushUndo();
   const it = m.base.items.find((i) => i.id === oldId); if (it) it.id = newId;
   const e = descEntry(oldId); if (e) e.id = newId;
-  selectedId = newId; m.dirtyDraft = true; scheduleRender(); buildInspector(newId);
+  if (settingsId === oldId) settingsId = newId;
+  selectedId = newId; m.dirtyDraft = true; scheduleRender(); refreshSettings();
 }
 function moveEntry(id, dir) {
   const m = MODULES[idx];
@@ -690,7 +802,7 @@ function moveEntry(id, dir) {
   if (i < 0 || j < 0 || j >= arr.length) return;
   pushUndo();
   [arr[i], arr[j]] = [arr[j], arr[i]];
-  m.dirtyDraft = true; buildInspector(id);
+  m.dirtyDraft = true; refreshSettings();
 }
 
 // ---- status --------------------------------------------------------------
@@ -708,7 +820,9 @@ function refreshStatus() {
     const it = currentLayout.items.find((x) => x.id === selectedId);
     if (it) { readout.textContent = `${selectedId}  ·  x ${it.x ?? '—'}  y ${it.y ?? '—'}`; return; }
   }
-  readout.textContent = MODULES[idx].editorOwned ? 'Pick a tool to add a control · click a control to select · drag or arrow-keys to move' : 'Click a control to select · drag or arrow-keys to move · Shift = ×5';
+  readout.textContent = MODULES[idx].editorOwned
+    ? 'Pick a tool to add a control · click to select, drag or arrow-keys to move · right-click for settings'
+    : 'Click a control to select · drag or arrow-keys to move · right-click for settings · Shift = ×5';
 }
 
 // Select a module by its descriptor id (e.g. from "Edit this panel…" in the rack, or ?module=).
@@ -730,18 +844,29 @@ async function boot() {
   const wanted = new URLSearchParams(location.search).get('module');
   if (wanted) selectModuleById(wanted);   // opened from "Edit this panel…"
   if (window.wcoast && window.wcoast.onSelectModule) window.wcoast.onSelectModule(selectModuleById);
-  clearInspector();
   scheduleRender();
 }
 
-// The main menu: hamburger (top-left) and right-click, both opening the same model.
+// The main menu: hamburger (top-left) and right-click. Right-clicking a control opens
+// that control's settings float instead; right-clicking anywhere else opens the menu.
 burger.addEventListener('click', () => { const r = burger.getBoundingClientRect(); openMenu(r.left, r.bottom + 4, mainMenu()); });
+document.getElementById('closeBtn').addEventListener('click', () => window.close());
 document.addEventListener('contextmenu', (e) => {
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'select' || tag === 'textarea') return;   // leave native editing menus alone
   e.preventDefault();
+  const handle = e.target.closest && e.target.closest('[data-ctrl-id]');
+  if (handle) { const id = handle.getAttribute('data-ctrl-id'); selectedId = id; openSettings(id); scheduleRender(); return; }
   openMenu(e.clientX, e.clientY, mainMenu());
 });
+// Click outside an open settings/module float closes it (like a popover). Capture phase, and
+// a click inside a float (its fields or header) is left alone so editing/dragging still works.
+document.addEventListener('pointerdown', (e) => {
+  if (!floatRoot.firstChild) return;
+  if (e.target.closest && e.target.closest('.float')) return;         // inside a float — keep it
+  if (e.target.closest && e.target.closest('[data-ctrl-id]')) return; // clicking a control — switch, don't close
+  closeFloats();
+}, true);
 window.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); if (dirty()) save(); return; }
@@ -750,15 +875,16 @@ window.addEventListener('keydown', (e) => {
   if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomBy(1.2); return; }
   if (mod && e.key === '-') { e.preventDefault(); zoomBy(1 / 1.2); return; }
   if (mod && e.key === '0') { e.preventDefault(); zoomReset(); return; }
-  const tag = (e.target.tagName || '').toLowerCase();
-  if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
-  if (e.key === 'Escape') {   // back out one level; when nothing is open/selected, close the editor
+  if (e.key === 'Escape') {   // back out one level (works from inside a field too); else close the editor
     if (menuRoot.firstChild) { closeMenus(); return; }
     if (dialogRoot.firstChild) { dialogRoot.replaceChildren(); return; }
-    if (selectedId) { selectedId = null; clearInspector(); scheduleRender(); return; }
+    if (floatRoot.firstChild) { closeFloats(); return; }
+    if (selectedId) { selectedId = null; scheduleRender(); return; }
     window.close();
     return;
   }
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
   const step = e.shiftKey ? 1.0 : 0.2;
   const map = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
   if (map[e.key]) { e.preventDefault(); nudge(...map[e.key]); }
