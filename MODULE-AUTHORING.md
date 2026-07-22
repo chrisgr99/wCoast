@@ -130,7 +130,7 @@ silently mis-wire.
 | `id`      | unique within the module; STABLE (patches store settings by id) |
 | `name`    | label |
 | `section` | grouping key (as for ports) |
-| `curve`   | `'linear'` · `'gainDb'` (audio-taper gain) · `'stepped'` (discrete) · `'detent'` (knob clicks to integer marks) |
+| `curve`   | `'linear'` · `'exp'` (knob turns evenly, value tapers exponentially) · `'gainDb'` (equal travel = equal dB) · `'stepped'` (discrete) · `'detent'` (knob clicks to integer marks) |
 | `min`/`max`/`default` | value range and initial value |
 | `glideMs` | smoothing time applied to changes (0 = instant) |
 | `steps`   | *(stepped only)* the discrete values, e.g. `[{ value: 'off' }, { value: 'on' }]` |
@@ -138,6 +138,18 @@ silently mis-wire.
 
 A two-state toggle is a `stepped` param with `off`/`on` steps; a mutually-exclusive
 lamp row is a `stepped` param with one step per option.
+
+**Two tapers — control feel vs DSP mapping.** `curve` is the *control* taper: how
+the knob's rotation maps to the value it emits (linear, exponential, dB, and so
+on). The knob always turns linearly under the finger; the curve decides what value
+that rotation produces, so a frequency knob can *feel* musical without the DSP
+knowing. It lives in the descriptor because the host draws and drives the knob.
+What that value then *means* — value-to-hertz, value-to-cutoff — is the DSP's job,
+in your worklet, and the descriptor never sees it. So the descriptor owns how the
+knob feels; your code owns what the value does. (`curve` defaults to `linear`; if
+you'd rather keep the knob linear and shape everything in the DSP, just leave it.)
+The exception is a native-gain control like a mixer fader: it has no worklet, so
+its whole dB feel is the descriptor's `gainDb`.
 
 ---
 
@@ -394,7 +406,7 @@ sectioned?, channels?, signalIdentity?, hp? }`
 **Port** — `{ id, name, section, domain: 'audio'|'control'|'trigger', dir:
 'in'|'out', target?, role? }`
 
-**Param** — `{ id, name, section, curve: 'linear'|'gainDb'|'stepped'|'detent',
+**Param** — `{ id, name, section, curve: 'linear'|'exp'|'gainDb'|'stepped'|'detent',
 min, max, default, glideMs, steps?, momentary? }`
 
 **Factory** — `create(ctx, { descriptor, registry, sampleRate }) -> { node?,
