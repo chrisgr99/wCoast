@@ -41,6 +41,14 @@
   .insp-del { flex:none; width:24px; border-radius:5px; border:1px solid #665; background:#332; color:#e99; cursor:pointer; }
   .insp-add { margin-top:6px; padding:4px 10px; border-radius:5px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; font-size:12px; }
   body[data-dark="false"] .insp-add { background:#eee; border-color:#aaa; }
+  #tools { display:flex; align-items:center; gap:6px; padding:8px 14px; border-bottom:1px solid #2a2a2a; flex:none; flex-wrap:wrap; }
+  body[data-dark="false"] #tools { border-color:#c8c8c8; }
+  #tools .tlabel { font-size:11px; opacity:.5; text-transform:uppercase; letter-spacing:.06em; margin-right:4px; }
+  #tools button { padding:4px 10px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; font-size:12px; }
+  body[data-dark="false"] #tools button { background:#eee; border-color:#aaa; }
+  #tools button.active { border-color:#39a0ff; background:#233; color:#9dcbff; }
+  body[data-dark="false"] #tools button.active { background:#dbeafe; color:#1667c8; }
+  #tools button:disabled { opacity:.35; cursor:default; }
 </style>
 </head>
 <body data-dark="true">
@@ -51,9 +59,12 @@
     <span class="sep"></span>
     <button id="saveBtn" disabled>Save</button>
     <button id="revertBtn" disabled>Revert</button>
+    <span class="sep"></span>
+    <button id="newBtn">+ New module</button>
     <span id="status"></span>
   </div>
   <div id="readout"></div>
+  <div id="tools"></div>
   <div id="work">
     <div id="stage"></div>
     <aside id="inspector"></aside>

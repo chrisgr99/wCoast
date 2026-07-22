@@ -43,12 +43,17 @@ const revertBtn = document.getElementById('revertBtn');
 const status = document.getElementById('status');
 const readout = document.getElementById('readout');
 const inspector = document.getElementById('inspector');
+const newBtn = document.getElementById('newBtn');
+const tools = document.getElementById('tools');
 
 let dark = true;
 let idx = 0;
 let selectedId = null;
 let currentLayout = null;   // the working layout of the last render (base + overrides)
 let currentSvg = null;
+let activeTool = null;      // a toolbox type armed for placement (editor-owned modules only)
+let lastWarnings = [];      // binding warnings from the last render — the validation signal
+let draftCount = 0;
 
 MODULES.forEach((m, i) => {
   const o = document.createElement('option');
@@ -102,7 +107,8 @@ async function renderOnce() {
   try {
     const svgText = renderPanel(layout, dark);
     const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
-    const { svg } = await loadPanel(url, m.workDesc, { dark });   // real loader: crop, colour jacks, identity band, title
+    const { svg, warnings } = await loadPanel(url, m.workDesc, { dark });   // real loader: crop, colour jacks, identity band, title; warnings = binding validation
+    lastWarnings = warnings || [];
     const vb = viewBoxOf(svg);   // attribute-parsed: baseVal reads 0 on a detached SVG
     const H = 620;
     svg.style.height = `${H}px`;
@@ -144,7 +150,11 @@ function buildOverlay(svg, layout) {
     g.appendChild(h);
   });
   svg.appendChild(g);
-  svg.addEventListener('pointerdown', (e) => { if (e.target === svg) { selectedId = null; clearInspector(); scheduleRender(); } });
+  svg.addEventListener('pointerdown', (e) => {
+    if (e.target !== svg) return;
+    if (activeTool && MODULES[idx].editorOwned) placeControl(activeTool, e);
+    else { selectedId = null; clearInspector(); scheduleRender(); }
+  });
 }
 
 // ---- move ----------------------------------------------------------------
@@ -200,20 +210,20 @@ function nudge(dx, dy) {
 }
 
 // ---- save / revert -------------------------------------------------------
-function dirty() { return JSON.stringify(MODULES[idx].overrides) !== JSON.stringify(MODULES[idx].saved); }
+function dirty() { const m = MODULES[idx]; return m.editorOwned ? !!m.dirtyDraft : JSON.stringify(m.overrides) !== JSON.stringify(m.saved); }
 
 async function save() {
   const m = MODULES[idx];
   saveBtn.disabled = true; status.textContent = 'Saving…';
+  const body = m.editorOwned
+    ? { dir: m.dir, editorOwned: true, layout: applyOverrides(clone(m.base), m.overrides), descriptor: m.workDesc }
+    : { dir: m.dir, overrides: m.overrides };
   try {
-    const res = await fetch('/save', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dir: m.dir, overrides: m.overrides }),
-    });
+    const res = await fetch('/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || res.statusText);
-    m.saved = clone(m.overrides);
-    status.textContent = `Saved ${m.name} — panel.svg + panel.dark.svg regenerated`;
+    if (m.editorOwned) { m.savedLayout = clone(m.base); m.savedDesc = clone(m.workDesc); m.dirtyDraft = false; status.textContent = `Saved ${m.name} → modules/${m.dir}/ (layout + descriptor + panels)`; }
+    else { m.saved = clone(m.overrides); status.textContent = `Saved ${m.name} — panel.svg + panel.dark.svg regenerated`; }
   } catch (e) {
     status.textContent = `Save failed: ${e.message}`;
   }
@@ -222,8 +232,12 @@ async function save() {
 
 function revert() {
   const m = MODULES[idx];
-  m.overrides = clone(m.saved);
-  m.workDesc = clone(m.desc);   // data edits aren't persisted yet; drop them too
+  if (m.editorOwned) {
+    if (m.savedLayout) { m.base = clone(m.savedLayout); m.workDesc = clone(m.savedDesc); m.dirtyDraft = false; }
+  } else {
+    m.overrides = clone(m.saved);
+    m.workDesc = clone(m.desc);   // data edits aren't persisted yet; drop them too
+  }
   selectedId = null;
   clearInspector();
   scheduleRender();
@@ -247,7 +261,8 @@ function setPath(o, path, v) {
   for (let i = 0; i < ks.length - 1; i++) { if (typeof cur[ks[i]] !== 'object' || cur[ks[i]] == null) cur[ks[i]] = {}; cur = cur[ks[i]]; }
   cur[ks[ks.length - 1]] = v;
 }
-function workItem(id) { return currentLayout && currentLayout.items.find((x) => x.id === id); }
+function workingLayout() { const m = MODULES[idx]; return applyOverrides(clone(m.base), m.overrides); }
+function workItem(id) { return workingLayout().items.find((x) => x.id === id); }
 function descEntry(id) {
   const d = MODULES[idx].workDesc || {};
   return (d.ports || []).find((p) => p.id === id) || (d.params || []).find((p) => p.id === id) || null;
@@ -255,12 +270,32 @@ function descEntry(id) {
 function optVal(id, path, dflt) { const it = workItem(id); return getPath(it && it.opts, path, dflt); }
 function setOpt(id, path, value) {
   const m = MODULES[idx];
-  const ov = m.overrides[id] || (m.overrides[id] = {});
-  ov.opts = ov.opts || {};
-  setPath(ov.opts, path, value);
+  if (m.editorOwned) {
+    const it = m.base.items.find((x) => x.id === id);
+    if (it) { setPath(it.opts || (it.opts = {}), path, value); if (path === 'steps') syncStepped(id, value); }
+    m.dirtyDraft = true;
+  } else {
+    const ov = m.overrides[id] || (m.overrides[id] = {});
+    ov.opts = ov.opts || {};
+    setPath(ov.opts, path, value);
+  }
   scheduleRender();
 }
-function setDesc(id, key, value) { const e = descEntry(id); if (e) { e[key] = value; scheduleRender(); } }
+function setDesc(id, key, value) {
+  const e = descEntry(id);
+  if (!e) return;
+  e[key] = value;
+  if (MODULES[idx].editorOwned) MODULES[idx].dirtyDraft = true;
+  scheduleRender();
+}
+// A drawn stepped control's descriptor enum is derived from its drawn positions:
+// keep the param's steps (value + name) in sync with the layout's opts.steps.
+function syncStepped(id, steps) {
+  const e = descEntry(id);
+  if (!e || !Array.isArray(steps)) return;
+  e.steps = steps.map((s) => ({ value: s.value, name: s.label || s.glyph || s.value }));
+  if (!e.steps.some((s) => s.value === e.default)) e.default = e.steps.length ? e.steps[0].value : undefined;
+}
 
 function fieldRow(labelText, controlEl) {
   const row = document.createElement('label'); row.className = 'insp-field';
@@ -348,8 +383,19 @@ function buildInspector(id) {
 
   // --- Data (descriptor) ---
   const data = section('Data');
-  note(data.body, 'live preview — written to descriptor.js in a later phase');
+  const owned = MODULES[idx].editorOwned;
+  note(data.body, owned ? 'generated into descriptor.js on Save' : 'live preview — written to descriptor.js in a later phase');
   const addD = (label, el) => data.body.appendChild(fieldRow(label, el));
+  if (owned && e) {
+    addD('id', textInput(id, (v) => renameControl(id, v)));
+    note(data.body, 'id is the contract the factory + saved patches use — rename deliberately');
+    const row = document.createElement('label'); row.className = 'insp-field';
+    const s = document.createElement('span'); s.textContent = 'order'; row.appendChild(s);
+    const grp = document.createElement('div'); grp.style.display = 'flex'; grp.style.gap = '6px';
+    const up = document.createElement('button'); up.className = 'insp-add'; up.textContent = '▲ up'; up.addEventListener('click', () => moveEntry(id, -1));
+    const dn = document.createElement('button'); dn.className = 'insp-add'; dn.textContent = '▼ down'; dn.addEventListener('click', () => moveEntry(id, 1));
+    grp.append(up, dn); row.appendChild(grp); data.body.appendChild(row);
+  }
   if (!e) {
     note(data.body, 'no descriptor entry for this id');
   } else if (it.t === 'jack') {
@@ -372,22 +418,127 @@ function buildInspector(id) {
 }
 
 function clearInspector() {
+  inspector.replaceChildren();
+  const m = MODULES[idx];
+  if (m && m.editorOwned) {
+    const mod = section('Module');
+    mod.body.appendChild(fieldRow('name', textInput(m.workDesc.name, (v) => { m.workDesc.name = v; m.name = v; m.dirtyDraft = true; refreshStatus(); })));
+    mod.body.appendChild(fieldRow('id', textInput(m.workDesc.id, (v) => { m.workDesc.id = (v || '').trim() || m.workDesc.id; m.dirtyDraft = true; })));
+    mod.body.appendChild(fieldRow('width mm', numberInput(m.base.faceW, (v) => { m.base.faceW = v; m.base.items[0].w = v; m.base.items[1].w = v - 1; m.dirtyDraft = true; scheduleRender(); }, 1)));
+    inspector.appendChild(mod.el);
+    note(inspector, 'pick a tool above, then click the panel to add a control');
+    return;
+  }
   const d = document.createElement('div'); d.className = 'insp-empty'; d.textContent = 'Select a control to edit its properties';
-  inspector.replaceChildren(d);
+  inspector.appendChild(d);
+}
+
+// ---- toolbox & authoring (editor-owned draft modules) --------------------
+const TOOLS = [
+  { type: 'jack', label: 'Jack' }, { type: 'knob', label: 'Knob' },
+  { type: 'radio', label: 'Radio' }, { type: 'button', label: 'Button' }, { type: 'slider', label: 'Slider' },
+];
+function buildToolbox() {
+  tools.replaceChildren();
+  const lab = document.createElement('span'); lab.className = 'tlabel'; lab.textContent = 'Add'; tools.appendChild(lab);
+  for (const t of TOOLS) {
+    const b = document.createElement('button'); b.textContent = t.label; b.dataset.tool = t.type;
+    b.addEventListener('click', () => { activeTool = activeTool === t.type ? null : t.type; refreshToolbox(); });
+    tools.appendChild(b);
+  }
+  const hint = document.createElement('span'); hint.className = 'tlabel'; hint.id = 'toolHint'; tools.appendChild(hint);
+  refreshToolbox();
+}
+function refreshToolbox() {
+  const owned = MODULES[idx] && MODULES[idx].editorOwned;
+  for (const b of tools.querySelectorAll('button')) { b.disabled = !owned; b.classList.toggle('active', !!owned && b.dataset.tool === activeTool); }
+  const hint = document.getElementById('toolHint');
+  if (hint) hint.textContent = !owned ? 'shipped module — start a new module to add controls' : activeTool ? 'click the panel to place' : '';
+}
+
+function newDraft() {
+  const n = ++draftCount;
+  const W = 44, H = 113.5912;
+  const base = { faceW: W, faceH: H, faceLeft: 3.9, faceTop: 7.0994, wrap: true, items: [
+    { t: 'rect', x: 0, y: 0, w: W, h: H, rx: 2.5, fill: 'face' },
+    { t: 'rect', x: 0.5, y: 0.5, w: W - 1, h: H - 1, rx: 2.2, fill: 'none', stroke: 'frame', sw: 0.5 },
+  ] };
+  const desc = { apiVersion: 1, id: `draft${n}`, name: `New Module ${n}`, params: [], ports: [] };
+  const m = { name: `New Module ${n}`, dir: `draft-${n}`, base, desc, workDesc: clone(desc), overrides: {}, saved: {}, editorOwned: true, dirtyDraft: true };
+  MODULES.push(m);
+  const o = document.createElement('option'); o.value = String(MODULES.length - 1); o.textContent = m.name + ' (draft)'; picker.appendChild(o);
+  idx = MODULES.length - 1; picker.value = String(idx);
+  selectedId = null; activeTool = null; clearInspector(); refreshToolbox(); scheduleRender();
+}
+
+let idSeq = 0;
+function uniqueId(m, base) {
+  const taken = new Set([...m.base.items.map((i) => i.id).filter(Boolean), ...(m.workDesc.ports || []).map((p) => p.id), ...(m.workDesc.params || []).map((p) => p.id)]);
+  let id; do { id = `${base}${++idSeq}`; } while (taken.has(id));
+  return id;
+}
+// A dropped control -> a layout item + a descriptor entry (port for jacks, param
+// for the rest), with sensible defaults the inspector then refines.
+function makeControl(type, id, x, y) {
+  const lbl = (text) => ({ text, placement: 'below', size: 2.0 });
+  switch (type) {
+    case 'jack':   return { item: { t: 'jack', id, x, y, opts: { label: lbl('in') } }, entry: { id, name: 'In', domain: 'control', dir: 'in' }, kind: 'port' };
+    case 'knob':   return { item: { t: 'knob', id, x, y, opts: { radius: 4.6, label: lbl('knob') } }, entry: { id, name: 'Knob', min: 0, max: 1, default: 0, unit: '', curve: 'linear' }, kind: 'param' };
+    case 'radio':  return { item: { t: 'radio', id, x, y, opts: { orientation: 'v', spacing: 5.6, ledR: 2.16, steps: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }] } }, entry: { id, name: 'Switch', curve: 'stepped', default: 'a', steps: [{ value: 'a', name: 'A' }, { value: 'b', name: 'B' }] }, kind: 'param' };
+    case 'button': return { item: { t: 'button', id, x, y, opts: { r: 2.0, kind: 'red' } }, entry: { id, name: 'Button', curve: 'stepped', default: 'off', steps: [{ value: 'off', name: 'Off' }, { value: 'on', name: 'On' }] }, kind: 'param' };
+    case 'slider': return { item: { t: 'slider', id, x, opts: {} }, entry: { id, name: 'Level', min: 0, max: 1, default: 0.8, unit: '', curve: 'linear' }, kind: 'param' };
+    default: return null;
+  }
+}
+function placeControl(type, e) {
+  const m = MODULES[idx];
+  const rect = currentSvg.getBoundingClientRect(), vb = viewBoxOf(currentSvg);
+  const ux = vb.x + (e.clientX - rect.left) * (vb.w / rect.width);
+  const uy = vb.y + (e.clientY - rect.top) * (vb.h / rect.height);
+  const off = itemOffset(m.base);
+  const made = makeControl(type, uniqueId(m, type), round3(ux - off.x), round3(uy - off.y));
+  if (!made) return;
+  m.base.items.push(made.item);
+  (made.kind === 'port' ? m.workDesc.ports : m.workDesc.params).push(made.entry);
+  m.dirtyDraft = true; activeTool = null; refreshToolbox();
+  selectedId = made.item.id; buildInspector(selectedId); scheduleRender();
+}
+function renameControl(oldId, newId) {
+  const m = MODULES[idx]; if (!m.editorOwned) return;
+  newId = (newId || '').trim();
+  if (!newId || newId === oldId) { buildInspector(oldId); return; }
+  const clash = m.base.items.some((i) => i.id === newId) || (m.workDesc.ports || []).some((p) => p.id === newId) || (m.workDesc.params || []).some((p) => p.id === newId);
+  if (clash) { status.textContent = `id "${newId}" is already used`; buildInspector(oldId); return; }
+  const it = m.base.items.find((i) => i.id === oldId); if (it) it.id = newId;
+  const e = descEntry(oldId); if (e) e.id = newId;
+  selectedId = newId; m.dirtyDraft = true; scheduleRender(); buildInspector(newId);
+}
+function moveEntry(id, dir) {
+  const m = MODULES[idx];
+  const arr = (m.workDesc.ports || []).some((p) => p.id === id) ? m.workDesc.ports : m.workDesc.params;
+  const i = arr.findIndex((p) => p.id === id), j = i + dir;
+  if (i < 0 || j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  m.dirtyDraft = true; buildInspector(id);
 }
 
 // ---- status --------------------------------------------------------------
 function refreshStatus() {
   const m = MODULES[idx];
-  const n = Object.keys(m.overrides).length;
   saveBtn.disabled = !dirty();
   revertBtn.disabled = !dirty();
-  status.textContent = `${m.name} — ${m.base.items.length} items` + (n ? `, ${n} moved${dirty() ? ' (unsaved)' : ''}` : '');
+  if (m.editorOwned) {
+    const np = (m.workDesc.params || []).length, npo = (m.workDesc.ports || []).length;
+    status.textContent = `${m.name} (draft) — ${npo} ports, ${np} params · ` + (lastWarnings.length === 0 ? 'validates ✓' : `${lastWarnings.length} binding issue(s)`);
+  } else {
+    const n = Object.keys(m.overrides).length;
+    status.textContent = `${m.name} — ${m.base.items.length} items` + (n ? `, ${n} moved${dirty() ? ' (unsaved)' : ''}` : '');
+  }
   if (selectedId && currentLayout) {
     const it = currentLayout.items.find((x) => x.id === selectedId);
-    if (it) { readout.textContent = `${selectedId}  ·  x ${it.x}  y ${it.y}`; return; }
+    if (it) { readout.textContent = `${selectedId}  ·  x ${it.x ?? '—'}  y ${it.y ?? '—'}`; return; }
   }
-  readout.textContent = 'Click a control to select · drag or arrow-keys to move · Shift = ×5';
+  readout.textContent = MODULES[idx].editorOwned ? 'Pick a tool to add a control · click a control to select · drag or arrow-keys to move' : 'Click a control to select · drag or arrow-keys to move · Shift = ×5';
 }
 
 // ---- load saved overrides, then first render -----------------------------
@@ -402,10 +553,11 @@ async function boot() {
   scheduleRender();
 }
 
-picker.addEventListener('change', () => { idx = Number(picker.value); selectedId = null; clearInspector(); scheduleRender(); });
+picker.addEventListener('change', () => { idx = Number(picker.value); selectedId = null; activeTool = null; clearInspector(); refreshToolbox(); scheduleRender(); });
 darkBtn.addEventListener('click', () => { dark = !dark; darkBtn.textContent = dark ? 'Dark' : 'Light'; scheduleRender(); });
 saveBtn.addEventListener('click', save);
 revertBtn.addEventListener('click', revert);
+newBtn.addEventListener('click', newDraft);
 window.addEventListener('keydown', (e) => {
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
@@ -415,4 +567,5 @@ window.addEventListener('keydown', (e) => {
   if (map[e.key]) { e.preventDefault(); nudge(...map[e.key]); }
 });
 
+buildToolbox();
 boot();
