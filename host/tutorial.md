@@ -22,7 +22,7 @@ This is the tutorial DreamRack shows in its floating cards, on a first run and f
 
 **These cards:** each explains one part of the instrument, then asks you to do something. A card stays open while you work, so you never have to dismiss it to follow it — park it anywhere by its title bar, and resize it like any other window. Marked blocks are your cue to act, like this one:
 
-> **Do this** — Read the [README](https://github.com/chrisgr99/wCoast/blob/main/README.md) if you haven't — it covers what DreamRack is, and what it isn't, which this tutorial won't repeat.
+> **Do this** — Read the [README](https://github.com/chrisgr99/DreamRack/blob/main/README.md) if you haven't — it covers what DreamRack is, and what it isn't, which this tutorial won't repeat.
 
 **Coming up:**
 

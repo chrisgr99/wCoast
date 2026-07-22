@@ -519,7 +519,7 @@ async function boot() {
   });
   rack.onPatchNotes = () => notes.toggle();
   const composer = createComposer({
-    repo: 'chrisgr99/wCoast',
+    repo: 'chrisgr99/DreamRack',
     isDark: () => rack.isDark(),
     getPatchJSON: () => trimmedPatchText(),
     openExternal: (url) => rack._openExternal(url),
@@ -537,7 +537,7 @@ async function boot() {
     getBuild: () => rack.buildInfo,
     isDark: () => rack.isDark(),
     openExternal: (url) => rack._openExternal(url),
-    repoUrl: 'https://github.com/chrisgr99/wCoast',
+    repoUrl: 'https://github.com/chrisgr99/DreamRack',
     contactUrl: 'https://github.com/chrisgr99',
     onTutorial: () => { if (rack.onTutorial) rack.onTutorial(); },
   });

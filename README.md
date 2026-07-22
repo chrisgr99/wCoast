@@ -29,11 +29,11 @@ The modules that ship today are a Complex Oscillator, a Quad Low Pass Gate, a Qu
 
 The modules that ship today lean West Coast — Buchla- and Serge-flavoured — which is where my own interest lies and where the earliest work went. But nothing in the architecture ties DreamRack to that style: modules of any kind drop in as plug-ins, with or without a hardware ancestor.
 
-Share thoughts, bugs, and ideas in the [discussions](https://github.com/chrisgr99/wCoast/discussions).
+Share thoughts, bugs, and ideas in the [discussions](https://github.com/chrisgr99/DreamRack/discussions).
 
 ## Running it
 
-There's nothing to download or install. Open the GitHub Pages build at [chrisgr99.github.io/wCoast](https://chrisgr99.github.io/wCoast/) and follow the getting-started notes that appear on first run.
+There's nothing to download or install. Open the GitHub Pages build at [chrisgr99.github.io/DreamRack](https://chrisgr99.github.io/DreamRack/) and follow the getting-started notes that appear on first run.
 
 A desktop version, built on Electron, is fully running now. A packaged, one-click download will follow once the app settles a little — code-signing and notarizing it (so that macOS opens it without a security warning) is worth doing when the build is less subject to change. Until then you can run the desktop app yourself: with [Node.js](https://nodejs.org/) installed, clone the project from GitHub, open its folder in Terminal, and run `npm start`. A Windows or Linux desktop build is possible too — Electron is cross-platform — but for now the easiest way to run DreamRack on those systems is in the browser.
 
