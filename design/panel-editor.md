@@ -179,6 +179,54 @@ missing — `anyOf` (the keyboard) and `readout` (the display) — are the first
 customers that justify building it. Purely static adornment (a logo, a printed scale,
 a bezel) needs none of this: it belongs in the embellishment layer above.
 
+## User-defined glyphs
+
+A label can be a **glyph** — a small monochrome vector symbol drawn in place of text
+(the waveshape radio's sawtooth/square/triangle). Today the glyphs are code-drawn (the
+`waveGlyph` primitive's hardcoded switch); authors need to add their own without
+touching the renderer.
+
+**Model: one shared, named glyph library.** A single SVG file in the repo — e.g.
+`panel/glyphs.svg` — holds the glyphs, each a **named symbol** (an `id` / Inkscape
+label / `<symbol>`). The name is the whole contract: it keys the editor's picker and
+is what a layout stores (`glyph: 'name'`). The library is global to the editor and
+shared across every panel; the built-in waveforms move into it as the first entries.
+Named symbols (not an evenly-sliced strip) are the chosen delimiter — the author gets
+exact boundaries and a real name per glyph, drawn as a natural row/column sheet in any
+tool.
+
+**Why it must live in the repo.** A `panel.svg` is generated and self-contained (the
+app loads it alone), so at generate time the renderer **bakes the chosen glyph's
+vector into the panel** — it can't reference an external file at runtime. So the
+library has to be somewhere both the editor (browser, for the picker) and the
+generator (Node, for the SVG output) can read: a known repo file. "Point the editor at
+a glyph file" means *load/replace that library*, not reference an arbitrary path the
+shipped app wouldn't have.
+
+**Two rules that make "just draw them" true:**
+
+- **Monochrome + auto-tint.** Author each glyph in a single colour; the renderer strips
+  it and paints with the theme ink, so glyphs theme for free — no light/dark pair like
+  full-colour embellishments need.
+- **Auto-fit.** Each glyph is normalised by its bounding box to fill the glyph slot, so
+  it can be any size or position in the sheet and still render consistently.
+
+**Editor UX.** A glyph **picker dropdown with live previews** (the editor draws them
+the same way the panels will); a radio position (or any label) can be text or a glyph;
+"add glyph" = load/replace the library file. Because it's just a named monochrome
+symbol, the same library serves anywhere a label appears — radio positions, a knob's
+scale ticks, a control's label — a general symbol palette, not a radio-only feature.
+
+**Relation to the registry.** This is the same pattern once more: a named, pluggable
+set (control types, widgets, now glyphs). Glyphs are the embellishment idea narrowed to
+*monochrome, named, referenced-and-baked-in* — cheaper than embellishments because the
+tinting removes the two-file burden.
+
+**Open decisions:** shared library only, or also a per-module `glyphs.svg` for bespoke
+ones; whether "add glyph" is import-an-SVG, paste a path, or type a Unicode character;
+and whether full-colour glyphs are ever allowed (which would drag in the light/dark
+two-file rule). Not needed to start — one shared, named, monochrome library covers it.
+
 ## Build phases
 
 Ordered to prove the foundation first, hand back a usable payoff early, then reach a

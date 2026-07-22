@@ -248,8 +248,8 @@ async function renderOnce() {
     svg.style.height = `${vb.h * eff}px`;
     svg.style.width = `${vb.w * eff}px`;
     svg.style.boxShadow = '0 8px 30px rgba(0,0,0,0.45)';
-    buildOverlay(svg, layout);
     stage.replaceChildren(svg);
+    buildOverlay(svg, layout);   // after it's in the DOM so getBBox works for group-sized handles
     if (resetScrollNext) { stage.scrollTop = 0; stage.scrollLeft = 0; resetScrollNext = false; }   // panel at the top on load / module change
     else if (pendingScrollFrac) {   // keep the viewport centre anchored across a zoom
       stage.scrollLeft = pendingScrollFrac.x * stage.scrollWidth - stage.clientWidth / 2;
@@ -266,29 +266,52 @@ async function renderOnce() {
   }
 }
 
+// Controls made of several elements (a whole radio row, a lamp group): the hit target
+// and the selection highlight should cover the WHOLE control, so we size them from the
+// rendered element's bounds. Point controls (knob, jack, button) stay a centred circle.
+const GROUP_TYPES = new Set(['radio', 'stepButton', 'lampGroup', 'vu']);
 function buildOverlay(svg, layout) {
   const off = itemOffset(layout);
   const g = document.createElementNS(NS, 'g');
   g.setAttribute('class', 'editor-overlay');
-  layout.items.forEach((it, i) => {
-    if (!it.id) return;
-    const a = anchor(it, layout);
-    if (!a) return;
-    const cx = off.x + a.x, cy = off.y + a.y;
-    if (it.id === selectedId) {
-      const ring = document.createElementNS(NS, 'circle');
-      ring.setAttribute('cx', cx); ring.setAttribute('cy', cy); ring.setAttribute('r', a.r + 1.2);
-      ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', '#39a0ff');
-      ring.setAttribute('stroke-width', '0.5'); ring.setAttribute('pointer-events', 'none');
-      g.appendChild(ring);
+  layout.items.forEach((it) => {
+    const cid = it.id || it.param;   // lamp groups carry `param`, not `id`
+    if (!cid) return;
+    let handle, selection;
+    let box = null;
+    if (GROUP_TYPES.has(it.t)) {
+      const rendered = svg.querySelector(`[data-wcoast-param="${cid}"]`) || svg.querySelector(`[data-wcoast-port="${cid}"]`);
+      if (rendered) { try { const b = rendered.getBBox(); box = { x: b.x - 0.8, y: b.y - 0.8, w: b.width + 1.6, h: b.height + 1.6 }; } catch (_e) { /* not measurable */ } }
     }
-    const h = document.createElementNS(NS, 'circle');
-    h.setAttribute('cx', cx); h.setAttribute('cy', cy); h.setAttribute('r', a.r);
-    h.setAttribute('fill', 'transparent');
-    h.setAttribute('data-ctrl-id', it.id);   // so right-click can open this control's settings
-    h.style.cursor = 'grab';
-    h.addEventListener('pointerdown', (e) => startDrag(e, it.id));
-    g.appendChild(h);
+    if (box) {
+      handle = document.createElementNS(NS, 'rect');
+      handle.setAttribute('x', box.x); handle.setAttribute('y', box.y); handle.setAttribute('width', box.w); handle.setAttribute('height', box.h);
+      if (cid === selectedId) {
+        selection = document.createElementNS(NS, 'rect');
+        selection.setAttribute('x', box.x); selection.setAttribute('y', box.y); selection.setAttribute('width', box.w); selection.setAttribute('height', box.h);
+        selection.setAttribute('rx', '1');
+      }
+    } else {
+      const a = anchor(it, layout);
+      if (!a) return;
+      const cx = off.x + a.x, cy = off.y + a.y;
+      handle = document.createElementNS(NS, 'circle');
+      handle.setAttribute('cx', cx); handle.setAttribute('cy', cy); handle.setAttribute('r', a.r);
+      if (cid === selectedId) {
+        selection = document.createElementNS(NS, 'circle');
+        selection.setAttribute('cx', cx); selection.setAttribute('cy', cy); selection.setAttribute('r', a.r + 1.2);
+      }
+    }
+    if (selection) {
+      selection.setAttribute('fill', 'none'); selection.setAttribute('stroke', '#39a0ff');
+      selection.setAttribute('stroke-width', '0.5'); selection.setAttribute('pointer-events', 'none');
+      g.appendChild(selection);
+    }
+    handle.setAttribute('fill', 'transparent');
+    handle.setAttribute('data-ctrl-id', cid);   // so click/right-click reach this control
+    handle.style.cursor = 'grab';
+    handle.addEventListener('pointerdown', (e) => startDrag(e, cid));
+    g.appendChild(handle);
   });
   svg.appendChild(g);
   svg.addEventListener('pointerdown', (e) => {
@@ -301,7 +324,7 @@ function buildOverlay(svg, layout) {
 // ---- move ----------------------------------------------------------------
 // A control's current position: its override if one exists, else its layout home.
 // Reading the override (not the async-rendered layout) lets rapid nudges accumulate.
-function baseItem(id) { return MODULES[idx].base.items.find((x) => x.id === id); }
+function baseItem(id) { return MODULES[idx].base.items.find((x) => (x.id || x.param) === id); }
 function curPos(id) {
   const ov = MODULES[idx].overrides[id], b = baseItem(id);
   return { x: ov && typeof ov.x === 'number' ? ov.x : b.x, y: ov && typeof ov.y === 'number' ? ov.y : b.y };
@@ -314,6 +337,7 @@ function startDrag(e, id) {
   if (settingsId && settingsId !== id) openSettings(id);   // a dialog is open -> switch it to this control
   const m = MODULES[idx];
   const a = anchor(baseItem(id), m.base);
+  if (!a) { scheduleRender(); return; }   // selectable but not draggable (e.g. a lamp group has no x/y anchor)
   const rect = currentSvg.getBoundingClientRect();
   const vb = viewBoxOf(currentSvg);
   const mmPerPxX = vb.w / rect.width, mmPerPxY = vb.h / rect.height;
@@ -412,7 +436,7 @@ function setPath(o, path, v) {
   cur[ks[ks.length - 1]] = v;
 }
 function workingLayout() { const m = MODULES[idx]; return applyOverrides(clone(m.base), m.overrides); }
-function workItem(id) { return workingLayout().items.find((x) => x.id === id); }
+function workItem(id) { return workingLayout().items.find((x) => (x.id || x.param) === id); }
 function descEntry(id) {
   const d = MODULES[idx].workDesc || {};
   return (d.ports || []).find((p) => p.id === id) || (d.params || []).find((p) => p.id === id) || null;
@@ -539,10 +563,69 @@ function stepsEditor(id) {
   return wrap;
 }
 
-function section(title) {
+// A knob's dial scale: a "tick marks" count (0 = none) placing that many evenly-spaced
+// ticks, then one label box per tick (blank = an unlabelled tick, "|" = two stacked lines),
+// then the geometry that positions the scale. Maps onto the renderer's scale.marks array.
+function scaleEditor(id) {
+  const wrap = document.createElement('div');
+  const scale = optVal(id, 'scale', null);
+  const marks = (scale && Array.isArray(scale.marks)) ? scale.marks.map((m) => ({ ...m })) : [];
+  const labelStr = (m) => (Array.isArray(m.label) ? m.label.join('|') : (m.label ?? ''));
+  const parseLabel = (s) => { const t = (s || '').trim(); if (!t) return null; const p = t.split('|').map((x) => x.trim()); return p.length > 1 ? p : p[0]; };
+  const respace = () => { const n = marks.length; marks.forEach((m, i) => { m.at = n <= 1 ? 0.5 : i / (n - 1); m.tick = true; }); };
+  const commit = () => setOpt(id, 'scale.marks', marks.map((m) => ({ ...m })));
+
+  const count = document.createElement('input'); count.type = 'number'; count.min = '0'; count.step = '1'; count.value = String(marks.length);
+  count.addEventListener('change', () => {
+    const n = Math.max(0, Math.round(Number(count.value) || 0));
+    if (n === 0) { setOpt(id, 'scale', null); refreshSettings(); return; }
+    while (marks.length < n) marks.push({ at: 0, label: null, tick: true });
+    while (marks.length > n) marks.pop();
+    respace();
+    if (!(scale && scale.size != null)) setOpt(id, 'scale.size', 1.8);
+    setOpt(id, 'scale.marks', marks.map((m) => ({ ...m })));
+    refreshSettings();
+  });
+  wrap.appendChild(fieldRow('tick marks', count));
+
+  marks.forEach((m) => {
+    const row = document.createElement('div'); row.className = 'insp-step';
+    const lab = document.createElement('input'); lab.type = 'text'; lab.value = labelStr(m); lab.placeholder = 'label (blank = tick only)';
+    lab.addEventListener('input', () => { m.label = parseLabel(lab.value); commit(); });
+    row.appendChild(lab); wrap.appendChild(row);
+  });
+
+  if (marks.length) {
+    const sub = document.createElement('div'); sub.className = 'insp-sub'; sub.textContent = 'geometry'; wrap.appendChild(sub);
+    wrap.appendChild(fieldRow('font size', numberInput(optVal(id, 'scale.size', 1.8), (v) => setOpt(id, 'scale.size', v))));
+    wrap.appendChild(fieldRow('tick gap', numberInput(optVal(id, 'scale.tickGap', 0.6), (v) => setOpt(id, 'scale.tickGap', v))));
+    wrap.appendChild(fieldRow('tick length', numberInput(optVal(id, 'scale.tickLen', 1.1), (v) => setOpt(id, 'scale.tickLen', v))));
+    wrap.appendChild(fieldRow('label gap', numberInput(optVal(id, 'scale.labelGap', 1.8), (v) => setOpt(id, 'scale.labelGap', v))));
+    const idxc = document.createElement('input'); idxc.type = 'checkbox'; idxc.checked = !!optVal(id, 'scale.index', false);
+    idxc.addEventListener('change', () => setOpt(id, 'scale.index', idxc.checked));
+    wrap.appendChild(fieldRow('index mark', idxc));
+  }
+  return wrap;
+}
+
+// Collapsible sections. `collapsed` persists which are closed across rebuilds so editing
+// a field (which rebuilds the body) doesn't reset what you opened. Toggling just shows/hides.
+const collapsed = new Set(['scale']);   // the dial-scale sub-section starts collapsed
+function section(title, key) {
   const el = document.createElement('section'); el.className = 'insp-section';
-  const h = document.createElement('h4'); h.textContent = title; el.appendChild(h);
-  const body = document.createElement('div'); body.className = 'insp-body'; el.appendChild(body);
+  const h = document.createElement('h4');
+  const isC = key && collapsed.has(key);
+  const tri = document.createElement('span'); tri.className = 'tri'; tri.textContent = isC ? '▸' : '▾';
+  const t = document.createElement('span'); t.textContent = title;
+  h.append(tri, t);
+  const body = document.createElement('div'); body.className = 'insp-body';
+  if (isC) body.style.display = 'none';
+  if (key) h.addEventListener('click', () => {
+    const c = collapsed.has(key) ? (collapsed.delete(key), false) : (collapsed.add(key), true);
+    body.style.display = c ? 'none' : '';
+    tri.textContent = c ? '▸' : '▾';
+  });
+  el.append(h, body);
   return { el, body };
 }
 function note(body, text) { const d = document.createElement('div'); d.className = 'insp-note'; d.textContent = text; body.appendChild(d); }
@@ -557,10 +640,10 @@ function buildSettingsBody(id) {
 
   // --- Structure items (label, divider): presentation only, no descriptor ---
   if (STRUCTURE_TYPES.has(it.t)) {
-    const s = section('Structure');
+    const s = section('Structure', 'struct');
     if (it.t === 'label') {
       s.body.appendChild(fieldRow('text', textInput(it.text, (v) => setItemField(id, 'text', v))));
-      s.body.appendChild(fieldRow('size', numberInput(optVal(id, 'size', 2.4), (v) => setOpt(id, 'size', v))));
+      s.body.appendChild(fieldRow('font size', numberInput(optVal(id, 'size', 2.4), (v) => setOpt(id, 'size', v))));
     } else {
       s.body.appendChild(fieldRow('length', numberInput(it.len, (v) => setItemField(id, 'len', v))));
       s.body.appendChild(fieldRow('thickness', numberInput(it.w, (v) => setItemField(id, 'w', v), 0.05)));
@@ -571,13 +654,13 @@ function buildSettingsBody(id) {
   }
 
   // --- Presentation (layout) ---
-  const pres = section('Presentation');
+  const pres = section('Presentation', 'pres');
   const addP = (label, el) => pres.body.appendChild(fieldRow(label, el));
   if (it.t === 'knob') addP('radius', numberInput(optVal(id, 'radius', 4.6), (v) => setKnobRadius(id, v)));
   if (it.opts && it.opts.label && typeof it.opts.label === 'object') {
     addP('label text', textInput(optVal(id, 'label.text', ''), (v) => setOpt(id, 'label.text', v)));
     addP('label place', selectInput(optVal(id, 'label.placement', 'below'), PLACEMENTS, (v) => setOpt(id, 'label.placement', v)));
-    addP('label size', numberInput(optVal(id, 'label.size', 2.0), (v) => setOpt(id, 'label.size', v)));
+    addP('font size', numberInput(optVal(id, 'label.size', 2.0), (v) => setOpt(id, 'label.size', v)));
   }
   if (it.t === 'radio' || it.t === 'stepButton') {
     addP('orientation', selectInput(optVal(id, 'orientation', 'v'), [['h', 'horizontal'], ['v', 'vertical']], (v) => setOpt(id, 'orientation', v)));
@@ -587,11 +670,16 @@ function buildSettingsBody(id) {
     pres.body.appendChild(stepsEditor(id));
   }
   if (it.t === 'button') { addP('radius', numberInput(optVal(id, 'r', 2.0), (v) => setOpt(id, 'r', v))); addP('kind', textInput(optVal(id, 'kind', 'red'), (v) => setOpt(id, 'kind', v))); }
+  if (it.t === 'knob') {   // dial scale as its own collapsible sub-section
+    const sc = section('Dial scale', 'scale'); sc.el.classList.add('sub');
+    sc.body.appendChild(scaleEditor(id));
+    pres.body.appendChild(sc.el);
+  }
   if (!pres.body.children.length) note(pres.body, 'no presentation options for this control');
   root.appendChild(pres.el);
 
   // --- Data (descriptor) ---
-  const data = section('Data');
+  const data = section('Descriptors', 'desc');
   const owned = MODULES[idx].editorOwned;
   note(data.body, owned ? 'generated into descriptor.js on Save' : 'live preview — written to descriptor.js in a later phase');
   const addD = (label, el) => data.body.appendChild(fieldRow(label, el));
@@ -699,7 +787,7 @@ function closeFloats() { floatRoot.replaceChildren(); settingsId = null; }   // 
 function openModuleSettings() {
   const m = MODULES[idx];
   const root = document.createElement('div');
-  const mod = section('Module');
+  const mod = section('Module', 'module');
   mod.body.appendChild(fieldRow('name', textInput(m.workDesc.name, (v) => { m.workDesc.name = v; m.name = v; m.dirtyDraft = true; refreshStatus(); })));
   mod.body.appendChild(fieldRow('id', textInputCommit(m.workDesc.id, (v) => { m.workDesc.id = (v || '').trim() || m.workDesc.id; m.dirtyDraft = true; })));
   mod.body.appendChild(fieldRow('width mm', numberInput(m.base.faceW, (v) => { pushUndo('modWidth'); m.base.faceW = v; m.base.items[0].w = v; m.base.items[1].w = v - 1; m.dirtyDraft = true; scheduleRender(); }, 1)));

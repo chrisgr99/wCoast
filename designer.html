@@ -31,7 +31,12 @@
   .insp-empty { opacity:.5; font-size:13px; margin-top:8px; }
   .insp-head { font-weight:700; font-size:14px; margin-bottom:12px; font-variant-numeric:tabular-nums; }
   .insp-section { margin-bottom:8px; }
-  .insp-section h4 { margin:0 0 4px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.6; border-bottom:1px solid #333; padding-bottom:2px; }
+  .insp-section h4 { margin:0 0 4px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.6; border-bottom:1px solid #333; padding-bottom:2px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px; }
+  .insp-section h4:hover { opacity:.85; }
+  .insp-section .tri { font-size:9px; width:8px; display:inline-block; }
+  .insp-section.sub { margin:6px 0 0; }
+  .insp-section.sub h4 { text-transform:none; letter-spacing:0; border-bottom:none; }
+  .insp-field input[type=checkbox] { width:auto; justify-self:start; }
   .insp-note { font-size:11px; opacity:.5; font-style:italic; margin:1px 0 4px; }
   .insp-sub { font-size:11px; opacity:.6; margin:5px 0 2px; }
   .insp-field { display:grid; grid-template-columns:78px 1fr; align-items:center; gap:6px; margin:2px 0; }
