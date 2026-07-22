@@ -13,8 +13,9 @@ contextBridge.exposeInMainWorld('wcoast', {
   // Open an external URL (docs / help links) in the user's default browser,
   // rather than a new Electron window.
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
-  // Open the panel editor window (developer tool), optionally focused on a module (descriptor id).
-  openPanelEditor: (moduleId) => ipcRenderer.invoke('open-panel-editor', moduleId),
+  // Open the panel editor window (developer tool). opts: { moduleId?, scale? } — moduleId focuses
+  // it on a module; scale is the rack's current px/mm so the panel opens at the same size.
+  openPanelEditor: (opts) => ipcRenderer.invoke('open-panel-editor', opts),
   // The panel editor page uses these: write a module's files, and be told which module to focus.
   designerSave: (msg) => ipcRenderer.invoke('designer:save', msg),
   onSelectModule: (cb) => ipcRenderer.on('designer:select-module', (_e, id) => cb(id)),

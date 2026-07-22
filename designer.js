@@ -36,14 +36,18 @@ const MODULES = [
 ];
 
 const stage = document.getElementById('stage');
-const picker = document.getElementById('picker');
-const saveBtn = document.getElementById('saveBtn');
-const revertBtn = document.getElementById('revertBtn');
 const status = document.getElementById('status');
 const readout = document.getElementById('readout');
 const inspector = document.getElementById('inspector');
-const newBtn = document.getElementById('newBtn');
 const tools = document.getElementById('tools');
+const burger = document.getElementById('burger');
+const menuRoot = document.getElementById('menuRoot');
+const dialogRoot = document.getElementById('dialogRoot');
+const DEV_GUIDE_URL = 'https://github.com/chrisgr99/wCoast/blob/main/MODULE-AUTHORING.md';
+// Render scale (px per mm). Opened from the rack, ?scale carries the rack's current
+// px/mm so the panel appears at the same size it does in the rack; else a rack-like default.
+const urlScale = parseFloat(new URLSearchParams(location.search).get('scale'));
+const RENDER_SCALE = urlScale > 0 ? urlScale : 3;
 
 const dark = true;   // the editor is always dark — a panel is always drawn in dark mode here
 let idx = 0;
@@ -53,14 +57,114 @@ let currentSvg = null;
 let activeTool = null;      // a toolbox type armed for placement (editor-owned modules only)
 let lastWarnings = [];      // binding warnings from the last render — the validation signal
 let draftCount = 0;
+let resetScrollNext = true; // scroll the stage to the top on load / module change (not mid-edit)
 
-MODULES.forEach((m, i) => {
-  const o = document.createElement('option');
-  o.value = String(i); o.textContent = m.name; picker.appendChild(o);
+MODULES.forEach((m) => {
   m.overrides = {};             // live edits (loaded from disk at startup)
   m.saved = {};                 // what's on disk, for revert + dirty check
   m.workDesc = clone(m.desc);   // in-memory interface model; data-face edits mutate it
+  m.undo = [];                  // per-module undo/redo snapshot stacks
+  m.redo = [];
 });
+
+// ---- undo / redo (per module) --------------------------------------------
+// Snapshot everything a mutation can touch: overrides + working descriptor always,
+// plus the base layout for authored drafts. Cheap because it's all JSON-cloneable.
+function snapshot() {
+  const m = MODULES[idx];
+  return { overrides: clone(m.overrides), workDesc: clone(m.workDesc), base: m.editorOwned ? clone(m.base) : null };
+}
+function restoreSnap(s) {
+  const m = MODULES[idx];
+  m.overrides = clone(s.overrides); m.workDesc = clone(s.workDesc);
+  if (m.editorOwned && s.base) m.base = clone(s.base);
+}
+function pushUndo() { const m = MODULES[idx]; m.undo.push(snapshot()); if (m.undo.length > 100) m.undo.shift(); m.redo.length = 0; }
+function canUndo() { return MODULES[idx].undo.length > 0; }
+function canRedo() { return MODULES[idx].redo.length > 0; }
+function undo() { const m = MODULES[idx]; if (!m.undo.length) return; m.redo.push(snapshot()); restoreSnap(m.undo.pop()); selectedId = null; clearInspector(); refreshToolbox(); scheduleRender(); }
+function redo() { const m = MODULES[idx]; if (!m.redo.length) return; m.undo.push(snapshot()); restoreSnap(m.redo.pop()); selectedId = null; clearInspector(); refreshToolbox(); scheduleRender(); }
+
+function selectModuleIndex(i) {
+  if (i < 0 || i >= MODULES.length) return;
+  idx = i; selectedId = null; activeTool = null; resetScrollNext = true;
+  clearInspector(); refreshToolbox(); scheduleRender();
+}
+
+// ---- menus (hamburger + right-click, matching the app) -------------------
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+function closeMenus() { menuRoot.replaceChildren(); document.removeEventListener('pointerdown', onDocDown, true); }
+function onDocDown(e) { if (!e.target.closest('.menu')) closeMenus(); }
+function renderLevel(items) {
+  const el = document.createElement('div'); el.className = 'menu';
+  for (const it of items) {
+    if (it.separator) { const s = document.createElement('div'); s.className = 'menu-sep'; el.appendChild(s); continue; }
+    const row = document.createElement('div');
+    row.className = 'menu-item' + (it.disabled ? ' disabled' : '');
+    row.innerHTML = `<span>${it.checked ? '✓ ' : ''}${esc(it.label)}</span>` + (it.submenu ? '<span class="menu-arrow">▸</span>' : '');
+    const clearSubs = () => el.querySelectorAll(':scope > .menu-item.open').forEach((r) => { r.classList.remove('open'); r.querySelectorAll('.submenu').forEach((s) => s.remove()); });
+    if (it.submenu) {
+      row.addEventListener('pointerenter', () => { clearSubs(); row.classList.add('open'); const sub = renderLevel(it.submenu); sub.classList.add('submenu'); row.appendChild(sub); });
+    } else {
+      row.addEventListener('pointerenter', clearSubs);
+      if (!it.disabled) row.addEventListener('click', (e) => { e.stopPropagation(); closeMenus(); if (it.action) it.action(); });
+    }
+    el.appendChild(row);
+  }
+  return el;
+}
+function openMenu(x, y, items) {
+  closeMenus();
+  const menu = renderLevel(items);
+  menu.style.left = x + 'px'; menu.style.top = y + 'px';
+  menuRoot.appendChild(menu);
+  const r = menu.getBoundingClientRect();
+  if (r.right > innerWidth) menu.style.left = Math.max(4, innerWidth - r.width - 4) + 'px';
+  if (r.bottom > innerHeight) menu.style.top = Math.max(4, innerHeight - r.height - 4) + 'px';
+  setTimeout(() => document.addEventListener('pointerdown', onDocDown, true), 0);
+}
+function mainMenu() {
+  const modules = MODULES.map((m, i) => ({ label: m.name + (m.editorOwned ? ' (draft)' : ''), checked: i === idx, action: () => selectModuleIndex(i) }));
+  const file = [
+    { label: 'Open module', submenu: modules },
+    { label: 'New module', action: newDraft },
+    { separator: true },
+    { label: 'Save', disabled: !dirty(), action: save },
+    { label: 'Revert', disabled: !dirty(), action: revert },
+    { separator: true },
+    { label: 'Close editor', action: () => window.close() },
+  ];
+  const edit = [
+    { label: 'Undo', disabled: !canUndo(), action: undo },
+    { label: 'Redo', disabled: !canRedo(), action: redo },
+  ];
+  const help = [
+    { label: 'How to use the editor', action: showHelp },
+    ...(window.wcoast && window.wcoast.openExternal ? [{ label: 'Developer guide', action: () => window.wcoast.openExternal(DEV_GUIDE_URL) }] : []),
+  ];
+  return [{ label: 'File', submenu: file }, { label: 'Edit', submenu: edit }, { label: 'Help', submenu: help }];
+}
+
+function showHelp() {
+  dialogRoot.innerHTML = `<div class="dlg-overlay"><div class="dlg">
+    <h2>Panel editor</h2>
+    <div class="dlg-body">
+      <p>Draw a module's faceplate; its descriptor is generated from what you draw.</p>
+      <ul>
+        <li><b>Shipped modules</b> can be re-arranged; to add controls, start a <b>New module</b> (File menu).</li>
+        <li><b>Add a control:</b> pick a tool from the strip, then click the panel to place it.</li>
+        <li><b>Move:</b> click a control to select it, then drag, or use the arrow keys (Shift = &times;5).</li>
+        <li><b>Edit:</b> the right panel shows the selected control's presentation and data.</li>
+        <li><b>Save</b> (File menu, or ⌘S) writes the layout, descriptor, and panels to disk.</li>
+        <li><b>Undo / Redo:</b> Edit menu, or ⌘Z / ⌘⇧Z.</li>
+      </ul>
+    </div>
+    <button class="dlg-close">Close</button>
+  </div></div>`;
+  const close = () => dialogRoot.replaceChildren();
+  dialogRoot.querySelector('.dlg-overlay').addEventListener('pointerdown', (e) => { if (e.target.classList.contains('dlg-overlay')) close(); });
+  dialogRoot.querySelector('.dlg-close').addEventListener('click', close);
+}
 
 // ---- geometry ------------------------------------------------------------
 // viewBox as {x,y,w,h}, parsed from the attribute — reliable on a detached SVG,
@@ -111,12 +215,12 @@ async function renderOnce() {
     const { svg, warnings } = await loadPanel(url, m.workDesc, { dark });   // real loader: crop, colour jacks, identity band, title; warnings = binding validation
     lastWarnings = warnings || [];
     const vb = viewBoxOf(svg);   // attribute-parsed: baseVal reads 0 on a detached SVG
-    const H = 620;
-    svg.style.height = `${H}px`;
-    svg.style.width = `${(H * vb.w) / vb.h}px`;
+    svg.style.height = `${vb.h * RENDER_SCALE}px`;   // mm -> px at the rack's scale
+    svg.style.width = `${vb.w * RENDER_SCALE}px`;
     svg.style.boxShadow = '0 8px 30px rgba(0,0,0,0.45)';
     buildOverlay(svg, layout);
     stage.replaceChildren(svg);
+    if (resetScrollNext) { stage.scrollTop = 0; stage.scrollLeft = 0; resetScrollNext = false; }   // panel at the top on load / module change
     currentLayout = layout;
     currentSvg = svg;
     refreshStatus();
@@ -182,6 +286,7 @@ function startDrag(e, id) {
   scheduleRender();   // reflect the selection ring right away
 
   function move(ev) {
+    if (!moved) pushUndo();   // one undo entry per drag gesture, on the first move
     const nx = a.axes.includes('x') ? round3(baseX + (ev.clientX - startCX) * mmPerPxX) : baseX;
     const ny = a.axes === 'xy' ? round3(baseY + (ev.clientY - startCY) * mmPerPxY) : baseY;
     m.overrides[id] = a.axes === 'x' ? { x: nx } : { x: nx, y: ny };
@@ -202,6 +307,7 @@ function nudge(dx, dy) {
   const m = MODULES[idx];
   const it = baseItem(selectedId);
   if (!it) return;
+  pushUndo();
   const a = anchor(it, m.base);
   const p = curPos(selectedId);
   const nx = round3(p.x + (a.axes.includes('x') ? dx : 0));
@@ -215,7 +321,7 @@ function dirty() { const m = MODULES[idx]; return m.editorOwned ? !!m.dirtyDraft
 
 async function save() {
   const m = MODULES[idx];
-  saveBtn.disabled = true; status.textContent = 'Saving…';
+  status.textContent = 'Saving…';
   const body = m.editorOwned
     ? { dir: m.dir, editorOwned: true, layout: applyOverrides(clone(m.base), m.overrides), descriptor: m.workDesc }
     : { dir: m.dir, overrides: m.overrides };
@@ -276,6 +382,7 @@ function descEntry(id) {
 }
 function optVal(id, path, dflt) { const it = workItem(id); return getPath(it && it.opts, path, dflt); }
 function setOpt(id, path, value) {
+  pushUndo();
   const m = MODULES[idx];
   if (m.editorOwned) {
     const it = m.base.items.find((x) => x.id === id);
@@ -291,6 +398,7 @@ function setOpt(id, path, value) {
 function setDesc(id, key, value) {
   const e = descEntry(id);
   if (!e) return;
+  pushUndo();
   e[key] = value;
   if (MODULES[idx].editorOwned) MODULES[idx].dirtyDraft = true;
   scheduleRender();
@@ -305,6 +413,7 @@ function syncStepped(id, steps) {
 }
 // A top-level item field (structure items: a label's text, a divider's len/thickness).
 function setItemField(id, key, value) {
+  pushUndo();
   const m = MODULES[idx];
   if (m.editorOwned) { const it = m.base.items.find((x) => x.id === id); if (it) it[key] = value; m.dirtyDraft = true; }
   scheduleRender();
@@ -494,11 +603,10 @@ function newDraft() {
     { t: 'rect', x: 0.5, y: 0.5, w: W - 1, h: H - 1, rx: 2.2, fill: 'none', stroke: 'frame', sw: 0.5 },
   ] };
   const desc = { apiVersion: 1, id: `draft${n}`, name: `New Module ${n}`, params: [], ports: [] };
-  const m = { name: `New Module ${n}`, dir: `draft-${n}`, base, desc, workDesc: clone(desc), overrides: {}, saved: {}, editorOwned: true, dirtyDraft: true };
+  const m = { name: `New Module ${n}`, dir: `draft-${n}`, base, desc, workDesc: clone(desc), overrides: {}, saved: {}, editorOwned: true, dirtyDraft: true, undo: [], redo: [] };
   MODULES.push(m);
-  const o = document.createElement('option'); o.value = String(MODULES.length - 1); o.textContent = m.name + ' (draft)'; picker.appendChild(o);
-  idx = MODULES.length - 1; picker.value = String(idx);
-  selectedId = null; activeTool = null; clearInspector(); refreshToolbox(); scheduleRender();
+  idx = MODULES.length - 1;
+  selectedId = null; activeTool = null; resetScrollNext = true; clearInspector(); refreshToolbox(); scheduleRender();
 }
 
 let idSeq = 0;
@@ -531,6 +639,7 @@ function placeControl(type, e) {
   const off = itemOffset(m.base);
   const made = makeControl(type, uniqueId(m, type), round3(ux - off.x), round3(uy - off.y));
   if (!made) return;
+  pushUndo();
   m.base.items.push(made.item);
   if (made.kind === 'port') m.workDesc.ports.push(made.entry);
   else if (made.kind === 'param') m.workDesc.params.push(made.entry);
@@ -543,6 +652,7 @@ function renameControl(oldId, newId) {
   if (!newId || newId === oldId) { buildInspector(oldId); return; }
   const clash = m.base.items.some((i) => i.id === newId) || (m.workDesc.ports || []).some((p) => p.id === newId) || (m.workDesc.params || []).some((p) => p.id === newId);
   if (clash) { status.textContent = `id "${newId}" is already used`; buildInspector(oldId); return; }
+  pushUndo();
   const it = m.base.items.find((i) => i.id === oldId); if (it) it.id = newId;
   const e = descEntry(oldId); if (e) e.id = newId;
   selectedId = newId; m.dirtyDraft = true; scheduleRender(); buildInspector(newId);
@@ -552,6 +662,7 @@ function moveEntry(id, dir) {
   const arr = (m.workDesc.ports || []).some((p) => p.id === id) ? m.workDesc.ports : m.workDesc.params;
   const i = arr.findIndex((p) => p.id === id), j = i + dir;
   if (i < 0 || j < 0 || j >= arr.length) return;
+  pushUndo();
   [arr[i], arr[j]] = [arr[j], arr[i]];
   m.dirtyDraft = true; buildInspector(id);
 }
@@ -559,8 +670,7 @@ function moveEntry(id, dir) {
 // ---- status --------------------------------------------------------------
 function refreshStatus() {
   const m = MODULES[idx];
-  saveBtn.disabled = !dirty();
-  revertBtn.disabled = !dirty();
+  document.title = `${m.name}${m.editorOwned ? ' (draft)' : ''} — DreamRack Panel Editor`;   // window title bar
   if (m.editorOwned) {
     const np = (m.workDesc.params || []).length, npo = (m.workDesc.ports || []).length;
     status.textContent = `${m.name} (draft) — ${npo} ports, ${np} params · ` + (lastWarnings.length === 0 ? 'validates ✓' : `${lastWarnings.length} binding issue(s)`);
@@ -579,8 +689,7 @@ function refreshStatus() {
 function selectModuleById(id) {
   const i = MODULES.findIndex((m) => m.desc && m.desc.id === id);
   if (i < 0) return false;
-  idx = i; picker.value = String(i); selectedId = null; activeTool = null;
-  clearInspector(); refreshToolbox(); scheduleRender();
+  selectModuleIndex(i);
   return true;
 }
 
@@ -599,14 +708,28 @@ async function boot() {
   scheduleRender();
 }
 
-picker.addEventListener('change', () => { idx = Number(picker.value); selectedId = null; activeTool = null; clearInspector(); refreshToolbox(); scheduleRender(); });
-saveBtn.addEventListener('click', save);
-revertBtn.addEventListener('click', revert);
-newBtn.addEventListener('click', newDraft);
+// The main menu: hamburger (top-left) and right-click, both opening the same model.
+burger.addEventListener('click', () => { const r = burger.getBoundingClientRect(); openMenu(r.left, r.bottom + 4, mainMenu()); });
+document.addEventListener('contextmenu', (e) => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'select' || tag === 'textarea') return;   // leave native editing menus alone
+  e.preventDefault();
+  openMenu(e.clientX, e.clientY, mainMenu());
+});
 window.addEventListener('keydown', (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); if (dirty()) save(); return; }
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); (e.shiftKey ? redo : undo)(); return; }
+  if (mod && e.key.toLowerCase() === 'n') { e.preventDefault(); newDraft(); return; }
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
-  if (e.key === 'Escape') { selectedId = null; clearInspector(); scheduleRender(); return; }
+  if (e.key === 'Escape') {   // back out one level; when nothing is open/selected, close the editor
+    if (menuRoot.firstChild) { closeMenus(); return; }
+    if (dialogRoot.firstChild) { dialogRoot.replaceChildren(); return; }
+    if (selectedId) { selectedId = null; clearInspector(); scheduleRender(); return; }
+    window.close();
+    return;
+  }
   const step = e.shiftKey ? 1.0 : 0.2;
   const map = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
   if (map[e.key]) { e.preventDefault(); nudge(...map[e.key]); }

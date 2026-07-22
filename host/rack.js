@@ -5142,9 +5142,10 @@ export class Rack {
   developerMenuItems(rec) {
     const items = [{ label: 'Developer guide', action: () => this._openExternal(DOCS_MODULE_URL) }];
     if (window.wcoast && window.wcoast.openPanelEditor) {
-      items.push({ label: 'Open panel editor', action: () => window.wcoast.openPanelEditor() });
+      const scale = (this.pxPerMm || 1) * (this.zoom || 1);   // px/mm as the rack shows it now, so the editor opens at the same size
+      items.push({ label: 'Open panel editor', action: () => window.wcoast.openPanelEditor({ scale }) });
       if (rec && rec.descriptorId && !rec.pinned) {
-        items.push({ label: 'Edit this panel…', action: () => window.wcoast.openPanelEditor(rec.descriptorId) });
+        items.push({ label: 'Edit this panel…', action: () => window.wcoast.openPanelEditor({ moduleId: rec.descriptorId, scale }) });
       }
     }
     return items;

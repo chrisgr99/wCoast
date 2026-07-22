@@ -87,8 +87,8 @@ function registerPatchIpc() {
   ipcMain.handle('open-external', async (_e, url) => {
     if (typeof url === 'string' && /^https?:\/\//i.test(url)) await shell.openExternal(url);
   });
-  // Open the panel editor (developer tool) as its own window, optionally on a module.
-  ipcMain.handle('open-panel-editor', (_e, moduleId) => openPanelEditor(typeof moduleId === 'string' ? moduleId : undefined));
+  // Open the panel editor (developer tool) as its own window. opts: { moduleId?, scale? }.
+  ipcMain.handle('open-panel-editor', (_e, opts) => openPanelEditor(opts || {}));
   // The panel editor's save: write a module's files and regenerate its panels on disk.
   ipcMain.handle('designer:save', (_e, msg) => savePanel(__dirname, msg));
   // The source revision, for stamping into saved patches (null from a packaged, git-less build).
@@ -169,7 +169,9 @@ function menuSend(action, arg) {
 // browser, no dev server. It loads the same page over app://, and saves through the
 // designer:save IPC below. `moduleId` (a descriptor id) opens it focused on that module.
 let editorWindow = null;
-function openPanelEditor(moduleId) {
+function openPanelEditor(opts) {
+  const moduleId = opts && opts.moduleId;
+  const scale = opts && opts.scale;
   if (editorWindow && !editorWindow.isDestroyed()) {
     editorWindow.focus();
     if (moduleId) editorWindow.webContents.send('designer:select-module', moduleId);
@@ -187,7 +189,10 @@ function openPanelEditor(moduleId) {
       sandbox: true,
     },
   });
-  const suffix = moduleId ? `?module=${encodeURIComponent(moduleId)}` : '';
+  const q = new URLSearchParams();
+  if (moduleId) q.set('module', moduleId);
+  if (scale > 0) q.set('scale', String(scale));
+  const suffix = q.toString() ? `?${q}` : '';
   editorWindow.loadURL(`${APP_ORIGIN}/designer.html${suffix}`);
   editorWindow.on('closed', () => { editorWindow = null; });
 }

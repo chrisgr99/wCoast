@@ -3,66 +3,66 @@
 <head>
 <meta charset="utf-8">
 <meta name="color-scheme" content="dark">
-<title>DreamRack — Panel Designer</title>
+<title>DreamRack — Panel Editor</title>
 <style>
   :root { color-scheme: dark; }
   html { background:#1a1a1c; }
   * { box-sizing:border-box; }
-  body { margin:0; height:100vh; display:flex; flex-direction:column; font-family:-apple-system,system-ui,sans-serif; background:#1a1a1c; color:#ddd; transition:background .2s; }
-  body[data-dark="false"] { background:#dcdcdc; color:#222; }
-  #bar { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid #333; flex-wrap:wrap; flex:none; }
-  body[data-dark="false"] #bar { border-color:#bbb; }
-  select, button, input { font:inherit; }
-  #bar select, #bar button { padding:5px 10px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; }
-  body[data-dark="false"] #bar select, body[data-dark="false"] #bar button { background:#eee; border-color:#aaa; }
-  #bar button:disabled { opacity:.4; cursor:default; }
-  #saveBtn:not(:disabled) { border-color:#39a0ff; color:#9dcbff; }
-  body[data-dark="false"] #saveBtn:not(:disabled) { color:#1667c8; }
-  .sep { width:1px; align-self:stretch; background:#444; margin:0 4px; }
-  body[data-dark="false"] .sep { background:#bbb; }
+  body { margin:0; height:100vh; display:flex; flex-direction:column; font-family:-apple-system,system-ui,sans-serif; background:#1a1a1c; color:#ddd;
+         border:2px solid #e3e4e8; border-radius:10px; overflow:hidden; }  /* light frame so the editor edges read against the dark app behind; overflow:hidden keeps only #stage scrolling */
+  #bar { display:flex; align-items:center; gap:12px; padding:8px 12px; border-bottom:1px solid #333; flex:none; -webkit-app-region: drag; }  /* drag the window by the top bar */
+  #burger { font-size:18px; line-height:1; padding:4px 9px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; -webkit-app-region: no-drag; }
+  #burger:hover { background:#34343a; }
+  #barTitle { font-weight:700; }
   #status { margin-left:auto; opacity:.75; font-size:13px; }
-  #readout { padding:6px 16px; font-size:12px; opacity:.6; font-variant-numeric:tabular-nums; border-bottom:1px solid #2a2a2a; flex:none; }
-  body[data-dark="false"] #readout { border-color:#c8c8c8; }
+  #readout { padding:6px 14px; font-size:12px; opacity:.6; font-variant-numeric:tabular-nums; border-bottom:1px solid #2a2a2a; flex:none; }
+  #tools { display:flex; align-items:center; gap:6px; padding:8px 12px; border-bottom:1px solid #2a2a2a; flex:none; flex-wrap:wrap; }
+  #tools .tlabel { font-size:11px; opacity:.5; text-transform:uppercase; letter-spacing:.06em; margin-right:4px; }
+  #tools button { padding:4px 10px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; font-size:12px; }
+  #tools button.active { border-color:#39a0ff; background:#233; color:#9dcbff; }
+  #tools button:disabled { opacity:.35; cursor:default; }
   #work { flex:1; display:flex; min-height:0; }
-  #stage { flex:1; display:flex; justify-content:center; align-items:flex-start; padding:36px; overflow:auto; user-select:none; }
+  /* Block flow (not flex) so the panel is unconditionally at the TOP of the scroll region;
+     margin:auto centres it horizontally when it fits and left-aligns it (no clipping) when it's wider. */
+  #stage { flex:1; display:block; padding:0 36px 36px; overflow:auto; user-select:none; }
+  #stage > svg { display:block; margin:0 auto; }
   #inspector { width:310px; flex:none; overflow:auto; border-left:1px solid #333; padding:14px 16px; font-size:13px; }
-  body[data-dark="false"] #inspector { border-color:#bbb; }
   .insp-empty { opacity:.5; font-size:13px; margin-top:8px; }
   .insp-head { font-weight:700; font-size:14px; margin-bottom:12px; font-variant-numeric:tabular-nums; }
   .insp-section { margin-bottom:18px; }
   .insp-section h4 { margin:0 0 8px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.6; border-bottom:1px solid #333; padding-bottom:4px; }
-  body[data-dark="false"] .insp-section h4 { border-color:#c8c8c8; }
   .insp-note { font-size:11px; opacity:.5; font-style:italic; margin:2px 0 8px; }
   .insp-sub { font-size:11px; opacity:.6; margin:8px 0 4px; }
   .insp-field { display:grid; grid-template-columns:96px 1fr; align-items:center; gap:8px; margin:6px 0; }
   .insp-field > span { text-align:right; opacity:.75; }
   .insp-field input, .insp-field select { width:100%; padding:3px 6px; border-radius:5px; border:1px solid #555; background:#242428; color:inherit; }
-  body[data-dark="false"] .insp-field input, body[data-dark="false"] .insp-field select { background:#fff; border-color:#aaa; }
   .insp-step { display:flex; gap:6px; margin:4px 0; align-items:center; }
   .insp-step input { flex:1; min-width:0; padding:3px 6px; border-radius:5px; border:1px solid #555; background:#242428; color:inherit; }
-  body[data-dark="false"] .insp-step input { background:#fff; border-color:#aaa; }
   .insp-del { flex:none; width:24px; border-radius:5px; border:1px solid #665; background:#332; color:#e99; cursor:pointer; }
   .insp-add { margin-top:6px; padding:4px 10px; border-radius:5px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; font-size:12px; }
-  body[data-dark="false"] .insp-add { background:#eee; border-color:#aaa; }
-  #tools { display:flex; align-items:center; gap:6px; padding:8px 14px; border-bottom:1px solid #2a2a2a; flex:none; flex-wrap:wrap; }
-  body[data-dark="false"] #tools { border-color:#c8c8c8; }
-  #tools .tlabel { font-size:11px; opacity:.5; text-transform:uppercase; letter-spacing:.06em; margin-right:4px; }
-  #tools button { padding:4px 10px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; font-size:12px; }
-  body[data-dark="false"] #tools button { background:#eee; border-color:#aaa; }
-  #tools button.active { border-color:#39a0ff; background:#233; color:#9dcbff; }
-  body[data-dark="false"] #tools button.active { background:#dbeafe; color:#1667c8; }
-  #tools button:disabled { opacity:.35; cursor:default; }
+  /* menus */
+  #menuRoot .menu { position:absolute; min-width:180px; background:#25252a; border:1px solid #444; border-radius:8px; padding:5px; box-shadow:0 10px 30px rgba(0,0,0,0.5); font-size:13px; z-index:1000; }
+  #menuRoot .menu-item { position:relative; display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:5px; cursor:pointer; white-space:nowrap; }
+  #menuRoot .menu-item:hover:not(.disabled), #menuRoot .menu-item.open { background:#39527a; }
+  #menuRoot .menu-item.disabled { opacity:.4; cursor:default; }
+  #menuRoot .menu-item > span:first-child { flex:1; }
+  #menuRoot .menu-arrow { opacity:.6; font-size:11px; }
+  #menuRoot .menu-sep { height:1px; background:#444; margin:4px 6px; }
+  #menuRoot .submenu { top:-6px; left:100%; }
+  /* dialog */
+  #dialogRoot .dlg-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index:1100; }
+  #dialogRoot .dlg { background:#222226; border:1px solid #444; border-radius:12px; padding:22px 26px; max-width:520px; box-shadow:0 20px 60px rgba(0,0,0,0.6); }
+  #dialogRoot .dlg h2 { margin:0 0 12px; font-size:18px; }
+  #dialogRoot .dlg-body { font-size:13px; line-height:1.55; opacity:.9; }
+  #dialogRoot .dlg-body ul { padding-left:18px; margin:8px 0; }
+  #dialogRoot .dlg-body b { color:#9dcbff; }
+  #dialogRoot .dlg-close { margin-top:16px; padding:6px 16px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; }
 </style>
 </head>
 <body data-dark="true">
   <div id="bar">
-    <strong>Panel Designer</strong>
-    <select id="picker"></select>
-    <span class="sep"></span>
-    <button id="saveBtn" disabled>Save</button>
-    <button id="revertBtn" disabled>Revert</button>
-    <span class="sep"></span>
-    <button id="newBtn">+ New module</button>
+    <button id="burger" title="Menu" aria-label="Menu">&#9776;</button>
+    <strong id="barTitle">Panel Editor</strong>
     <span id="status"></span>
   </div>
   <div id="readout"></div>
@@ -71,6 +71,8 @@
     <div id="stage"></div>
     <aside id="inspector"></aside>
   </div>
+  <div id="menuRoot"></div>
+  <div id="dialogRoot"></div>
   <script type="module" src="designer.js"></script>
 </body>
 </html>
