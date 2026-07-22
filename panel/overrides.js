@@ -11,8 +11,10 @@
 'use strict';
 
 // Mutate a layout's items in place: for each item whose id appears in `overrides`,
-// set its x/y to the override. Returns the same layout for chaining. Items without
-// an id (labels, dividers, marks) aren't addressable and are left alone.
+// apply its patch. A patch may set x/y (position) and/or opts (presentation — a
+// deep-merge onto the item's opts, so a partial patch keeps the untouched fields).
+// Returns the same layout for chaining. Items without an id (labels, dividers,
+// marks) aren't addressable and are left alone.
 export function applyOverrides(layout, overrides) {
   if (!overrides) return layout;
   for (const it of layout.items) {
@@ -20,6 +22,19 @@ export function applyOverrides(layout, overrides) {
     if (!o) continue;
     if (typeof o.x === 'number') it.x = o.x;
     if (typeof o.y === 'number') it.y = o.y;
+    if (o.opts) it.opts = mergeOpts(it.opts || {}, o.opts);
   }
   return layout;
+}
+
+// Deep-merge a patch onto a base opts object: nested plain objects merge (so
+// patching label.placement keeps label.text); arrays and primitives replace.
+function mergeOpts(base, patch) {
+  const out = { ...base };
+  for (const k of Object.keys(patch)) {
+    const v = patch[k], b = out[k];
+    out[k] = (v && typeof v === 'object' && !Array.isArray(v) && b && typeof b === 'object' && !Array.isArray(b))
+      ? mergeOpts(b, v) : v;
+  }
+  return out;
 }

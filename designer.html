@@ -4,21 +4,43 @@
 <meta charset="utf-8">
 <title>DreamRack — Panel Designer</title>
 <style>
-  body { margin:0; font-family:-apple-system,system-ui,sans-serif; background:#1a1a1c; color:#ddd; transition:background .2s; }
+  * { box-sizing:border-box; }
+  body { margin:0; height:100vh; display:flex; flex-direction:column; font-family:-apple-system,system-ui,sans-serif; background:#1a1a1c; color:#ddd; transition:background .2s; }
   body[data-dark="false"] { background:#dcdcdc; color:#222; }
-  #bar { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid #333; flex-wrap:wrap; }
+  #bar { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid #333; flex-wrap:wrap; flex:none; }
   body[data-dark="false"] #bar { border-color:#bbb; }
-  select, button { font:inherit; padding:5px 10px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; }
-  body[data-dark="false"] select, body[data-dark="false"] button { background:#eee; border-color:#aaa; }
-  button:disabled { opacity:.4; cursor:default; }
+  select, button, input { font:inherit; }
+  #bar select, #bar button { padding:5px 10px; border-radius:6px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; }
+  body[data-dark="false"] #bar select, body[data-dark="false"] #bar button { background:#eee; border-color:#aaa; }
+  #bar button:disabled { opacity:.4; cursor:default; }
   #saveBtn:not(:disabled) { border-color:#39a0ff; color:#9dcbff; }
   body[data-dark="false"] #saveBtn:not(:disabled) { color:#1667c8; }
   .sep { width:1px; align-self:stretch; background:#444; margin:0 4px; }
   body[data-dark="false"] .sep { background:#bbb; }
   #status { margin-left:auto; opacity:.75; font-size:13px; }
-  #readout { padding:6px 16px; font-size:12px; opacity:.6; font-variant-numeric:tabular-nums; border-bottom:1px solid #2a2a2a; }
+  #readout { padding:6px 16px; font-size:12px; opacity:.6; font-variant-numeric:tabular-nums; border-bottom:1px solid #2a2a2a; flex:none; }
   body[data-dark="false"] #readout { border-color:#c8c8c8; }
-  #stage { display:flex; justify-content:center; align-items:flex-start; padding:36px; overflow:auto; user-select:none; }
+  #work { flex:1; display:flex; min-height:0; }
+  #stage { flex:1; display:flex; justify-content:center; align-items:flex-start; padding:36px; overflow:auto; user-select:none; }
+  #inspector { width:310px; flex:none; overflow:auto; border-left:1px solid #333; padding:14px 16px; font-size:13px; }
+  body[data-dark="false"] #inspector { border-color:#bbb; }
+  .insp-empty { opacity:.5; font-size:13px; margin-top:8px; }
+  .insp-head { font-weight:700; font-size:14px; margin-bottom:12px; font-variant-numeric:tabular-nums; }
+  .insp-section { margin-bottom:18px; }
+  .insp-section h4 { margin:0 0 8px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.6; border-bottom:1px solid #333; padding-bottom:4px; }
+  body[data-dark="false"] .insp-section h4 { border-color:#c8c8c8; }
+  .insp-note { font-size:11px; opacity:.5; font-style:italic; margin:2px 0 8px; }
+  .insp-sub { font-size:11px; opacity:.6; margin:8px 0 4px; }
+  .insp-field { display:grid; grid-template-columns:96px 1fr; align-items:center; gap:8px; margin:6px 0; }
+  .insp-field > span { text-align:right; opacity:.75; }
+  .insp-field input, .insp-field select { width:100%; padding:3px 6px; border-radius:5px; border:1px solid #555; background:#242428; color:inherit; }
+  body[data-dark="false"] .insp-field input, body[data-dark="false"] .insp-field select { background:#fff; border-color:#aaa; }
+  .insp-step { display:flex; gap:6px; margin:4px 0; align-items:center; }
+  .insp-step input { flex:1; min-width:0; padding:3px 6px; border-radius:5px; border:1px solid #555; background:#242428; color:inherit; }
+  body[data-dark="false"] .insp-step input { background:#fff; border-color:#aaa; }
+  .insp-del { flex:none; width:24px; border-radius:5px; border:1px solid #665; background:#332; color:#e99; cursor:pointer; }
+  .insp-add { margin-top:6px; padding:4px 10px; border-radius:5px; border:1px solid #555; background:#2a2a2e; color:inherit; cursor:pointer; font-size:12px; }
+  body[data-dark="false"] .insp-add { background:#eee; border-color:#aaa; }
 </style>
 </head>
 <body data-dark="true">
@@ -32,7 +54,10 @@
     <span id="status"></span>
   </div>
   <div id="readout"></div>
-  <div id="stage"></div>
+  <div id="work">
+    <div id="stage"></div>
+    <aside id="inspector"></aside>
+  </div>
   <script type="module" src="designer.js"></script>
 </body>
 </html>
