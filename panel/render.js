@@ -42,6 +42,9 @@ function renderItem(it, th, dark) {
     case 'bipolarMark':  return bipolarMark(it.x, it.y, it.r, { color: th.ink, ...(it.opts || {}) });
     case 'attachedLabel':return attachedLabel(it.x, it.y, it.hw, it.hh, { fill: th.ink, ...(it.opts || {}) });
     case 'line':         return `  <line x1="${it.x1}" y1="${it.y1}" x2="${it.x2}" y2="${it.y2}" stroke="${th.frame}" stroke-width="${it.w}"/>`;
+    // A divider — a horizontal rule anchored at (x,y) running `len` to the right. Same
+    // art as `line`, but positioned by a single point so the editor can place/move it.
+    case 'divider':      return `  <line x1="${it.x}" y1="${it.y}" x2="${it.x + it.len}" y2="${it.y}" stroke="${th.frame}" stroke-width="${it.w != null ? it.w : 0.355}"/>`;
     // A themed rect (face background / frame border). fill/stroke of 'face'/'frame' resolve from the
     // theme; rx and stroke are optional so both scaffold styles (with/without rounded face) round-trip.
     case 'rect': {

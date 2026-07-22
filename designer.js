@@ -88,6 +88,8 @@ function anchor(it, layout) {
     case 'stepButton': return { x: it.x, y: it.y, axes: 'xy', r: 3.4 };
     case 'vu':         return { x: it.x, y: it.y, axes: 'xy', r: 3.2 };
     case 'slider':     return { x: it.x, y: (layout.faceH || 113.5912) / 2, axes: 'x', r: 4.0 };
+    case 'label':      return { x: it.x, y: it.y, axes: 'xy', r: 3.0 };
+    case 'divider':    return { x: it.x, y: it.y, axes: 'xy', r: 3.0 };
     default:           return null;
   }
 }
@@ -296,6 +298,12 @@ function syncStepped(id, steps) {
   e.steps = steps.map((s) => ({ value: s.value, name: s.label || s.glyph || s.value }));
   if (!e.steps.some((s) => s.value === e.default)) e.default = e.steps.length ? e.steps[0].value : undefined;
 }
+// A top-level item field (structure items: a label's text, a divider's len/thickness).
+function setItemField(id, key, value) {
+  const m = MODULES[idx];
+  if (m.editorOwned) { const it = m.base.items.find((x) => x.id === id); if (it) it[key] = value; m.dirtyDraft = true; }
+  scheduleRender();
+}
 
 function fieldRow(labelText, controlEl) {
   const row = document.createElement('label'); row.className = 'insp-field';
@@ -360,6 +368,21 @@ function buildInspector(id) {
   inspector.replaceChildren();
   const head = document.createElement('div'); head.className = 'insp-head'; head.textContent = `${it.t} · ${id}`;
   inspector.appendChild(head);
+
+  // --- Structure items (label, divider): presentation only, no descriptor ---
+  if (STRUCTURE_TYPES.has(it.t)) {
+    const s = section('Structure');
+    if (it.t === 'label') {
+      s.body.appendChild(fieldRow('text', textInput(it.text, (v) => setItemField(id, 'text', v))));
+      s.body.appendChild(fieldRow('size', numberInput(optVal(id, 'size', 2.4), (v) => setOpt(id, 'size', v))));
+    } else {
+      s.body.appendChild(fieldRow('length', numberInput(it.len, (v) => setItemField(id, 'len', v))));
+      s.body.appendChild(fieldRow('thickness', numberInput(it.w, (v) => setItemField(id, 'w', v), 0.05)));
+    }
+    if (MODULES[idx].editorOwned) s.body.appendChild(fieldRow('id', textInput(id, (v) => renameControl(id, v))));
+    inspector.appendChild(s.el);
+    return;
+  }
 
   // --- Presentation (layout) ---
   const pres = section('Presentation');
@@ -437,7 +460,9 @@ function clearInspector() {
 const TOOLS = [
   { type: 'jack', label: 'Jack' }, { type: 'knob', label: 'Knob' },
   { type: 'radio', label: 'Radio' }, { type: 'button', label: 'Button' }, { type: 'slider', label: 'Slider' },
+  { type: 'label', label: 'Label', structure: true }, { type: 'divider', label: 'Divider', structure: true },
 ];
+const STRUCTURE_TYPES = new Set(['label', 'divider']);
 function buildToolbox() {
   tools.replaceChildren();
   const lab = document.createElement('span'); lab.className = 'tlabel'; lab.textContent = 'Add'; tools.appendChild(lab);
@@ -487,6 +512,9 @@ function makeControl(type, id, x, y) {
     case 'radio':  return { item: { t: 'radio', id, x, y, opts: { orientation: 'v', spacing: 5.6, ledR: 2.16, steps: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }] } }, entry: { id, name: 'Switch', curve: 'stepped', default: 'a', steps: [{ value: 'a', name: 'A' }, { value: 'b', name: 'B' }] }, kind: 'param' };
     case 'button': return { item: { t: 'button', id, x, y, opts: { r: 2.0, kind: 'red' } }, entry: { id, name: 'Button', curve: 'stepped', default: 'off', steps: [{ value: 'off', name: 'Off' }, { value: 'on', name: 'On' }] }, kind: 'param' };
     case 'slider': return { item: { t: 'slider', id, x, opts: {} }, entry: { id, name: 'Level', min: 0, max: 1, default: 0.8, unit: '', curve: 'linear' }, kind: 'param' };
+    // Structure — no descriptor entry; the id is only an editor handle.
+    case 'label':   return { item: { t: 'label', id, x, y, text: 'Label', opts: { size: 2.4 } }, kind: 'structure' };
+    case 'divider': return { item: { t: 'divider', id, x, y, len: 30, w: 0.355 }, kind: 'structure' };
     default: return null;
   }
 }
@@ -499,7 +527,8 @@ function placeControl(type, e) {
   const made = makeControl(type, uniqueId(m, type), round3(ux - off.x), round3(uy - off.y));
   if (!made) return;
   m.base.items.push(made.item);
-  (made.kind === 'port' ? m.workDesc.ports : m.workDesc.params).push(made.entry);
+  if (made.kind === 'port') m.workDesc.ports.push(made.entry);
+  else if (made.kind === 'param') m.workDesc.params.push(made.entry);
   m.dirtyDraft = true; activeTool = null; refreshToolbox();
   selectedId = made.item.id; buildInspector(selectedId); scheduleRender();
 }

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="44mm" height="128.5mm" viewBox="0 0 44 128.5" font-family="Arial Narrow, Helvetica, Arial, sans-serif">
+<defs>
+  <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0.4733" dy="0.5916" stdDeviation="0.4733" flood-color="#000" flood-opacity=".28"/></filter>
+  <radialGradient id="blueRing"><stop offset="0" stop-color="#1688cc"/><stop offset="0.55" stop-color="#006da8"/><stop offset="1" stop-color="#003d62"/></radialGradient>
+  <radialGradient id="blueDial"><stop offset="0" stop-color="#1d79b7"/><stop offset="0.6" stop-color="#00639a"/><stop offset="1" stop-color="#00456e"/></radialGradient>
+  <radialGradient id="knobCap"><stop offset="0" stop-color="#f8f8f8"/><stop offset="0.4" stop-color="#bfc3c5"/><stop offset="0.62" stop-color="#f4f4f4"/><stop offset="1" stop-color="#777777"/></radialGradient>
+  <radialGradient id="redLed"><stop offset="0" stop-color="#ff4a4a"/><stop offset="0.55" stop-color="#d00000"/><stop offset="1" stop-color="#650000"/></radialGradient>
+</defs>
+  <g transform="translate(3.9 7.0994)">
+  <rect x="0" y="0" width="44" height="113.5912" rx="2.5" fill="#cfcfcf"/>
+  <rect x="0.5" y="0.5" width="43" height="112.5912" rx="2.2" fill="none" stroke="#7d7d7d" stroke-width="0.5"/>
+  <text x="10" y="10" font-size="3.706" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">SINE</text>
+  <line x1="7" y1="15" x2="37" y2="15" stroke="#7d7d7d" stroke-width="0.355"/>
+  <g data-wcoast-param="freq" data-wcoast-cx="22" data-wcoast-cy="48" data-wcoast-angle-min="-150" data-wcoast-angle-max="150">
+    <circle cx="22" cy="48" r="4.6" fill="url(#blueRing)" stroke="#004b7a" stroke-width="0.355" filter="url(#softShadow)"/>
+    <circle cx="22" cy="48" r="3.31" fill="url(#knobCap)" stroke="#666666" stroke-width="0.2366"/>
+    <g data-wcoast-role="indicator">
+    <line x1="20.20" y1="51.12" x2="19.45" y2="52.42" stroke="#ffffff" stroke-width="0.4"/>
+    <line x1="18.45" y1="48.63" x2="16.98" y2="48.89" stroke="#ffffff" stroke-width="0.4"/>
+    <line x1="19.24" y1="45.69" x2="18.09" y2="44.72" stroke="#ffffff" stroke-width="0.4"/>
+    <line x1="22.00" y1="44.40" x2="22.00" y2="42.90" stroke="#ffffff" stroke-width="0.4"/>
+    <line x1="24.76" y1="45.69" x2="25.91" y2="44.72" stroke="#ffffff" stroke-width="0.4"/>
+    <line x1="25.55" y1="48.63" x2="27.02" y2="48.89" stroke="#ffffff" stroke-width="0.4"/>
+    <line x1="23.80" y1="51.12" x2="24.55" y2="52.42" stroke="#ffffff" stroke-width="0.4"/>
+      <line x1="22" y1="48" x2="22" y2="44.69" stroke="#163a69" stroke-width="0.55"/>
+    </g>
+  </g>
+  <text x="22" y="56.148320000000005" font-size="2.706" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">knob</text>
+  <g data-wcoast-port="out" data-wcoast-cx="22" data-wcoast-cy="92">
+    <circle cx="22" cy="92" r="3" fill="#8a8a8a" stroke="#000000" stroke-width="0.3" filter="url(#softShadow)"/>
+    <circle cx="22" cy="92" r="1.6" fill="#000000"/>
+  </g>
+  <text x="22" y="98.54831999999999" font-size="2.706" font-weight="700" font-style="italic" fill="#163a69" text-anchor="middle" font-family="Arial Narrow, Helvetica, Arial, sans-serif">out</text>
+  </g>
+</svg>

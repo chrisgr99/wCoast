@@ -21,6 +21,8 @@ import fnDescriptor from '../modules/function-gen-281t/descriptor.js';
 import { create as fnCreate } from '../modules/function-gen-281t/factory.js';
 import galleryDescriptor from '../modules/gallery/descriptor.js';
 import { create as galleryCreate } from '../modules/gallery/factory.js';
+import sineDescriptor from '../modules/sine-source/descriptor.js';
+import { create as sineCreate } from '../modules/sine-source/factory.js';
 import { serialize, restore, validate, APP_NAME, APP_VERSION } from '../host/patch-io.js';
 import { createStorage } from '../host/storage.js';
 import { buildCatalogue, createMirror } from '../host/mirror.js';
@@ -39,6 +41,7 @@ registry.register({ descriptor: mixerDescriptor, create: mixerCreate });
 registry.register({ descriptor: lpgDescriptor, create: lpgCreate });
 registry.register({ descriptor: fnDescriptor, create: fnCreate });
 registry.register({ descriptor: galleryDescriptor, create: galleryCreate });
+registry.register({ descriptor: sineDescriptor, create: sineCreate });
 
 const MODULE_TYPES = [{
   descriptorId: oscDescriptor.id,
@@ -64,6 +67,14 @@ const MODULE_TYPES = [{
   hp: 53,
   panelUrl: 'modules/gallery/panel.svg',
   descriptor: galleryDescriptor,
+}, {
+  // Sine Source — authored in the panel editor (panel + descriptor drawn), factory
+  // hand-written. The Phase 6 closed-loop proof: a drawn module that loads and plays.
+  descriptorId: sineDescriptor.id,
+  name: 'Sine Source',
+  hp: 9,
+  panelUrl: 'modules/sine-source/panel.svg',
+  descriptor: sineDescriptor,
 }, {
   // The mixer is a pinned singleton placed at boot, so it's hidden from the
   // "Add module" menu (no second mixer). Still a normal module type otherwise.

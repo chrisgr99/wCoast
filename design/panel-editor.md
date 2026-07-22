@@ -132,6 +132,53 @@ the main menu). This is a distinct, later feature — it needs a selection UI an
 per-module storage in the patch — so it is noted here as a direction, not folded into
 the near-term phases.
 
+## Extending the palette — binding kinds and widgets
+
+The palette will need to grow: new looks for existing controls (a slider or a big
+fader where a knob sits today, a needle VU instead of bars), and genuinely new
+controls (a multicolour indicator LED, a live numeric display, a mini piano keyboard
+that selects which scale degrees a quantiser keeps). These pull in two different
+directions, and the extension mechanism is cut along the seam between them: **what a
+control *is*** (its binding — the contract with the descriptor and how its value
+behaves live) is separate from **how it looks and is handled** (its widget — the
+drawing, the interaction, the inspector fields, the editor hit-target).
+
+Two axes:
+
+- **Binding kinds** — a small, foundational set that defines the descriptor contract
+  and the live-value semantics: `port` (in/out signal), `continuous` (a scalar in a
+  range), `oneOf` (choose exactly one — the current stepped param), `anyOf` (a set:
+  choose any subset of a fixed option list), `readout` (subscribes to a value and
+  displays it), and `momentary` (a trigger/gate). New binding kinds are rare and
+  deliberate — each is a new shape the descriptor and the factory must understand.
+- **Widgets** — an open, pluggable set. Each widget declares the binding it presents
+  plus its own render, live behaviour, inspector fields, and hit-target. New widgets
+  are common and cheap.
+
+The **descriptor stores the binding and its data**; the **layout stores the widget and
+its presentation**. So a knob and a slider are two widgets over one `continuous`
+binding, and swapping one for the other is a layout-only change that never touches the
+descriptor or the factory. This is not hypothetical — the radio and the step-button
+are already two widgets over the same `oneOf` param; the registry only makes that
+explicit and open. A bar VU, a needle VU, and a numeric readout are three widgets over
+one `readout` binding. A mini keyboard and a plain row of twelve toggles are two
+widgets over one `anyOf`-of-pitch-classes binding — and a widget may restrict itself
+to a specific option domain, so the keyboard is offered only where it fits while a
+generic set gets the toggle row.
+
+Concretely, a **control-type registry**: one module per widget declaring `render`,
+`bind` (how it goes live), `toolDefaults` (a fresh one's layout opts + descriptor
+entry), `inspectorFields` (presentation + data), `anchor` (editor hit-target), and its
+palette entry (label, which binding it presents). The renderer's `renderItem`, the
+loader's `parsePanel`, and the designer's toolbox and inspector then iterate the
+registry instead of each carrying a hardcoded per-type switch, so adding a widget is:
+write one module, register it. Today those four sites are edited by hand in lockstep;
+formalise the registry when the first widget or binding that isn't already covered
+arrives (the rule of three). The two bindings our motivating examples prove are
+missing — `anyOf` (the keyboard) and `readout` (the display) — are the first
+customers that justify building it. Purely static adornment (a logo, a printed scale,
+a bezel) needs none of this: it belongs in the embellishment layer above.
+
 ## Build phases
 
 Ordered to prove the foundation first, hand back a usable payoff early, then reach a
