@@ -43,7 +43,7 @@ const tools = document.getElementById('tools');
 const burger = document.getElementById('burger');
 const menuRoot = document.getElementById('menuRoot');
 const dialogRoot = document.getElementById('dialogRoot');
-const DEV_GUIDE_URL = 'https://github.com/chrisgr99/wCoast/blob/main/MODULE-AUTHORING.md';
+const DEV_GUIDE_URL = 'https://github.com/chrisgr99/DreamRack/blob/main/MODULE-AUTHORING.md';
 // Render scale (px per mm). Opened from the rack, ?scale carries the rack's current
 // px/mm so the panel appears at the same size it does in the rack; else a rack-like default.
 const urlScale = parseFloat(new URLSearchParams(location.search).get('scale'));
@@ -58,6 +58,8 @@ let activeTool = null;      // a toolbox type armed for placement (editor-owned 
 let lastWarnings = [];      // binding warnings from the last render — the validation signal
 let draftCount = 0;
 let resetScrollNext = true; // scroll the stage to the top on load / module change (not mid-edit)
+let zoom = 1;               // view zoom multiplier on top of RENDER_SCALE (View menu / Cmd +/-)
+let pendingScrollFrac = null; // after a zoom re-render, restore this viewport-centre fraction
 
 MODULES.forEach((m) => {
   m.overrides = {};             // live edits (loaded from disk at startup)
@@ -90,6 +92,18 @@ function selectModuleIndex(i) {
   idx = i; selectedId = null; activeTool = null; resetScrollNext = true;
   clearInspector(); refreshToolbox(); scheduleRender();
 }
+
+// ---- zoom (View menu, Cmd +/-) -------------------------------------------
+function zoomBy(factor) {
+  const nz = Math.min(6, Math.max(0.25, zoom * factor));
+  if (nz === zoom) return;
+  if (stage.scrollWidth > 0) pendingScrollFrac = {   // anchor the viewport centre
+    x: (stage.scrollLeft + stage.clientWidth / 2) / stage.scrollWidth,
+    y: (stage.scrollTop + stage.clientHeight / 2) / stage.scrollHeight,
+  };
+  zoom = nz; scheduleRender();
+}
+function zoomReset() { zoom = 1; pendingScrollFrac = null; resetScrollNext = true; scheduleRender(); }
 
 // ---- menus (hamburger + right-click, matching the app) -------------------
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -138,11 +152,17 @@ function mainMenu() {
     { label: 'Undo', disabled: !canUndo(), action: undo },
     { label: 'Redo', disabled: !canRedo(), action: redo },
   ];
+  const view = [
+    { label: `Zoom ${Math.round(zoom * 100)}%`, disabled: true },
+    { label: 'Zoom in', action: () => zoomBy(1.2) },
+    { label: 'Zoom out', action: () => zoomBy(1 / 1.2) },
+    { label: 'Actual size', action: zoomReset },
+  ];
   const help = [
     { label: 'How to use the editor', action: showHelp },
     ...(window.wcoast && window.wcoast.openExternal ? [{ label: 'Developer guide', action: () => window.wcoast.openExternal(DEV_GUIDE_URL) }] : []),
   ];
-  return [{ label: 'File', submenu: file }, { label: 'Edit', submenu: edit }, { label: 'Help', submenu: help }];
+  return [{ label: 'File', submenu: file }, { label: 'Edit', submenu: edit }, { label: 'View', submenu: view }, { label: 'Help', submenu: help }];
 }
 
 function showHelp() {
@@ -215,12 +235,18 @@ async function renderOnce() {
     const { svg, warnings } = await loadPanel(url, m.workDesc, { dark });   // real loader: crop, colour jacks, identity band, title; warnings = binding validation
     lastWarnings = warnings || [];
     const vb = viewBoxOf(svg);   // attribute-parsed: baseVal reads 0 on a detached SVG
-    svg.style.height = `${vb.h * RENDER_SCALE}px`;   // mm -> px at the rack's scale
-    svg.style.width = `${vb.w * RENDER_SCALE}px`;
+    const eff = RENDER_SCALE * zoom;                  // effective px/mm (rack scale x view zoom)
+    svg.style.height = `${vb.h * eff}px`;
+    svg.style.width = `${vb.w * eff}px`;
     svg.style.boxShadow = '0 8px 30px rgba(0,0,0,0.45)';
     buildOverlay(svg, layout);
     stage.replaceChildren(svg);
     if (resetScrollNext) { stage.scrollTop = 0; stage.scrollLeft = 0; resetScrollNext = false; }   // panel at the top on load / module change
+    else if (pendingScrollFrac) {   // keep the viewport centre anchored across a zoom
+      stage.scrollLeft = pendingScrollFrac.x * stage.scrollWidth - stage.clientWidth / 2;
+      stage.scrollTop = pendingScrollFrac.y * stage.scrollHeight - stage.clientHeight / 2;
+      pendingScrollFrac = null;
+    }
     currentLayout = layout;
     currentSvg = svg;
     refreshStatus();
@@ -721,6 +747,9 @@ window.addEventListener('keydown', (e) => {
   if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); if (dirty()) save(); return; }
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); (e.shiftKey ? redo : undo)(); return; }
   if (mod && e.key.toLowerCase() === 'n') { e.preventDefault(); newDraft(); return; }
+  if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomBy(1.2); return; }
+  if (mod && e.key === '-') { e.preventDefault(); zoomBy(1 / 1.2); return; }
+  if (mod && e.key === '0') { e.preventDefault(); zoomReset(); return; }
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
   if (e.key === 'Escape') {   // back out one level; when nothing is open/selected, close the editor
