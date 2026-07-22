@@ -61,6 +61,10 @@ export default {
   sectioned: true,       // six independent channel strips — net highlight scopes to the hovered channel
   channels: CH,
   vcPan: [...VC_PAN],
+  // No output jacks (it's the terminal output), so the identity strip has no
+  // ports to derive from. Declare it explicitly: this module outputs audio — to
+  // the speakers rather than to a jack — so it wears the audio-yellow band.
+  signalIdentity: ['audio'],
   ports,
   params,
 };
