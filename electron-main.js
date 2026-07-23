@@ -467,7 +467,21 @@ function applyDockIcon() {
   }
 }
 
+// Single instance: only one DreamRack ever runs. A second launch fails to get the lock and quits
+// immediately, handing off to the already-running instance — which surfaces and focuses its
+// window. Stops leftover copies piling up across restarts.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) app.quit();
+else app.on('second-instance', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
 app.whenReady().then(async () => {
+  if (!gotSingleInstanceLock) return;   // a non-primary instance is on its way out; build nothing
   registerAppProtocol();
   // Purge any renderer files a previous build left in Chromium's persistent disk cache, so this
   // launch can't show stale code (belt-and-braces with the no-store header on the app scheme).
