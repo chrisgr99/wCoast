@@ -81,17 +81,19 @@
     .scope:hover .scope-homebtn { opacity: 0.85; }
     .scope-homebtn:hover { opacity: 1; color: #d8dade; }
     .scope-homebtn svg { width: 11px; height: 11px; display: block; fill: currentColor; }
-    .scope-close, .scope-min { position: absolute; top: 3px; width: 11px; height: 11px; border-radius: 50%; opacity: 0; transition: opacity 0.1s; cursor: pointer; display: flex; align-items: center; justify-content: center; font: 700 10px/1 sans-serif; user-select: none; -webkit-user-select: none; }
+    .scope-close, .scope-min { position: absolute; top: 3px; width: 10px; height: 10px; border-radius: 50%; opacity: 0; transition: opacity 0.1s; cursor: pointer; display: flex; align-items: center; justify-content: center; font: 700 9px/1 sans-serif; user-select: none; -webkit-user-select: none; }
     .scope:hover .scope-close, .scope:hover .scope-min { opacity: 0.9; }
     .scope-close:hover, .scope-min:hover { opacity: 1; }
-    .scope-close { left: 4px; background: #ff5f57; color: rgba(70,8,8,0.55); }
-    .scope-min { left: 19px; background: #febc2e; color: rgba(90,60,0,0.6); }
+    .scope-close { left: 2px; background: #ff5f57; color: rgba(70,8,8,0.55); }
+    .scope-min { left: 13px; background: #febc2e; color: rgba(90,60,0,0.6); }
+    .scope-min::after { content: '\2013'; }                       /* minimize: a dash */
+    .scope.minimized .scope-min::after { content: '+'; }         /* restore: a plus, same yellow button */
     .scope-token { display: none; width: 24px; height: 24px; align-items: center; justify-content: center; color: #ffffff; cursor: var(--grip); }
     .scope-token svg { width: 20px; height: 13px; display: block; }
     .scope.minimized .scope-canvas { display: none; }
     .scope.minimized .scope-token { display: flex; }
     .scope.minimized:hover .scope-token { color: #d8dade; }
-    .scope.minimized .scope-close, .scope.minimized .scope-min, .scope.minimized .scope-followbtn, .scope.minimized .scope-homebtn, .scope.minimized .scope-values, .scope.minimized .scope-playpause, .scope.minimized .scope-trigbtn, .scope.minimized .scope-autobtn, .scope.minimized .scope-gridbtn, .scope.minimized .scope-triglevel, .scope.minimized .scope-modestep { display: none; }
+    .scope.minimized .scope-followbtn, .scope.minimized .scope-homebtn, .scope.minimized .scope-values, .scope.minimized .scope-playpause, .scope.minimized .scope-trigbtn, .scope.minimized .scope-autobtn, .scope.minimized .scope-gridbtn, .scope.minimized .scope-triglevel, .scope.minimized .scope-modestep { display: none; }
     .scope-homebtn.athome { color: #74777c; cursor: default; }
     .scope:hover .scope-homebtn.athome { opacity: 0.35; }
     .scope-homebtn.athome:hover { opacity: 0.35; color: #74777c; }

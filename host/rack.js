@@ -2994,7 +2994,7 @@ export class Rack {
     const del = document.createElement('div'); del.className = 'scope-close'; del.textContent = '×';
     del.addEventListener('pointerdown', (e) => e.stopPropagation());
     del.addEventListener('click', (e) => { e.stopPropagation(); this._deleteProbeWithUndo(sc); });
-    const min = document.createElement('div'); min.className = 'scope-min'; min.textContent = '–';
+    const min = document.createElement('div'); min.className = 'scope-min';   // glyph (– minimize / + restore) is CSS ::after, driven by the .minimized class
     min.addEventListener('pointerdown', (e) => e.stopPropagation());
     min.addEventListener('click', (e) => { e.stopPropagation(); this._toggleScopeMin(sc); });
     const follow = document.createElement('div'); follow.className = 'scope-followbtn'; follow.textContent = 'F';
@@ -3337,7 +3337,7 @@ export class Rack {
     };
     const onUp = () => {
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
-      if (!moved) { if (sc.minimized) this._expandScope(sc); else this._toggleScopeValues(sc); }   // a click (not a drag): open the token, else toggle the settings box
+      if (!moved && !sc.minimized) this._toggleScopeValues(sc);   // a plain click on a restored scope toggles its settings; a minimized token ignores clicks (restore only via its + button) but still drags
       else this._pushProbeMove(sc.uid, before, this._probePos(sc));                                // a drag is an undoable move
     };
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp);
