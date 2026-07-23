@@ -755,6 +755,28 @@ export class Rack {
     this._ty = Math.min(0, Math.max(vpH - ch, this._ty));
   }
 
+  // Edge auto-scroll while dragging a cable: if the pointer sits within EDGE px of the
+  // viewport border and there's rack left to reveal that way, pan toward it (ramping with
+  // depth into the zone). Returns whether it actually moved. Zoom is untouched — this is the
+  // "reach" for held drags, which (unlike click-to-carry) can't scroll or zoom by hand.
+  _edgeScrollStep(clientX, clientY) {
+    const rect = this.container.getBoundingClientRect();
+    const EDGE = 46, SPEED = 17;
+    let dx = 0, dy = 0;
+    if (clientX < rect.left + EDGE) dx = (rect.left + EDGE - clientX) / EDGE;
+    else if (clientX > rect.right - EDGE) dx = -(clientX - (rect.right - EDGE)) / EDGE;
+    if (clientY < rect.top + EDGE) dy = (rect.top + EDGE - clientY) / EDGE;
+    else if (clientY > rect.bottom - EDGE) dy = -(clientY - (rect.bottom - EDGE)) / EDGE;
+    if (!dx && !dy) return false;
+    const tx0 = this._tx, ty0 = this._ty;
+    this._tx += Math.max(-1, Math.min(1, dx)) * SPEED;
+    this._ty += Math.max(-1, Math.min(1, dy)) * SPEED;
+    this._clampPan();
+    if (this._tx === tx0 && this._ty === ty0) return false;   // already at the bound in that direction
+    this._applyTransform();   // re-anchors the carried cord via _viewMovedHook
+    return true;
+  }
+
   _placeEl(rec) {
     const s = this.pxPerMm;
     rec.el.style.left = (rec.x * s) + 'px';
@@ -1075,11 +1097,23 @@ export class Rack {
     e.stopPropagation();
     if (e.button !== 0) return;
     e.preventDefault();
-    const onUp = (ev) => {
-      document.removeEventListener('pointerup', onUp);
-      this._armStickyPick(key, portId, ev.clientX, ev.clientY);
+    if (this._tempCable) return;   // a cord is already in hand (click-carry) — its own handlers take this drop
+    const cx = e.clientX, cy = e.clientY;
+    const cleanup = () => { document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerup', onUp, true); };
+    // Two gestures share the press: DRAG (move while held) pulls a cord in drag-mode, dropped on release;
+    // a plain CLICK (release without moving) starts click-to-carry, dropped by a later click.
+    const onMove = (ev) => {
+      if (Math.hypot(ev.clientX - cx, ev.clientY - cy) < 6) return;
+      cleanup();
+      const dir = unit(ev.clientX - cx, ev.clientY - cy);
+      const grab = this._grabDecision(key, portId, dir);
+      if (grab && grab.edge.link) this._startLinkRegrab(grab.edge, grab.linkEnd, ev.clientX, ev.clientY, true);
+      else if (grab) this._startStickyRegrab(grab.edge, grab.grabbedEnd, ev.clientX, ev.clientY, true);
+      else this._startStickyCable(key, portId, ev.clientX, ev.clientY, true);
     };
-    document.addEventListener('pointerup', onUp);
+    const onUp = (ev) => { cleanup(); this._armStickyPick(key, portId, ev.clientX, ev.clientY); };
+    document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('pointerup', onUp, true);
   }
 
   // After a click on a jack, wait for the first pointer move and THEN decide, by its direction,
@@ -1116,7 +1150,7 @@ export class Rack {
   // jack starts a cord that FOLLOWS the cursor with NO button held, so you can scroll, zoom
   // and roam freely to find the target. A second LEFT click drops it: on a jack it connects,
   // elsewhere it cancels. Escape or a right click also cancel.
-  _startStickyCable(key, portId, cx, cy) {
+  _startStickyCable(key, portId, cx, cy, dragMode) {
     const ep = this._ep(key, portId);
     const a = this._jackPosMm(key, portId);
     if (!ep || !a) return;
@@ -1142,10 +1176,10 @@ export class Rack {
     this._ovCable = { pos: a, color: STYLE_COLOR[domainStyle(meta.domain)], wmm };   // so the overview can draw the pull over its picture
     // While the overview is up the pointer aims the frame, not the cable — so don't redraw the (hidden) cable,
     // but DO keep following the pointer, so the dive re-arms the cable where the pointer actually ended up.
-    let pan = null;   // press state while a down-press might turn out to be a pan (drag) rather than a drop (click)
+    let pan = null, edgeRAF = 0;   // pan: press state (click-carry); edgeRAF: drag-mode edge auto-scroll loop
     const onMove = (ev) => {
       if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }
-      if (pan) this._viewDragPan(pan, ev);   // a press held on the background → drag pans the view; the cord stays in hand
+      if (!dragMode && pan) this._viewDragPan(pan, ev);   // click-carry: a held press pans the view; the cord stays in hand
       track(ev.clientX, ev.clientY);
     };
     // The VIEW can move with the cable in hand (Option-scroll zoom, a panel-drag pan, or the overview's
@@ -1154,6 +1188,7 @@ export class Rack {
     const onScroll = () => track(lastX, lastY);
     const finish = () => {
       this._viewMovedHook = null; this._ovCable = null;
+      if (edgeRAF) cancelAnimationFrame(edgeRAF);
       document.removeEventListener('pointermove', onMove, true);
       document.removeEventListener('pointerdown', onDown, true);
       document.removeEventListener('pointerup', onUp, true);
@@ -1166,20 +1201,26 @@ export class Rack {
     // A press might be a DROP (click) or a PAN (drag on a panel): decide on RELEASE. onDown only records
     // the press; a drag past VIEW_DRAG_PX (handled in onMove) pans and keeps the cord; a plain click drops
     // it. `!pan` in onUp ignores the carry's own opening release (there was no matching onDown for it).
+    const drop = (clientX, clientY) => {
+      const j = this._jackNear(clientX, clientY);
+      finish();
+      if (j && !(j.key === key && j.portId === portId)) this._recordCableAdd(this._tryConnect({ key, portId }, j));
+    };
     const onDown = (ev) => {
+      if (dragMode) return;   // in a held drag the button is already down; a stray press does nothing
       if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }   // the press aims the overview's frame
       if (ev.button !== 0) return;   // right-click is handled by onCtx; middle is ignored
       ev.preventDefault(); ev.stopPropagation();
       pan = this._viewDragStart(ev);
     };
     const onUp = (ev) => {
-      if (this._ovActive || ev.button !== 0 || !pan) return;
+      if (this._ovActive || ev.button !== 0) return;
+      if (dragMode) { ev.preventDefault(); ev.stopPropagation(); drop(ev.clientX, ev.clientY); return; }   // held-drag: this release IS the drop
+      if (!pan) return;
       const dragged = pan.dragged; pan = null;
       ev.preventDefault(); ev.stopPropagation();
       if (dragged) return;   // it was a pan of the view → keep the cord in hand
-      const drop = this._jackNear(ev.clientX, ev.clientY);
-      finish();
-      if (drop && !(drop.key === key && drop.portId === portId)) this._recordCableAdd(this._tryConnect({ key, portId }, drop));
+      drop(ev.clientX, ev.clientY);
     };
     const onCtx = (ev) => { if (this._ovActive) return; ev.preventDefault(); ev.stopPropagation(); finish(); };   // right click cancels (no pie)
     const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); } };
@@ -1189,6 +1230,7 @@ export class Rack {
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', onKey, true);
     this._viewMovedHook = onScroll;
+    if (dragMode) { const loop = () => { this._edgeScrollStep(lastX, lastY); edgeRAF = requestAnimationFrame(loop); }; edgeRAF = requestAnimationFrame(loop); }
   }
 
 
@@ -1198,7 +1240,7 @@ export class Rack {
   // it — on a valid jack it moves there, on empty space it disconnects (leaves it broken). The
   // cord is broken the instant it's picked up, so you audition the patch without it while you
   // decide. Right-click or Escape ABORTS and restores the original connection (no net change).
-  _startStickyRegrab(edge, grabbedEnd, cx, cy) {
+  _startStickyRegrab(edge, grabbedEnd, cx, cy, dragMode) {
     const fixed = grabbedEnd === 'src' ? edge.dst : edge.src;
     const grabbed = grabbedEnd === 'src' ? edge.src : edge.dst;
     const fixedEp = this._ep(fixed.key, fixed.portId);
@@ -1232,10 +1274,10 @@ export class Rack {
     this._ovCable = { pos: fixedPos, color: STYLE_COLOR[domainStyle(fixedMeta.domain)], wmm };   // so the overview can draw the pull over its picture
     // While the overview is up the pointer aims the frame, not the cable — don't redraw the (hidden) cable,
     // but DO keep following the pointer, so the dive re-arms it where the pointer actually ended up.
-    let pan = null;   // press state while a down-press might turn out to be a pan (drag) rather than a drop (click)
+    let pan = null, edgeRAF = 0;   // pan: press state (click-carry); edgeRAF: drag-mode edge auto-scroll loop
     const onMove = (ev) => {
       if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }
-      if (pan) this._viewDragPan(pan, ev);   // a press held on the background → drag pans the view; the cord stays in hand
+      if (!dragMode && pan) this._viewDragPan(pan, ev);   // click-carry: a held press pans the view; the cord stays in hand
       track(ev.clientX, ev.clientY);
     };
     // The VIEW can move with the cable in hand (Option-scroll zoom, a panel-drag pan, or the overview's
@@ -1244,6 +1286,7 @@ export class Rack {
     const onScroll = () => track(lastX, lastY);
     const finish = () => {
       this._viewMovedHook = null; this._ovCable = null;
+      if (edgeRAF) cancelAnimationFrame(edgeRAF);
       document.removeEventListener('pointermove', onMove, true);
       document.removeEventListener('pointerdown', onDown, true);
       document.removeEventListener('pointerup', onUp, true);
@@ -1261,19 +1304,7 @@ export class Rack {
     // A press might be a DROP (click) or a PAN (drag on a panel): decide on RELEASE. onDown records the
     // press; a drag past VIEW_DRAG_PX pans and keeps the cord; a plain click drops it. `!pan` in onUp
     // ignores the carry's own opening release (no matching onDown for it).
-    const onDown = (ev) => {
-      if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }   // the press aims the overview's frame
-      if (ev.button !== 0) return;   // right-click is handled by onCtx; middle is ignored
-      ev.preventDefault(); ev.stopPropagation();
-      pan = this._viewDragStart(ev);
-    };
-    const onUp = (ev) => {
-      if (this._ovActive || ev.button !== 0 || !pan) return;
-      const dragged = pan.dragged; pan = null;
-      ev.preventDefault(); ev.stopPropagation();
-      if (dragged) return;   // it was a pan of the view → keep the cord in hand
-      const drop = this._jackNear(ev.clientX, ev.clientY);
-      finish();
+    const resolve = (drop) => {   // decide what a release over `drop` does (move / no-op / disconnect)
       const droppedBack = drop && drop.key === grabbed.key && drop.portId === grabbed.portId;
       const candidate = drop && this._isCandidate(drop, wantDir);
       const occupied = candidate && wantDir === 'in' && this.patchbay.inputOccupied(drop.key, drop.portId, null);
@@ -1283,9 +1314,25 @@ export class Rack {
         const ne = this._tryConnect({ key: fixed.key, portId: fixed.portId }, drop);   // move to the new port
         if (ne) { const ns = this._edgeSnapshot(ne); this._pushUR({ undo: () => { this._removeCable(ns); this._restoreCable(origSnap); }, redo: () => { this._removeCable(origSnap); this._restoreCable(ns); } }); }
       } else {
-        this._reconcileLinks(); this._drawCables(); this.onChange();   // clicked empty space → disconnect; dependent links fall away
+        this._reconcileLinks(); this._drawCables(); this.onChange();   // empty space → disconnect; dependent links fall away
         this._pushUR({ undo: () => this._restoreCable(origSnap), redo: () => this._removeCable(origSnap) });
       }
+    };
+    const onDown = (ev) => {
+      if (dragMode) return;
+      if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }   // the press aims the overview's frame
+      if (ev.button !== 0) return;   // right-click is handled by onCtx; middle is ignored
+      ev.preventDefault(); ev.stopPropagation();
+      pan = this._viewDragStart(ev);
+    };
+    const onUp = (ev) => {
+      if (this._ovActive || ev.button !== 0) return;
+      if (dragMode) { ev.preventDefault(); ev.stopPropagation(); const d = this._jackNear(ev.clientX, ev.clientY); finish(); resolve(d); return; }
+      if (!pan) return;
+      const dragged = pan.dragged; pan = null;
+      ev.preventDefault(); ev.stopPropagation();
+      if (dragged) return;   // it was a pan of the view → keep the cord in hand
+      const d = this._jackNear(ev.clientX, ev.clientY); finish(); resolve(d);
     };
     const onCtx = (ev) => { if (this._ovActive) return; ev.preventDefault(); ev.stopPropagation(); finish(); restore(); };   // right-click aborts → restore
     const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); restore(); } };   // Escape aborts → restore
@@ -1295,13 +1342,14 @@ export class Rack {
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', onKey, true);
     this._viewMovedHook = onScroll;
+    if (dragMode) { const loop = () => { this._edgeScrollStep(lastX, lastY); edgeRAF = requestAnimationFrame(loop); }; edgeRAF = requestAnimationFrame(loop); }
   }
 
   // Grab a LINK (mult) cord and pull it: it hangs from the ANCHOR input it taps (link.to), and the
   // shared-input end follows the cursor with no button held. Click another empty input to re-target the
   // share, click nothing to remove it (dependents fall away). The cord is broken immediately so you hear
   // the patch without it while you decide.
-  _startLinkRegrab(edge, linkEnd, cx, cy) {
+  _startLinkRegrab(edge, linkEnd, cx, cy, dragMode) {
     const anchor = { key: edge.link.key, portId: edge.link.portId };   // the tapped input (A)
     const dstRef = { key: edge.dst.key, portId: edge.dst.portId };     // the sharing input (B)
     const grabAnchor = linkEnd === 'anchor';   // grabbed the A end (re-tap) vs the B end (re-share)
@@ -1358,10 +1406,10 @@ export class Rack {
     // While the overview navigator is up (Option tapped mid-pull), the pointer aims the frame, not the
     // cable: don't redraw the (hidden) cable, and let neither a click-to-drop nor Escape act on it. Keep
     // FOLLOWING the pointer though, so the dive re-arms the cable where the pointer actually ended up.
-    let pan = null;   // press state while a down-press might turn out to be a pan (drag) rather than a drop (click)
+    let pan = null, edgeRAF = 0;   // pan: press state (click-carry); edgeRAF: drag-mode edge auto-scroll loop
     const onMove = (ev) => {
       if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; }
-      if (pan) this._viewDragPan(pan, ev);   // a press held on the background → drag pans the view; the cord stays in hand
+      if (!dragMode && pan) this._viewDragPan(pan, ev);   // click-carry: a held press pans the view; the cord stays in hand
       track(ev.clientX, ev.clientY);
     };
     // The VIEW can move while the cable is in hand (Option-scroll zoom, a panel-drag pan, or the overview's
@@ -1371,20 +1419,22 @@ export class Rack {
     this._viewMovedHook = onScroll;
     const finish = () => {
       this._viewMovedHook = null; this._ovCable = null;
+      if (edgeRAF) cancelAnimationFrame(edgeRAF);
       document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerdown', onDown, true);
       document.removeEventListener('pointerup', onUp, true);
       document.removeEventListener('contextmenu', onCtx, true); document.removeEventListener('keydown', onKey, true);
       teardown();
     };
     // Drop on RELEASE (click), or pan on a drag that keeps the cord. `!pan` in onUp ignores the carry's own
-    // opening release (there was no matching onDown for it).
-    const onDown = (ev) => { if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; } if (ev.button !== 0) return; ev.preventDefault(); ev.stopPropagation(); pan = this._viewDragStart(ev); };
-    const onUp = (ev) => { if (this._ovActive || ev.button !== 0 || !pan) return; const dragged = pan.dragged; pan = null; ev.preventDefault(); ev.stopPropagation(); if (dragged) return; const drop = this._jackNear(ev.clientX, ev.clientY); finish(); commit(drop); };
+    // opening release (there was no matching onDown for it). In drag-mode the first release IS the drop.
+    const onDown = (ev) => { if (dragMode) return; if (this._ovActive) { lastX = ev.clientX; lastY = ev.clientY; return; } if (ev.button !== 0) return; ev.preventDefault(); ev.stopPropagation(); pan = this._viewDragStart(ev); };
+    const onUp = (ev) => { if (this._ovActive || ev.button !== 0) return; if (dragMode) { ev.preventDefault(); ev.stopPropagation(); const d = this._jackNear(ev.clientX, ev.clientY); finish(); commit(d); return; } if (!pan) return; const dragged = pan.dragged; pan = null; ev.preventDefault(); ev.stopPropagation(); if (dragged) return; const drop = this._jackNear(ev.clientX, ev.clientY); finish(); commit(drop); };
     const onCtx = (ev) => { if (this._ovActive) return; ev.preventDefault(); ev.stopPropagation(); finish(); this._restoreCable(origSnap); };
     const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); this._restoreCable(origSnap); } };
     document.addEventListener('pointermove', onMove, true); document.addEventListener('pointerdown', onDown, true);
     document.addEventListener('pointerup', onUp, true);
     document.addEventListener('contextmenu', onCtx, true); document.addEventListener('keydown', onKey, true);
+    if (dragMode) { const loop = () => { this._edgeScrollStep(lastX, lastY); edgeRAF = requestAnimationFrame(loop); }; edgeRAF = requestAnimationFrame(loop); }
   }
 
   // A jack is a valid drop target if it faces opposite the fixed end. Domain is
