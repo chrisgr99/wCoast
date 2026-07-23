@@ -5,7 +5,7 @@
 // and master fader live on its own faceplate. The mixer IS the output — a module
 // only makes sound once its output is patched into a mixer channel; the master
 // gain feeds your two outputs. Global controls (app menu, start/stop,
-// show-network) are reached from the panel pie and the app menu. Every
+// show-network) are reached from the panel menu and the app menu. Every
 // per-parameter module control lives on the module faceplates.
 
 import { ModuleRegistry } from '../host/registry.js';
@@ -91,7 +91,6 @@ let host = null;
 let rack = null;
 let mixer = null;        // { instanceId, instance }
 let trace = null;        // audio-trace projection (created after the mixer)
-let started = false;
 
 function ensureAudio() {
   if (audioCtx) return;
@@ -124,7 +123,7 @@ async function boot() {
 
   // The output mixer is now a pinned rack module — a terminal singleton placed
   // once at the bottom row (draggable, not deletable) that stays the stable
-  // "mixer" patch endpoint. Muted until On (via masterMute, set below).
+  // "mixer" patch endpoint. Its master bus defaults on (routing applied below).
   const mixRec = await rack.addModule(mixerDescriptor.id, rack.rowCount - 1, 0, { pinned: true, key: 'mixer' });
   mixer = { instanceId: mixRec.instanceId, instance: mixRec.instance };
   trace = createAudioTrace({ ctx: audioCtx, rack, mixer: mixer.instance });
@@ -136,8 +135,9 @@ async function boot() {
   function setPatchName(n) { patchName = n; updateTitle(); if (mirror) mirror.project(); }
   function markDirty() { if (dirty) return; dirty = true; updateTitle(); window.wcoast?.patch?.setDirty?.(true); }
   function markClean() { dirty = false; updateTitle(); window.wcoast?.patch?.setDirty?.(false); if (mirror) mirror.project(); pushMenuState(); }
-  // Any patch edit: mark dirty and re-project the mirror.
-  function onEdit() { markDirty(); autosaveSession(); if (mirror) mirror.project(); pushMenuState(); }
+  // Any patch edit: mark dirty and re-project the mirror. Also re-check the audio-trace, since a
+  // bus enable (masterEnable/monitorEnable) toggling is an edit and changes whether sound plays.
+  function onEdit() { markDirty(); autosaveSession(); if (mirror) mirror.project(); updateTrace(); pushMenuState(); }
   // After loading any patch (open/recent/reopen/session-resume/AI-apply): refresh the notes card, and let
   // a note that asked to greet the user pop open.
   function afterLoad() { if (!notes) return; notes.refresh(); if (rack.patchNotesOpen) notes.open(); }
@@ -148,37 +148,22 @@ async function boot() {
   let masterValue = Number(mixRec.values.get('master'));
   const syncMaster = () => { masterValue = Number(mixRec.values.get('master')); };
 
-  // Overall sound is ONE state (`started`), shared by the panel-pie sound wedge and the
-  // mixer's master-enable lamp — both move together through setSound. The output is gated by the master MUTE (silences without changing
-  // level); the audio context resumes on the first enable. The LED/lamp being lit means
-  // sound is on.
-  const setSound = (on) => {
-    started = on;
-    if (on) audioCtx.resume();
-    rack.applyParam(mixRec, 'masterMute', on ? 'on' : 'off');
-    updateTrace();
-  };
-  // Momentary gate for the pie's sound wedge: set the master mute to exactly `on` while
-  // previewing, WITHOUT touching `started`. The wedge previews the TOGGLE (the opposite
-  // of the latched state) on hover and restores the latched state on leave, so hovering
-  // auditions what a click would do — play if it's off, silence if it's on.
-  const soundPeek = (on) => {
-    if (on) audioCtx.resume();
-    rack.applyParam(mixRec, 'masterMute', on ? 'on' : 'off');
-  };
-  rack.setSound = setSound;                     // latch overall sound on/off
-  rack.soundPeek = soundPeek;                   // momentary audition (sound-wedge hover)
-  rack.setTransport = setSound;                 // compat alias
-  rack.onTransport = () => setSound(!started);  // compat alias
-  rack.isPlaying = () => started;
-  rack.applyParam(mixRec, 'masterMute', started ? 'on' : 'off');   // lamp matches the (off) start state
+  // The two buses ARE the transport — there is no engine. masterEnable and monitorEnable each play
+  // or not; `soundOn` is true when either is enabled (the mirror + audio-trace read it). isPlaying =
+  // the audio clock is live (scopes read this to decide when to auto-scale). The context wakes here
+  // and stays up; master defaults on, so the app boots ready to sound.
+  const busOn = (id) => mixRec.values.get(id) === 'on';
+  const soundOn = () => busOn('masterEnable') || busOn('monitorEnable');
+  rack.isPlaying = () => audioCtx.state === 'running';
+  audioCtx.resume();
+  rack._applyBusEnables();   // apply the initial routing (master on, monitor off)
 
-  // After a bulk control reset (clear-patch command, and its undo/redo) the rack has moved
-  // the mixer's own params, so re-read the master level, and the master mute must track the
-  // latched sound state — reconcile both here.
+  // After a bulk control reset (clear-patch command, and its undo/redo) the rack has moved the
+  // mixer's own params, so re-read the master level and re-apply the bus routing so the audio
+  // matches the restored enables.
   rack.onControlsReset = () => {
     syncMaster();
-    rack.applyParam(mixRec, 'masterMute', started ? 'on' : 'off');
+    rack._applyBusEnables();
   };
 
   // --- VU meters -------------------------------------------------------------
@@ -202,7 +187,7 @@ async function boot() {
   const peakOf = (an) => { if (!an) return 0; an.getFloatTimeDomainData(peakBuf); let p = 0; for (let i = 0; i < peakBuf.length; i++) { const a = Math.abs(peakBuf[i]); if (a > p) p = a; } return p; };
   function paintVU() {
     const lv = mixer.instance.levels();
-    if (started && masterAn) { const mp = Math.max(peakOf(masterAn.l), peakOf(masterAn.r)); if (mp > (rack._sessionMaxMaster || 0)) rack._sessionMaxMaster = mp; }
+    if (soundOn() && masterAn) { const mp = Math.max(peakOf(masterAn.l), peakOf(masterAn.r)); if (mp > (rack._sessionMaxMaster || 0)) rack._sessionMaxMaster = mp; }
     for (const col of vuColumns) {
       const n = col.segs.length;
       const level = col.chan === 'M' ? lv.master : col.chan === 'MON' ? rack.monVuLevel() : (lv.channels[col.chan] || 0);
@@ -213,18 +198,17 @@ async function boot() {
   }
   requestAnimationFrame(paintVU);
 
-  // The mixer as a save/load endpoint: its settings are the pinned record's
-  // values (it stays the fixed "mixer" key, just now a rack module).
-  // masterMute is transport state (unified with the On/Off + the pie sound wedge), NOT
-  // a persistent mixer setting — sound always boots OFF (no autoplay), so it's excluded
-  // from save/restore. Otherwise a session saved with sound on would restore the master
-  // lamp lit while the transport stays off, so the mixer would look enabled but silent.
-  // outSource (main/monitor radio) is likewise session state, re-derived from the restored monitors
-  // (enabling a monitor selects Monitor), so it's excluded too — a loaded patch boots on Master.
+  // The mixer as a save/load endpoint: its settings are the pinned record's values (it stays the
+  // fixed "mixer" key, just now a rack module). The two bus enables (masterEnable / monitorEnable)
+  // are transport state, NOT persistent mixer settings — sound boots to defaults (master on,
+  // monitor off; the monitor bus re-enables itself when saved monitors are restored), so they're
+  // excluded from save/restore. Otherwise a patch saved with the master off would reload silent for
+  // a non-obvious reason.
+  const TRANSPORT = new Set(['masterEnable', 'monitorEnable']);
   const mixerIO = {
     key: 'mixer',
-    getParams: () => { const o = Object.fromEntries(mixRec.values); delete o.masterMute; delete o.outSource; return o; },
-    setParams: (vals) => { for (const [id, v] of Object.entries(vals)) { if (id === 'masterMute' || id === 'outSource') continue; rack.applyParam(mixRec, id, v); } },
+    getParams: () => { const o = Object.fromEntries(mixRec.values); for (const k of TRANSPORT) delete o[k]; return o; },
+    setParams: (vals) => { for (const [id, v] of Object.entries(vals)) { if (TRANSPORT.has(id)) continue; rack.applyParam(mixRec, id, v); } },
   };
 
   // AI patch mirror: project the live patch, the module catalogue, and app state
@@ -235,7 +219,7 @@ async function boot() {
       protocolVersion: 1,
       isLive: true,
       patch: { name: patchName, dirty },
-      state: { sound: started ? 'on' : 'off', master: masterValue },
+      state: { sound: soundOn() ? 'on' : 'off', master: masterValue },
       sync: { lastSyncAt: new Date().toISOString() },
       files: { roundTrip: ['inbox.json'], observationOnly: ['patch.json', 'active.json', 'catalogue.json', 'last-apply-result.json', 'selection.json', 'runtime.json', 'audio-trace.json', 'AGENTS.md', 'README.md'] },
     }),
@@ -257,8 +241,8 @@ async function boot() {
     mirror.pushFiles({ 'audio-trace.json': t, 'runtime.json': runtime });
   }
   function updateTrace() {
-    if (!trace) return;
-    const want = started && mirror.isEnabled();
+    if (!trace || !mirror) return;
+    const want = soundOn() && mirror.isEnabled();
     if (want && !trace.running()) trace.start(pushTrace);
     else if (!want && trace.running()) trace.stop({ writeOff: mirror.isEnabled() });
   }
@@ -435,7 +419,7 @@ async function boot() {
     window.wcoast.menu.onAction(({ action, arg }) => { const fn = actions[action]; if (fn) fn(arg); });
   }
 
-  // The panel pie's app-menu wedge opens the File menu, reusing the rack's pop-up menu.
+  // The panel menu's File entry opens the File menu, reusing the rack's pop-up menu.
   // Hierarchical menu: the top level shows File / Edit / View; hovering (or clicking) a
   // heading opens its submenu, Electron-style.
   const openAppMenu = (x, y, rec, rowIndex) => {
@@ -479,13 +463,14 @@ async function boot() {
         action: rec && !rec.pinned ? () => rack.deleteModuleFromMenu(rec) : undefined },
     ];
     rack.openMenu(x, y, [
-      // Engine sits at the very top. Its push-button glyph shows PRESSED while sound runs, so
-      // the label stays just "Engine". Dwelling the item momentarily enables sound (like the
-      // Listen peek) and restores the latched state on leave — a no-op when already running.
-      { label: 'Engine', icon: rack.engineButtonIcon(started),
-        onDwell: () => rack.soundPeek(true),
-        onLeave: () => rack.soundPeek(rack.isPlaying()),
-        action: () => setSound(!started) },
+      // Sound sits at the very top: one row with two word-buttons, MSTR and MON. Clicking a word
+      // toggles that bus (red when on, greyed when off) and the menu STAYS OPEN; hovering an OFF
+      // word auditions it momentarily (a write-free peek) and stops on leave. The words are twins
+      // of the mixer's own enable lamps.
+      { words: [
+        { label: 'MSTR', isOn: () => rack.busEnabled('master'), flip: () => rack.toggleBusEnable('master'), peek: (on) => rack.auditionSound(on ? 'master' : null) },
+        { label: 'MON', isOn: () => rack.busEnabled('monitor'), flip: () => rack.toggleBusEnable('monitor'), peek: (on) => rack.auditionSound(on ? 'monitor' : null) },
+      ] },
       { label: 'File', submenu: file },
       { label: 'Edit', submenu: edit },
       { label: 'View', submenu: view },
@@ -566,16 +551,16 @@ async function boot() {
     rack.openMenu(window.innerWidth / 2, window.innerHeight / 2, rack.helpMenuItems(), { centred: true });
   });
 
-  // Spacebar toggles the engine on/off — a hands-on-keyboard alternative to the sound wedge and the
-  // mixer's master lamp. Ignored while typing in a field, and when a button has focus (Space would
-  // "click" it and double-toggle). No modifier, so Cmd/Ctrl-Space and friends pass straight through.
+  // Spacebar toggles the MASTER bus on/off — a hands-on-keyboard alternative to the Sound menu and
+  // the mixer's master lamp. Ignored while typing in a field, and when a button has focus (Space
+  // would "click" it and double-toggle). No modifier, so Cmd/Ctrl-Space and friends pass straight through.
   window.addEventListener('keydown', (e) => {
     if (e.key !== ' ' && e.code !== 'Space') return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.isContentEditable)) return;
     e.preventDefault();
-    setSound(!started);
+    rack.toggleBusEnable('master');
   });
 
   // Standard shortcuts, for the BROWSER only: in Electron the native menu carries the same
@@ -625,6 +610,10 @@ async function boot() {
     await rack.addModule(fnDescriptor.id, 0, 0);
     await rack.addModule(lpgDescriptor.id, 1, 0);
   }
+  // Startup silence: both buses OFF on every launch, regardless of the last-exited state or any
+  // monitors that a restored patch would otherwise re-enable — the app never comes up making sound.
+  rack.applyParam(mixRec, 'masterEnable', 'off');
+  rack.applyParam(mixRec, 'monitorEnable', 'off');
   booted = true;   // from here on, real edits autosave the session
   markClean();     // the resumed/starting patch is the clean baseline, not unsaved work
   await mirror.init();   // read enabled state + push the first mirror snapshot

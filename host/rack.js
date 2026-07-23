@@ -158,15 +158,12 @@ export class Rack {
     this.moduleTypes = opts.moduleTypes;
     this.onChange = opts.onChange || (() => {});
     this.onSelect = opts.onSelect || (() => {});   // module the pointer entered (deixis)
-    // Panel-pie hooks into app-level actions the rack doesn't own (set by rack-app).
+    // Panel-menu hooks into app-level actions the rack doesn't own (set by rack-app).
     this.onTutorial = null;   // set by the app to (re)open the in-app tutorial; Help omits the item without it
     this.onPatchNotes = null; this.onFeedback = null; this.onReportBug = null; this.onSharePatch = null;   // Help hooks, set by the app
     this.onAppMenu = opts.onAppMenu || (() => {});    // open the app (File) menu at (x,y)
-    this.onTransport = opts.onTransport || (() => {}); // toggle start/stop sound
-    this.isPlaying = opts.isPlaying || (() => false); // current sound-on state (LED + wedge highlight)
-    this.setTransport = opts.setTransport || ((on) => { if (this.isPlaying() !== on) this.onTransport(); }); // set sound explicitly
-    this.setSound = opts.setSound || ((on) => this.setTransport(on)); // latch overall sound on/off (unified with the mixer master enable)
-    this.soundPeek = opts.soundPeek || (() => {}); // momentary audition: soundPeek(true) plays, soundPeek(false) restores
+    this.isPlaying = opts.isPlaying || (() => false); // whether the audio context is live (scopes read this)
+    this._audition = null;          // momentary Sound-menu audition override, or null (see _applyAudioRouting)
     this._scopes = new Set();       // live floating signal scopes (transient, not saved)
     this._monitors = new Set();     // live ear monitors — solo-listen taps (transient, not saved)
     this.dark = !!opts.dark;                        // dark-mode faceplates
@@ -235,14 +232,11 @@ export class Rack {
     // catch-all for areas without one (controls, empty space).
     document.addEventListener('contextmenu', (e) => e.preventDefault());
     // A press outside an open pop-up menu (the app/File menu, a scope menu) just
-    // DISMISSES it — that click must not also open a pie or nudge a control. Capture
-    // phase + stopPropagation keeps it from reaching the faceplate/jack/knob handlers;
-    // `_swallowClick` blocks the trailing click that the backdrop pie listens for.
+    // DISMISSES it — that click must not also nudge a control. Capture phase +
+    // stopPropagation keeps it from reaching the faceplate/jack/knob handlers;
+    // `_swallowClick` blocks the trailing click.
     document.addEventListener('pointerdown', (e) => {
       if (this._menuEl && !this._menuEl.contains(e.target) && !this._openSubs.some((s) => s.contains(e.target))) {
-        // A pie owns clicks over its own overlay (it may be showing the app-menu preview);
-        // let the pie decide, don't yank the menu out from under it here.
-        if (e.target && e.target.closest && e.target.closest('.pie-overlay')) { this._swallowClick = false; return; }
         this._closeMenu();
         this._swallowClick = true;
         e.preventDefault(); e.stopPropagation();
@@ -413,7 +407,7 @@ export class Rack {
   }
 
   // ---- probes (scopes + ear monitors) as part of the saved patch ----
-  // Only the PERMANENT ones (a temporary pie peek has showCallout === false). Endpoints
+  // Only the PERMANENT ones (a temporary menu peek has showCallout === false). Endpoints
   // are module keys, which patch-io remaps to the fresh session keys on restore.
   serializeProbes() {
     const out = [];
@@ -586,7 +580,7 @@ export class Rack {
   connectPatch(from, to) { return this._tryConnect(from, to); }
   redrawCables() { this._drawCables(); }
   reconcileLinks() { this._reconcileLinks(); }   // public: patch-io calls this after restoring wiring
-  // Open the shared pop-up menu at (x, y) — reused by the panel pie's app-menu wedge.
+  // Open the shared pop-up menu at (x, y) — reused by the panel menu's app-menu item.
   // opts.centred treats (x, y) as the menu's CENTRE rather than its top-left (used by F1 ▸ Help).
   openMenu(x, y, items, opts) { this._openMenu(x, y, items, opts); }
 
@@ -1222,7 +1216,7 @@ export class Rack {
       if (dragged) return;   // it was a pan of the view → keep the cord in hand
       drop(ev.clientX, ev.clientY);
     };
-    const onCtx = (ev) => { if (this._ovActive) return; ev.preventDefault(); ev.stopPropagation(); finish(); };   // right click cancels (no pie)
+    const onCtx = (ev) => { if (this._ovActive) return; ev.preventDefault(); ev.stopPropagation(); finish(); };   // right click cancels (no menu)
     const onKey = (ev) => { if (this._ovActive) return; if (ev.key === 'Escape') { ev.preventDefault(); finish(); } };
     document.addEventListener('pointermove', onMove, true);
     document.addEventListener('pointerdown', onDown, true);
@@ -1763,7 +1757,7 @@ export class Rack {
     return { edges: net, sections, seeds };       // seeds = the sections you're DIRECTLY on (kept fully lit)
   }
 
-  // ---- isolate a terminal's UPSTREAM (from its pie's "view subnet" wedge) ----
+  // ---- isolate a terminal's UPSTREAM (from its menu's "view subnet" item) ----
   // Show the cables that transitively feed this terminal — everything that AFFECTS the
   // signal here — bright with the signal-reactive dashes and enlarged/breathing jacks;
   // the rest of the patch stays visible but DIMMED (and dash-less). The subnet tracks
@@ -2173,11 +2167,11 @@ export class Rack {
   // Where a click-shown viewer (scope / ear monitor) lands: immediately RIGHT of the
   // menu, vertically centred on the pointer, so the middle of its left edge sits as
   // close to the pointer as it can without the menu obscuring it. Flips to the left if
-  // there's no room on the right; clamped to stay on-screen. (px,py) = pie centre.
+  // there's no room on the right; clamped to stay on-screen. (px,py) = menu anchor.
   // Right-click a terminal → a plain menu: Scope, Listen, Upstream. It's an "active" menu:
   // stopping the pointer on an item shows that item's PREVIEW (a live scope beside the pointer;
   // the tapped signal played through a hidden auto-levelled monitor; the upstream subnet
-  // highlighted), torn down when you move off. Clicking an item does what the old pie wedge did:
+  // highlighted), torn down when you move off. Clicking an item commits it:
   // Scope/Listen carry a real one that follows the cursor and drops on the next click; Upstream
   // latches the highlight (it survives the menu close). (Left-click still pulls a cable.)
   _onJackContextMenu(e, key, portId) {
@@ -3465,31 +3459,24 @@ export class Rack {
       const monVu = ctx.createAnalyser(); monVu.fftSize = 256; monVu.smoothingTimeConstant = 0;
       this._monVuAnalyser = monVu; this._monVuBuf = new Float32Array(monVu.fftSize);
       monMaster.connect(monVu);
-      // Mode gate: audible only while the radio is on Monitor (0 on Master).
+      // Mode gate: the monitor bus is audible only while it is enabled (0 when off). Driven by the
+      // host's audio routing (monitorEnable, or a momentary Sound-menu audition) — see _applyAudioRouting.
       const monRec = this._mixerRec(); const modeGate = ctx.createGain();
       modeGate.gain.value = (monRec && monRec.values.get('monitorEnable') === 'on') ? 1 : 0;
       this._monModeGate = modeGate;
-      // Engine gate: monitors follow the master engine on/off (0 while the engine is off).
-      const engineGate = ctx.createGain(); engineGate.gain.value = this.isPlaying() ? 1 : 0;
-      this._monEngineGate = engineGate;
       const makeup = ctx.createGain(); makeup.gain.value = MON_MAKEUP;   // match the main output's makeup
       const lim = ctx.createDynamicsCompressor();
       lim.threshold.value = -1; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.003; lim.release.value = 0.12;
-      this._monBus.connect(monMaster); monMaster.connect(modeGate); modeGate.connect(engineGate);
-      engineGate.connect(makeup); makeup.connect(lim); lim.connect(ctx.destination);
-      // Preview injection: the momentary "Listen" hover joins here, AFTER the mode/engine gates, so a
-      // terminal can always be auditioned regardless of the Monitor enable or the engine. A fixed
-      // level (like the default monitor fader) keeps it comparable to a placed monitor.
+      this._monBus.connect(monMaster); monMaster.connect(modeGate);
+      modeGate.connect(makeup); makeup.connect(lim); lim.connect(ctx.destination);
+      // Preview injection: the momentary "Listen" hover joins here, AFTER the mode gate, so a
+      // terminal can always be auditioned regardless of the Monitor enable. A fixed level (like the
+      // default monitor fader) keeps it comparable to a placed monitor.
       const preview = ctx.createGain(); preview.gain.value = MON_LEVEL_DEFAULT;
       this._monPreviewGain = preview; preview.connect(makeup);
     }
     if (this.host.ctx.resume) this.host.ctx.resume();
     return this._monBus;
-  }
-
-  // Gate the monitor bus by the master engine on/off (called when the mixer's masterMute changes).
-  _setMonEngineGate(on) {
-    if (this._monEngineGate) this._monEngineGate.gain.setTargetAtTime(on ? 1 : 0, this.host.ctx.currentTime, 0.008);
   }
 
   // The pinned mixer's record (the output stage).
@@ -3506,18 +3493,55 @@ export class Rack {
     else this._applyBusEnables();
   }
 
-  // Apply the two INDEPENDENT bus enables: masterEnable gates the main output, monitorEnable gates
-  // the monitor bus (both, neither, or one can play). Both are still gated by the engine. The
-  // channel faders gray while the master bus is off (they don't reach the speakers then).
-  _applyBusEnables() {
+  // A bus enable (masterEnable / monitorEnable) changed — re-apply the routing.
+  _applyBusEnables() { this._applyAudioRouting(); }
+
+  // The two INDEPENDENT buses drive the actual audio. Master audibility gates the main output;
+  // monitor audibility gates the monitor bus (both, either, or neither can play). There is no
+  // engine — these ARE the transport. Normally each follows its persistent enable param, UNLESS a
+  // momentary Sound-menu audition (`_audition`) overrides it; the params are never written during
+  // an audition, so leaving the menu restores for free. The context wakes lazily on first sound.
+  _applyAudioRouting() {
     const rec = this._mixerRec(); if (!rec) return;
-    const masterOn = rec.values.get('masterEnable') !== 'off';
-    const monitorOn = rec.values.get('monitorEnable') === 'on';
+    const o = this._audition || null;
+    const masterAudible = o ? !!o.master : rec.values.get('masterEnable') !== 'off';
+    const monitorAudible = o ? !!o.monitor : rec.values.get('monitorEnable') === 'on';
+    if ((masterAudible || monitorAudible) && this.host.ctx.resume) this.host.ctx.resume();
     const mix = this._mixerInstance();
-    if (mix && mix.setSolo) mix.setSolo(!masterOn);   // soloDuck ducks the main output when master is disabled
-    if (this._monModeGate) this._monModeGate.gain.setTargetAtTime(monitorOn ? 1 : 0, this.host.ctx.currentTime, 0.008);
-    this._setChannelsGrayed(!masterOn);
+    if (mix && mix.setMasterAudible) mix.setMasterAudible(masterAudible);
+    if (this._monModeGate) this._monModeGate.gain.setTargetAtTime(monitorAudible ? 1 : 0, this.host.ctx.currentTime, 0.008);
+    // Graying + monitor highlights track the PERSISTENT master/monitor state, not a momentary
+    // audition, so a hover doesn't flicker the faceplate.
+    this._setChannelsGrayed(rec.values.get('masterEnable') === 'off');
     this._refreshMonHighlights();
+  }
+
+  // ---- the Sound menu (panel menu): hover auditions, click toggles ----
+  // Momentary audition: hear one choice alone regardless of the persistent enables; `null` restores.
+  auditionSound(which) {   // 'master' | 'monitor' | 'both' | null
+    this._audition = which === 'master' ? { master: true, monitor: false }
+      : which === 'monitor' ? { master: false, monitor: true }
+      : which === 'both' ? { master: true, monitor: true }
+      : null;
+    this._applyAudioRouting();
+  }
+  busEnabled(bus) {   // 'master' | 'monitor'
+    const rec = this._mixerRec();
+    return !!(rec && rec.values.get(bus === 'monitor' ? 'monitorEnable' : 'masterEnable') === 'on');
+  }
+  // Persistent toggle: a click ends any audition, then flips the bus (which routes via _applyBusEnables).
+  toggleBusEnable(bus) {
+    const rec = this._mixerRec(); if (!rec) return;
+    const id = bus === 'monitor' ? 'monitorEnable' : 'masterEnable';
+    this._audition = null;
+    this.applyParam(rec, id, rec.values.get(id) === 'on' ? 'off' : 'on');
+  }
+  // Persistently enable both buses (the Sound menu's "Both" click).
+  enableBothBuses() {
+    const rec = this._mixerRec(); if (!rec) return;
+    this._audition = null;
+    this.applyParam(rec, 'masterEnable', 'on');
+    this.applyParam(rec, 'monitorEnable', 'on');
   }
 
   // A monitor is "live" — green ring, pulsing — while the monitor bus is enabled and it isn't muted.
@@ -4446,12 +4470,9 @@ export class Rack {
     for (const b of panel.controls.values()) {
       const v = rec.values.get(b.id);
       if (v !== undefined) showValue(b, v);
-      const isMasterEnable = rec.pinned && b.id === 'masterMute';   // the mixer's master lamp
       attachControlInteraction(b, {
         get: () => rec.values.get(b.id),
-        // The master enable and the transport are one state: route the lamp through
-        // setSound so toggling it here also flips the pie's sound wedge (and vice versa).
-        set: (val) => { if (isMasterEnable) this.setSound(val === 'on'); else this._setParam(rec, b.id, val); },
+        set: (val) => this._setParam(rec, b.id, val),
       }, { hitGrowMm: btnGrow.get(b.id) || 0 });
       b.group.addEventListener('pointerdown', (e) => e.stopPropagation());
       if (b.kind === 'knob') {                      // double-click a knob → back to its default
@@ -4486,10 +4507,10 @@ export class Rack {
         port.element.appendChild(pad);
       }
     }
-    // The vertical title up the left edge: right-click it for the delete pie.
+    // The vertical title up the left edge: right-click it for the delete menu.
     const title = svg.querySelector('.module-title');
     if (title) {
-      title.style.cursor = 'var(--grip)';   // the title is the drag handle now (right-click still opens its pie)
+      title.style.cursor = 'var(--grip)';   // the title is the drag handle now (right-click still opens its menu)
       title.addEventListener('contextmenu', (e) => this._onTitleContextMenu(e, rec));
     }
   }
@@ -4567,7 +4588,6 @@ export class Rack {
     const b = rec.panel.controls.get(id);
     if (b) showValue(b, value);
     this.patchbay.setDepth(rec.key, id, value);   // if this knob is a cord's depth control
-    if (rec.pinned && id === 'masterMute') this._setMonEngineGate(value === 'on');   // engine gates the monitor bus too
     if (rec.pinned && id === 'monitorLevel') this._setMonMaster(value);              // the Monitor fader
     if (rec.pinned && (id === 'masterEnable' || id === 'monitorEnable')) this._applyBusEnables();   // per-bus routing
     this.onChange();                              // a knob/switch change dirties the patch
@@ -4676,9 +4696,8 @@ export class Rack {
   }
 
   // ---- control (knob/switch) reset, used by the clear-patch command ----
-  // Every module is reset, the pinned mixer included. onControlsReset lets the host
-  // re-read the mixer's master level and reconcile the master mute with the latched sound
-  // state, so resetting masterMute can't leave the audio and the lamp out of step.
+  // Every module is reset, the pinned mixer included. onControlsReset lets the host re-read the
+  // mixer's master level and re-apply the bus routing, so a reset can't leave the audio out of step.
   _paramSnapshotAll() {
     const out = [];
     for (const rec of this.records.values()) out.push({ key: rec.key, values: new Map(rec.values) });
@@ -5035,6 +5054,32 @@ export class Rack {
       }
       const item = document.createElement('div');
       item.className = 'rack-menu-item' + (it.dim ? ' dim' : '');
+      if (it.words) {
+        // A row of word-buttons (the sound buses: MSTR / MON). Each word toggles its bus on a
+        // click — red when on, greyed when off — and the menu STAYS OPEN. Hovering an OFF word
+        // auditions that bus momentarily (a write-free peek) and stops on leave. The words are
+        // twins of the mixer's own enable lamps.
+        item.classList.add('rack-menu-words');
+        for (const w of it.words) {
+          const label = document.createElement('span');
+          label.className = 'rack-menu-word';
+          label.textContent = w.label;
+          item.appendChild(label);
+          // A round enable button after the word, like the mixer's own enable lamp: dark disc when
+          // off, red when on. Clicking it toggles the bus and the menu STAYS OPEN; hovering it while
+          // OFF auditions that bus momentarily (a write-free peek), stopping on leave.
+          const led = document.createElement('span');
+          led.className = 'rack-menu-led' + (w.isOn() ? ' on' : '');
+          led.addEventListener('pointerenter', () => { if (!w.isOn()) w.peek(true); });
+          led.addEventListener('pointerleave', () => w.peek(false));
+          led.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+          led.addEventListener('click', (ev) => { ev.stopPropagation(); w.flip(); led.classList.toggle('on', w.isOn()); });
+          item.appendChild(led);
+        }
+        item.addEventListener('click', (e) => e.stopPropagation());   // the row itself never dismisses the menu
+        (group || menu).appendChild(item);
+        continue;
+      }
       const isOn = it.checkFn ? it.checkFn() : !!it.checked;
       // EYE (Scopes roster) at the FAR LEFT of the row — toggles show/hide (bright when shown, dim when
       // hidden). Stops propagation so it never triggers the row's own action (grab-to-pointer).
@@ -5136,6 +5181,7 @@ export class Rack {
 
   _closeMenu() {
     this._closeSubs();
+    if (this._auditionLeave) { const f = this._auditionLeave; this._auditionLeave = null; f(); }   // stop a submenu hover-audition if the menu closes over it
     this._menuClosing = true;   // lets a preview's onLeave tell a menu teardown from a plain item-leave
     if (this._hoverLeave && !this._peekLatched) this._hoverLeave();   // tear down a live preview (unless a click latched it)
     this._menuClosing = false;
@@ -5201,7 +5247,7 @@ export class Rack {
     return items;
   }
   // The Engine menu item's glyph: the same reddish push-button as the mixer's master lamp
-  // (and the old panel-pie sound wedge). A flat medium-gray disc when the engine is OFF; the
+  // (and the old sound-menu item). A flat medium-gray disc when the engine is OFF; the
   // red `ledLit` dome plus its glossy highlight when ON — so the button reads as PRESSED while
   // sound is running. Self-contained (its own gradient) so it drops straight into a menu icon.
   engineButtonIcon(on) {
@@ -5253,9 +5299,14 @@ export class Rack {
         continue;
       }
       if (it.checkFn || it.checked !== undefined) { const ck = document.createElement('span'); ck.className = 'rack-menu-check'; ck.textContent = on ? '✓' : ''; item.appendChild(ck); }
-      // Moving onto a plain row closes anything a NEIGHBOUR opened, or its submenu hangs there
-      // over the rows you're now pointing at.
-      item.addEventListener('mouseenter', () => this._closeSubsFrom(depth + 1));
+      // A submenu leaf may audition on hover (onDwell) and stop on leave (onLeave) — same idea as a
+      // top-level preview item. Settling on it fires onDwell; moving off, or the menu closing over
+      // it (see _closeMenu), fires onLeave. Otherwise a plain row just closes any neighbour's submenu.
+      item.addEventListener('mouseenter', () => {
+        this._closeSubsFrom(depth + 1);
+        if (it.onDwell) { it.onDwell(); this._auditionLeave = it.onLeave || null; }
+      });
+      if (it.onLeave) item.addEventListener('mouseleave', () => { if (this._auditionLeave === it.onLeave) this._auditionLeave = null; it.onLeave(); });
       if (it.disabled) item.classList.add('disabled');
       else item.addEventListener('click', () => { this._closeMenu(); it.action(); });
       sub.appendChild(item);

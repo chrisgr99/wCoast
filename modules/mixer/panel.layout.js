@@ -3,7 +3,7 @@
 // The theme-independent item list the shared renderer (panel/render.js) turns into
 // panel.svg + panel.dark.svg. Reconstructed from the shipped panel (which had been
 // hand-edited past its old generator): six channels, plus the master section — a
-// Monitor and a Master fader, their enable lamps, the engine mute, and two VU meters.
+// Monitor and a Master fader, their two bus-enable lamps, and two VU meters.
 
 'use strict';
 
@@ -56,15 +56,13 @@ for (const L of CH) {
   vu('vu', CH_X[L], L);
 }
 
-// master section: Monitor + Master faders, enable lamps, engine mute, VU meters
+// master section: Monitor + Master faders, their two bus-enable lamps, VU meters
 items.push({ t: 'slider', id: 'monitorLevel', x: MON_X, opts: { top: SLIDER_TOP, bot: SLIDER_BOT, valuePos: 0.7 } });
 items.push({ t: 'slider', id: 'master', x: MSTR_X, opts: { top: SLIDER_TOP, bot: SLIDER_BOT, valuePos: 0.7 } });
 ink(MON_X, Y_AMPCV - 1.5, 'MON', { size: 1.694 });
 ink(MSTR_X, Y_AMPCV - 1.5, 'MSTR', { size: 1.694 });
 items.push({ t: 'button', id: 'monitorEnable', x: MON_X, y: 88, opts: { r: 1.8, kind: 'red' } });
 items.push({ t: 'button', id: 'masterEnable', x: MSTR_X, y: 88, opts: { r: 1.8, kind: 'red' } });
-items.push({ t: 'button', id: 'masterMute', x: ENGINE_X, y: 99, opts: { r: 2.7, kind: 'red' } });
-ink(ENGINE_X, Y_MUTE + 1, 'ENGINE', { size: 1.9 });
 vu('vuMonitor', MON_X, 'MON');
 vu('vuMaster', MSTR_X, 'M');
 

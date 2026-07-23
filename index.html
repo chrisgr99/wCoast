@@ -286,6 +286,14 @@
     .rack-menu-sep { height: 1px; margin: 4px 6px; background: var(--line); pointer-events: none; }
     .rack-menu-icon { flex: none; width: 15px; height: 15px; margin-right: 7px; line-height: 0; color: inherit; }
     .rack-menu-icon svg { width: 15px; height: 15px; display: block; fill: currentColor; }
+    /* Sound row: MSTR / MON, each followed by a round enable button (like the mixer enable lamp)
+       — dark when off, red when on. Clicking a button toggles its bus; hovering an off button
+       auditions it. The row itself never highlights or dismisses. */
+    .rack-menu-item.rack-menu-words:hover { background: transparent; color: inherit; }
+    .rack-menu-word { font-weight: 700; color: var(--ink-dim); margin-right: 6px; }
+    .rack-menu-led { width: 12px; height: 12px; border-radius: 50%; background: #404044; border: 1px solid #a2a2a8; cursor: pointer; margin-right: 18px; }
+    .rack-menu-led:last-child { margin-right: 0; }
+    .rack-menu-led.on { background: radial-gradient(circle at 50% 42%, #ff7a5a, #d21010 55%, #8f0c0c); box-shadow: 0 0 3px rgba(221,20,20,0.55); }
     .rack-menu-arrow { margin-left: auto; padding-left: 16px; color: var(--ink-dim); }
     .rack-menu-item:hover .rack-menu-arrow { color: var(--accent-ink); }
     .rack-menu-item.disabled { color: var(--ink-dim); opacity: 0.55; cursor: default; }

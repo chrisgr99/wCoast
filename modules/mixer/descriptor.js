@@ -40,15 +40,13 @@ for (const L of CH) {
   ports.push({ id: `panCv${L}`, name: `Pan ${L}`, section: 'panCv', domain: 'control', dir: 'in', target: `pan${L}` });
 }
 params.push({ id: 'master', name: 'Master', section: 'master', curve: 'gainDb', min: 0, max: 1, default: 0.29, glideMs: 20 });   // ~-11 dB → ~70% up the throw
-// The engine: all sound on/off (transport). Unified with the toolbar On/Off and the panel
-// context-menu Engine entry (host-wired, id kept as 'masterMute' for compatibility).
-params.push({ id: 'masterMute', name: 'Engine', section: 'master', curve: 'stepped', steps: [{ value: 'off' }, { value: 'on' }], default: 'on' });
 // Monitor bus: its own fader (level) beside the master. Its enable is INDEPENDENT of the master's
 // (see the per-bus enables below) — both, either, or neither bus can play. Enabling a monitor object
 // turns the Monitor bus on. All handled by the host (routing lives in the rack), not the DSP.
 params.push({ id: 'monitorLevel', name: 'Monitor', section: 'master', curve: 'gainDb', min: 0, max: 1, default: 0.29, glideMs: 20 });
-// Independent per-bus enables (an on/off lamp under each fader — NOT a radio, so both or neither can
-// play). Enabling a monitor object turns the monitor bus on. Both are still gated by the engine.
+// The two buses, each an independent on/off lamp under its fader (NOT a radio — both, either, or
+// neither can play). There is no separate engine: these ARE the transport. Master defaults on,
+// monitor off; enabling a monitor object turns the monitor bus on. Routing lives in the rack.
 params.push({ id: 'masterEnable', name: 'Master enable', section: 'master', curve: 'stepped', steps: [{ value: 'off' }, { value: 'on' }], default: 'on' });
 params.push({ id: 'monitorEnable', name: 'Monitor enable', section: 'master', curve: 'stepped', steps: [{ value: 'off' }, { value: 'on' }], default: 'off' });
 

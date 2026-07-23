@@ -31,25 +31,24 @@ export function create(ctx, services) {
 
   const master = ctx.createGain();
   master.gain.value = paramDefault('master');
-  // A mute gain after the master feeds the destination; muting silences the whole
-  // output without disturbing the master level.
-  const masterMute = ctx.createGain();
-  // Enable sense flipped: 'on' = enabled (pass), 'off' = disabled (silent).
-  masterMute.gain.value = paramDefault('masterMute') === 'on' ? 1 : 0;
-  master.connect(masterMute);
-  // A solo-duck after the mute silences the normal output while an ear monitor is
-  // auditioning a single terminal, without disturbing the user's master-enable state.
-  const soloDuck = ctx.createGain();
-  masterMute.connect(soloDuck);
+  // Master-enable gate: passes the mix (1) or silences it (0), without disturbing the master
+  // level. Driven by the mixer's masterEnable bus, and momentarily by the Sound menu's audition
+  // (host `setMasterAudible`). Audible by default — masterEnable defaults on; the host reconciles
+  // the exact state on boot and whenever the bus toggles.
+  const masterGate = ctx.createGain();
+  masterGate.gain.value = 1;
+  master.connect(masterGate);
   // Output makeup + brick-wall limiter (see OUT_MAKEUP): lift the quiet post-fader signal up so the
-  // system is actually loud, and catch peaks safely instead of clipping. Everything upstream (mute,
-  // solo, master fader) still shapes the signal before it reaches here.
+  // system is actually loud, and catch peaks safely instead of clipping. Everything upstream (the
+  // gate and master fader) still shapes the signal before it reaches here.
   const makeup = ctx.createGain();
   makeup.gain.value = OUT_MAKEUP;
   const limiter = ctx.createDynamicsCompressor();
   limiter.threshold.value = -1; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = 0.003; limiter.release.value = 0.12;
-  soloDuck.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);
-  function setSolo(on) { soloDuck.gain.setTargetAtTime(on ? 0 : 1, ctx.currentTime, 0.008); }
+  masterGate.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);
+  // Set the master audible (1) or silent (0). The host computes this from masterEnable, or from a
+  // momentary Sound-menu audition — the param itself is never touched, so an audition restores free.
+  function setMasterAudible(on) { masterGate.gain.setTargetAtTime(on ? 1 : 0, ctx.currentTime, 0.008); }
 
   // Stereo VU tap: read the FINAL (post-makeup, post-limiter) output so the meters reflect what you
   // actually hear. (A pure read — it doesn't alter the signal reaching the destination.)
@@ -110,7 +109,6 @@ export function create(ctx, services) {
   }
   function supports() { return true; }
   function setParam(paramId, value, atTime) {
-    if (paramId === 'masterMute') { masterMute.gain.value = value === 'on' ? 1 : 0; return; }
     if (paramId.startsWith('mute')) {
       const c = byLetter.get(paramId.slice(4));
       if (c) c.mute.gain.value = value === 'on' ? 1 : 0;
@@ -122,7 +120,7 @@ export function create(ctx, services) {
     ap.setTargetAtTime(value, t, 0.02);
   }
   function dispose() {
-    try { master.disconnect(); masterMute.disconnect(); soloDuck.disconnect(); makeup.disconnect(); limiter.disconnect(); } catch (_e) { /* gone */ }
+    try { master.disconnect(); masterGate.disconnect(); makeup.disconnect(); limiter.disconnect(); } catch (_e) { /* gone */ }
     for (const c of channels) { try { c.level.disconnect(); c.mute.disconnect(); c.pan.disconnect(); if (c.panScale) c.panScale.disconnect(); } catch (_e) { /* gone */ } }
   }
 
@@ -158,5 +156,5 @@ export function create(ctx, services) {
     channels: new Map(channels.map((c) => [c.L, c.meter])),
   };
 
-  return { getOutput, getInput, getParam, setParam, supports, dispose, setSolo, master, meters, levels, analysers };
+  return { getOutput, getInput, getParam, setParam, supports, dispose, setMasterAudible, master, meters, levels, analysers };
 }
