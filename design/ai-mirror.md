@@ -41,19 +41,26 @@ leftovers are cleaned at startup; emptied when disabled. `active.json` carries
 so an AI reading the folder with the app closed knows the data is stale.
 
 The user never edits these files by hand — the running app is the source of
-truth and the files are projected from it. The AI edits only the round-trip
-files, following the protocol below.
+truth and the files are projected from it. The AI writes exactly one file,
+`inbox.json`, to hand a patch back, following the protocol below.
 
 ## File inventory
 
-**Round-trip** (the AI may write these; Wcoast validates and applies them):
+**Round-trip** (the AI writes this; Wcoast validates and applies it):
+
+- `inbox.json` — a proposed patch, in the exact `patch.json` / `.wcoast` serialize
+  format (`host/patch-io.js`). This is the *only* file the AI writes, and the only
+  file Wcoast watches for a handoff. Absent unless a handoff is in flight; Wcoast
+  deletes it the instant it takes it. Kept separate from the projected `patch.json`
+  on purpose (see "Telling a real handoff apart").
+
+**Observation-only** (Wcoast writes; the AI reads):
 
 - `patch.json` — the current patch, in the exact `.wcoast` serialize format
   (`host/patch-io.js`): `modules` (type, position), `wiring` (cables with bend),
   and `settings.params` (every module's and the mixer's values). This IS the live
-  patch, projected from the running app; writing it proposes a new patch.
-
-**Observation-only** (Wcoast writes; the AI reads):
+  patch, projected from the running app. Read-only for the AI — proposing a change
+  means writing `inbox.json`, not this.
 
 - `active.json` — protocol metadata and a live snapshot (schema below): protocol
   version, `isLive`, the current patch's name and dirty flag, a transport-style
@@ -63,7 +70,7 @@ files, following the protocol below.
   endpoint. This is what the AI reads to construct *valid* patches. Generated
   from the descriptors, so it is always exact and never drifts. (Wcoast's answer
   to GXW's `sceneSchema.md`, but generated rather than prose.)
-- `last-apply-result.json` — the outcome of the most recent AI-edit batch:
+- `last-apply-result.json` — the outcome of the most recent `inbox.json` handoff:
   success with what applied, or rejection with the first validation error.
 - `AGENTS.md` — the grounding doc for the AI: this protocol, distilled to what an
   assistant needs to participate safely. Copied on enable.
@@ -83,14 +90,14 @@ files, following the protocol below.
 The files lists inside `active.json` are the protocol-level declaration of which
 file is which; trust those over this prose if they ever disagree.
 
-## patch.json — the round-trip patch
+## patch.json / inbox.json — the patch format
 
-Identical to the `.wcoast` file format (see `design/save-load.md`): topology
+Both use the `.wcoast` file format (see `design/save-load.md`): topology
 (`modules`, `wiring`) separated from `settings`. The mirror reuses
-`serialize(rack, mixer)` to project it and `restore(obj, rack, mixer)` to apply
-an AI edit — the same core the File menu uses. Reusing that core means a patch
-authored through the mirror and one saved to a file are the same object, and the
-apply path is already proven.
+`serialize(rack, mixer)` to project `patch.json` and `restore(obj, rack, mixer)`
+to apply an `inbox.json` handoff — the same core the File menu uses. Reusing that
+core means a patch authored through the mirror and one saved to a file are the
+same object, and the apply path is already proven.
 
 The mixer is the fixed endpoint `"mixer"` in `wiring` and `settings.params`, as
 in the save format.
@@ -131,8 +138,8 @@ everything needed to write a patch that validates on the first try:
 ```
 
 The AI's authoring flow: read `catalogue.json` (what exists), `active.json` (what
-state), `patch.json` (the current patch), then write a new `patch.json` that
-references only real module types, real port ids, and param values inside each
+state), `patch.json` (the current patch), then write `inbox.json` — a new patch
+referencing only real module types, real port ids, and param values inside each
 param's range or step set.
 
 ## active.json
@@ -145,8 +152,8 @@ param's range or step set.
   "state": { "sound": "on", "master": 0.7 },
   "sync": { "lastSyncAt": "2026-07-04T21:00:00.000Z" },
   "files": {
-    "roundTrip": ["patch.json"],
-    "observationOnly": ["active.json", "catalogue.json", "last-apply-result.json", "AGENTS.md"]
+    "roundTrip": ["inbox.json"],
+    "observationOnly": ["patch.json", "active.json", "catalogue.json", "last-apply-result.json", "AGENTS.md"]
   }
 }
 ```
@@ -157,32 +164,56 @@ flag we already track. `state.sound` is `"on"`/`"off"` (the On/Off toggle);
 
 ## last-apply-result.json
 
-Written after every AI-edit batch. Success: `{ "status": "success", "timestamp":
-…, "applied": ["patch.json"] }`. Rejection: `{ "status": "rejected", "timestamp":
-…, "filename": "patch.json", "error": "<what failed>" }`. On rejection the
-in-memory patch is unchanged and its last-known-good content is force-pushed back
-to `patch.json`, so the file reverts within the same write window.
+Written after every `inbox.json` handoff. Success: `{ "status": "success",
+"timestamp": …, "applied": ["inbox.json"] }`. Rejection: `{ "status": "rejected",
+"timestamp": …, "filename": "inbox.json", "error": "<what failed>" }`. On
+rejection the in-memory patch is unchanged; the app re-projects `patch.json` so
+the AI can re-read the true current state.
 
-## Round-trip protocol
+## Telling a real handoff apart
 
-Modelled exactly on GXW's, which is proven:
+The failure this design exists to prevent: a projection write, a settings change,
+or a restart being mistaken for an AI handoff and popping the confirm dialog. The
+earlier scheme had the AI edit `patch.json` in place — the very file the app
+rewrites constantly — and separated "my write" from "the AI's write" by content
+signature plus a self-write mute plus a "have we projected yet" gate. Any slip in
+that stack latched: because folder events fire constantly (`selection.json` is
+rewritten on every hover), one stale comparison re-fired the prompt on every later
+event, including during ordinary settings changes and on every restart.
 
-- **Atomic temp-and-rename.** Wcoast writes `patch.json.tmp` then renames to
-  `patch.json`; an AI watching never sees a torn file. The AI must write the same
-  way. A completed rename of a round-trip file is itself the signal — no separate
-  handshake. (An optional `.pending` sentinel brackets a slower multi-file batch;
-  not needed for the single-file patch case.)
-- **Self-write muting.** The main process records a signature (size + hash) of
-  what it just wrote, so its own projection writes are not mistaken for AI edits.
-  The watcher reconciles by signature, not by fs event name — macOS `fs.watch` is
-  unreliable about which filename a rename reports.
-- **Debounce.** Writes within a short window coalesce into one batch.
-- **Confirm to apply.** On a detected external edit, the main process hands the
-  new `patch.json` to the renderer, which validates it (below) and, if valid,
+The fix is structural: **the two directions use different files, and the inbound
+file is one the app never authors.**
+
+- **Out:** the app projects `patch.json` (and the rest). It is not watched for
+  edits, so the app can rewrite it as often as it likes with no risk of a false
+  handoff.
+- **In:** the AI writes `inbox.json`. Nothing the app does ever writes it, so a
+  readable, parseable `inbox.json` *is* a handoff — no content-diff against our
+  own output, no self-write mute, no projected-gate.
+
+Protocol:
+
+- **Atomic temp-and-rename.** The AI writes `inbox.json.tmp` then renames to
+  `inbox.json`, so the watcher never sees a torn file. Belt and braces: if a
+  partial `inbox.json` is ever read, it fails `JSON.parse` and is ignored until
+  the completing event delivers a whole one.
+- **Consume on read.** On a parseable `inbox.json`, the main process deletes it
+  *before* handing the text to the renderer. So it fires exactly once; any
+  duplicate FSEvent that follows finds nothing, and reconciles are coalesced
+  (never overlapping) as a second guard. A single reconcile does the read+delete.
+- **Watch the folder, filter to the inbox.** A single-file watch breaks across the
+  atomic rename (the inode swaps), so the folder is watched; every event macOS
+  names as something other than `inbox.json` is ignored (and macOS often names
+  nothing, in which case reconcile simply finds no inbox). Debounced by a short
+  window.
+- **Clear stale inbox on startup/enable.** A handoff is only for the live session
+  the user is driving, so any `inbox.json` left from a prior run is deleted before
+  the watch is armed — a patch written while the app was closed never auto-applies.
+- **Confirm to apply.** The renderer validates the handoff (below) and, if valid,
   shows a confirm dialog with a short before→after summary (e.g. "3 modules, 5
   cables → 4 modules, 7 cables"). On accept, `restore()` rebuilds the running
-  patch; on cancel, the last-known-good patch is force-pushed back to the file.
-  Either way the outcome is written to `last-apply-result.json`.
+  patch; on cancel, nothing changes. Either way the outcome is written to
+  `last-apply-result.json` and `patch.json` is re-projected.
 
 ## Validating an AI-proposed patch
 
@@ -282,21 +313,20 @@ for "why is there no sound" and "why does this feel wrong."
   deferred and tiny.
 - **Generated catalogue vs prose schema.** The descriptor system gives the AI an
   exact, machine-readable authoring schema for free.
-- **Whole-file round-trip is fine.** A patch is small, so the AI rewrites the
-  whole `patch.json`; GXW needed `property-changes.json` to avoid rewriting a
-  large, live-edited `scene.json`. We can add a targeted `property-changes.json`
-  later for one-knob tweaks, but it is not needed to start.
+- **Whole-file handoff is fine.** A patch is small, so the AI writes a whole patch
+  in `inbox.json`; GXW needed `property-changes.json` to avoid rewriting a large,
+  live-edited `scene.json`. We can add a targeted `property-changes.json` later for
+  one-knob tweaks, but it is not needed to start.
 
 ## Phasing
 
 1. **Write side (bundle → mirror).** The Electron main mirror module: folder
-   lifecycle, atomic writes, self-write muting scaffold, and projecting
-   `patch.json`, `catalogue.json`, and `active.json` from the renderer on every
-   change (reusing `serialize` and the descriptor registry). Copy `AGENTS.md`.
-   The enable toggle + settings store. Verifiable by reading the folder while the
-   app runs.
-2. **Round-trip (mirror → bundle).** The `fs.watch` + signature reconcile +
-   debounce, the validator, the confirm-to-apply dialog, `restore()` apply, and
+   lifecycle, atomic writes, and projecting `patch.json`, `catalogue.json`, and
+   `active.json` from the renderer on every change (reusing `serialize` and the
+   descriptor registry). Copy `AGENTS.md`. The enable toggle + settings store.
+   Verifiable by reading the folder while the app runs.
+2. **Round-trip (mirror → bundle).** The `inbox.json` watch + consume-on-read, the
+   validator, the confirm-to-apply dialog, `restore()` apply, and
    `last-apply-result.json`. This is where the AI can actually build a patch.
 3. **Deictic + runtime + audio trace.** `selection.json` (sticky deixis),
    `runtime.json` (live VU + transport), and the `audio-trace.json` analysis (the
@@ -305,6 +335,6 @@ for "why is there no sound" and "why does this feel wrong."
 All three phases are built. Phase 1 is the observable win — the AI can *see and
 reason about* the patch. Phase 2 makes it *authorable*. Phase 3 lets it *diagnose
 and advise* on the actual sound and resolve "this module". The one deliberate
-hold-back is `property-changes.json` for targeted one-knob edits: the whole-file
-`patch.json` round-trip already covers every edit, so a targeted channel is a
+hold-back is `property-changes.json` for targeted one-knob edits: the whole-patch
+`inbox.json` handoff already covers every edit, so a targeted channel is a
 convenience, not a gap — added if one-knob tweaks prove common.

@@ -237,7 +237,7 @@ async function boot() {
       patch: { name: patchName, dirty },
       state: { sound: started ? 'on' : 'off', master: masterValue },
       sync: { lastSyncAt: new Date().toISOString() },
-      files: { roundTrip: ['patch.json'], observationOnly: ['active.json', 'catalogue.json', 'last-apply-result.json', 'selection.json', 'runtime.json', 'audio-trace.json', 'AGENTS.md', 'README.md'] },
+      files: { roundTrip: ['inbox.json'], observationOnly: ['patch.json', 'active.json', 'catalogue.json', 'last-apply-result.json', 'selection.json', 'runtime.json', 'audio-trace.json', 'AGENTS.md', 'README.md'] },
     }),
     catalogue: buildCatalogue([oscDescriptor, lpgDescriptor], mixerDescriptor),
     applyEdit,
@@ -366,8 +366,8 @@ async function boot() {
     catch (e) { window.alert(`Could not open the patch: ${e.message}`); }
   }
 
-  // Apply an AI-proposed patch (an external write to the mirror's patch.json):
-  // validate it against the descriptors, confirm with the user, then restore it.
+  // Apply an AI-proposed patch (the mirror's inbox.json handoff, in patch.json's
+  // format): validate it against the descriptors, confirm with the user, then restore it.
   async function applyEdit(text) {
     let obj;
     try { obj = JSON.parse(text); } catch (e) { return { ok: false, error: `invalid JSON: ${e.message}` }; }

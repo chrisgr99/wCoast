@@ -13,32 +13,39 @@ the user's instructions; the user always has the final say.
 
 ## Proposing a patch (the round-trip)
 
-You can both **read** these files and **write `patch.json`** to propose a new
-patch. When you write it, Wcoast validates the patch against `catalogue.json`,
-shows the user a confirm dialog, and — on accept — rebuilds the running patch
-from it. Read `last-apply-result.json` afterwards to learn whether your edit was
-accepted or rejected, and why.
+You **read** the projected files and, to propose a new patch, you **write one
+file: `inbox.json`**. This is the only file you ever write. `patch.json` and the
+rest are read-only projections of the live app — never write them.
+
+When you write `inbox.json`, Wcoast reads it, validates the patch against
+`catalogue.json`, shows the user a confirm dialog, and — on accept — rebuilds the
+running patch from it. It then **deletes `inbox.json`** (that is your signal the
+handoff was received) and writes the outcome to `last-apply-result.json`.
 
 How to write it:
 
-- Write `patch.json` with an **atomic temp-and-rename**: write `patch.json.tmp`
-  first, then rename it to `patch.json`. Wcoast never sees a torn file, and the
-  completed rename is itself the signal — there is no separate handshake.
-- Keep the exact format (see "patch.json" below) and reference only module types,
-  ports, and params that exist in `catalogue.json`, with values inside each
-  param's range or step set. An invalid patch is rejected as a whole — nothing is
-  applied.
-- After writing, read `last-apply-result.json`:
-  - `{ "status": "success", "applied": ["patch.json"] }` — your patch is now the
-    running patch (unsaved; the user can Save it).
-  - `{ "status": "rejected", "error": "…" }` — nothing changed, and Wcoast has
-    force-pushed the current patch back to `patch.json`, so the file reverts. Fix
-    the problem named in `error` and try again.
-- If the user clicks Cancel in the confirm dialog, that is a rejection and the
-  file reverts.
+- `inbox.json` holds a patch in the exact **`patch.json` format** (see below).
+  Reference only module types, ports, and params that exist in `catalogue.json`,
+  with values inside each param's range or step set. An invalid patch is rejected
+  whole — nothing is applied.
+- Write it with an **atomic temp-and-rename**: write `inbox.json.tmp` first, then
+  rename it to `inbox.json`. Wcoast never sees a torn file, and the completed
+  rename is itself the signal — there is no separate handshake. (If you can only
+  write in place, that is tolerated: a half-written file that doesn't parse yet is
+  ignored until it does.)
+- `inbox.json` disappearing means Wcoast has taken the handoff. Then read
+  `last-apply-result.json`:
+  - `{ "status": "success", "applied": ["inbox.json"] }` — your patch is now the
+    running patch (unsaved; the user can Save it). Confirm the new state in
+    `patch.json`.
+  - `{ "status": "rejected", "error": "…" }` — nothing changed. Fix the problem
+    named in `error` and write a fresh `inbox.json`.
+- If the user clicks Cancel in the confirm dialog, that is a rejection.
 
-Applying is a full rebuild — a brief audible gap, the same as loading a file.
-When a change could be large or surprising, describe it to the user first.
+Only propose a patch while `active.json` shows `isLive: true` — a handoff is for a
+live session the user is driving. Applying is a full rebuild — a brief audible
+gap, the same as loading a file. When a change could be large or surprising,
+describe it to the user first.
 
 ## Mirror folder
 
@@ -58,10 +65,14 @@ is closed and the user isn't at the keyboard.
   what each parameter's range or allowed values are, and how ports may connect.
 - `patch.json` — the current patch: the modules placed, the wiring between them,
   and every parameter value. This is the same format Wcoast saves to a `.wcoast`
-  file. It reflects live in-memory state, including unsaved changes. This is also
-  the file you write to propose a change (see the round-trip section above).
-- `last-apply-result.json` — the outcome of your most recent `patch.json` write:
-  success (applied) or rejected (with the error). Absent until your first write.
+  file. It reflects live in-memory state, including unsaved changes. **Read-only**
+  — to propose a change you write `inbox.json` (see the round-trip section above),
+  never `patch.json`.
+- `inbox.json` — the one file you write, to hand a proposed patch back to Wcoast
+  (in `patch.json` format). Absent unless a handoff is in flight; Wcoast deletes
+  it once taken. See the round-trip section above.
+- `last-apply-result.json` — the outcome of your most recent `inbox.json` handoff:
+  success (applied) or rejected (with the error). Absent until your first handoff.
 - `selection.json` — the module the user last pointed at: `{ id, type, name }`, or
   `null` before any hover. Use it to resolve deixis — "make *this* one louder".
 - `runtime.json` — small live signals: whether sound is running, the master
@@ -84,8 +95,8 @@ file is which; trust those over this prose if they ever disagree.
   "state": { "sound": "on", "master": 0.7 },
   "sync": { "lastSyncAt": "2026-07-04T21:00:00.000Z" },
   "files": {
-    "roundTrip": ["patch.json"],
-    "observationOnly": ["active.json", "catalogue.json", "last-apply-result.json", "selection.json", "runtime.json", "audio-trace.json", "AGENTS.md"]
+    "roundTrip": ["inbox.json"],
+    "observationOnly": ["patch.json", "active.json", "catalogue.json", "last-apply-result.json", "selection.json", "runtime.json", "audio-trace.json", "AGENTS.md"]
   }
 }
 ```

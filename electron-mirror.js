@@ -12,9 +12,15 @@
 // filesystem MCP already granted the WCOAST folder can reach it without extra
 // configuration. (The enabled setting stays in app data, not the mirror folder.)
 //
-// Phase 1 is the WRITE side only: patch.json, catalogue.json, active.json, and a
-// copied AGENTS.md grounding doc. The fs.watch round-trip (AI edits flowing back
-// into the app) lands in phase 2.
+// Two channels, deliberately separate. The app PROJECTS its live state OUT to
+// patch.json / active.json / catalogue.json / selection.json / … (read-only for
+// the AI). The AI hands a patch back IN by writing one file the app itself never
+// authors — inbox.json. Because nothing the app does ever touches inbox.json, a
+// readable, parseable inbox.json IS unambiguously a handoff: no content-diffing a
+// file against our own projection writes, no self-write mute, no "have we
+// projected yet" gate. The old scheme (AI edits patch.json in place, app guesses
+// which writes are its own) was fragile — any slip latched into a false prompt on
+// every later folder event. This can't. See design/ai-mirror.md.
 //
 // Opt-in via Settings, persisted in userData/settings.json; DEFAULT ON.
 
@@ -24,16 +30,15 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 
 const MIRROR_DIR_NAME = 'mirror';
+const INBOX = 'inbox.json';  // the ONE file the AI writes to hand a patch back; the app never authors it
 const DEFAULT_ENABLED = true;
 const TMP = '.tmp';
 
-let watcher = null;          // fs.watch on the mirror folder (round-trip)
+let watcher = null;          // fs.watch on the mirror folder (watches for inbox.json)
 let watchTimer = null;       // debounce for watch events
-let reconciling = false;     // a reconcile is in flight (prevents overlap/double-send)
+let reconciling = false;     // a reconcile is in flight (prevents overlap/double-consume)
 let pending = false;         // a folder event arrived during a reconcile — run once more
-let lastPatchText = null;    // last patch.json content WE wrote (self-write mute)
-let projected = false;       // the renderer has projected at least once this run
-let writeChain = Promise.resolve();   // serialises mirror:write — see the handler for why it must
+let writeChain = Promise.resolve();   // serialises mirror:write so same-file projections land in order
 let getWindow = () => null;  // returns the BrowserWindow (set by initMirror)
 
 const mirrorDir = () => path.join(app.getPath('documents'), 'DreamRack', MIRROR_DIR_NAME);
@@ -52,13 +57,11 @@ async function isEnabled() {
   return typeof s.mirrorEnabled === 'boolean' ? s.mirrorEnabled : DEFAULT_ENABLED;
 }
 
-// Atomic write: a UNIQUE <name>.<n>.tmp then rename to <name>, so a watcher never sees a torn
-// file (and the self-write mute can key off the completed rename). The scratch name must be
-// unique per write: with a shared one, two writes of the same file collide on it — the second
-// overwrites the first's scratch, the first renames it (so the file ends up holding the SECOND's
-// text) and then records the FIRST's as the baseline, and the second's rename dies on ENOENT into
-// a swallowed catch. The mute is then silently wrong forever. Callers are serialised too (see
-// mirror:write); this is the belt to that pair of braces.
+// Atomic write: a UNIQUE <name>.<n>.tmp then rename to <name>, so a reader (the AI) never sees a
+// torn file. The scratch name must be unique per write: with a shared one, two writes of the same
+// file collide on it — the second overwrites the first's scratch, the first renames it (so the
+// file ends up holding the SECOND's text) and the second's rename dies on ENOENT into a swallowed
+// catch. Callers are serialised too (see mirror:write); this is the belt to that pair of braces.
 let tmpSeq = 0;
 async function writeAtomic(name, text) {
   const tmp = path.join(mirrorDir(), `${name}.${process.pid}.${++tmpSeq}${TMP}`);
@@ -76,6 +79,9 @@ async function forEachEntry(fn) {
 const cleanLeftoverTmp = () => forEachEntry((f) => f.endsWith(TMP)
   ? fsp.unlink(path.join(mirrorDir(), f)).catch(() => {}) : null);
 const emptyFolder = () => forEachEntry((f) => fsp.unlink(path.join(mirrorDir(), f)).catch(() => {}));
+// Drop any leftover inbox.json before we arm the watch — a handoff only counts for the LIVE
+// session the user is driving, so a stale one written while the app was closed must not prompt.
+const clearInbox = () => fsp.unlink(path.join(mirrorDir(), INBOX)).catch(() => {});
 
 // Copy the static docs from the repo into the mirror: the AI grounding doc and a
 // human-facing "do not edit" README (the folder is visible in Documents).
@@ -92,6 +98,7 @@ async function enable() {
   await writeSettings({ mirrorEnabled: true });
   await ensureFolder();
   await cleanLeftoverTmp();
+  await clearInbox();
   await copyStaticDocs();
 }
 async function disable() {
@@ -99,15 +106,19 @@ async function disable() {
   await emptyFolder();
 }
 
-// ---- round-trip watcher: detect an AI's external write to patch.json ----
-// macOS fs.watch is unreliable about the filename it reports, so we reconcile by
-// CONTENT: on any folder event, re-read patch.json; if it differs from what we
-// last wrote, it is an external edit — hand it to the renderer to validate,
-// confirm, and apply. Our own projection writes are muted via lastPatchText.
+// ---- round-trip watcher: consume an AI's handoff via inbox.json ----
+// The AI proposes a patch by writing inbox.json — a file the app never authors —
+// so any readable, parseable inbox.json IS the handoff. We watch the folder (a
+// single-file watch breaks across the AI's atomic temp-then-rename, which swaps
+// the inode) but ignore every event macOS names as something other than the
+// inbox; when it names nothing (macOS often doesn't), reconcile falls through and
+// simply finds no inbox.json. All the projection + selection/runtime churn is on
+// files this never looks at, so it stays silent.
 function startWatch() {
   stopWatch();
   try {
-    watcher = fs.watch(mirrorDir(), () => {
+    watcher = fs.watch(mirrorDir(), (_evt, name) => {
+      if (name && name !== INBOX) return;   // named, and not the inbox → ignore (projection/selection churn)
       if (watchTimer) return;
       watchTimer = setTimeout(reconcile, 150);
     });
@@ -119,40 +130,31 @@ function stopWatch() {
 }
 async function reconcile() {
   watchTimer = null;
-  // Never overlap: a second reconcile reading patch.json before the first records
-  // it would double-send the same edit (likely when App Nap delays the async read
-  // on a backgrounded window). Coalesce instead.
+  // Never overlap: our own consuming delete plus a duplicate FSEvent can fire two
+  // reconciles; coalesce so one handoff is read (and deleted) exactly once.
   if (reconciling) { pending = true; return; }
   reconciling = true;
   try {
-    const text = await fsp.readFile(path.join(mirrorDir(), 'patch.json'), 'utf8');
-    if (text !== lastPatchText) {          // not our own echo
-      lastPatchText = text;                // record BEFORE sending so we don't reprocess
-      // An external edit only counts once the app has established its own baseline
-      // by projecting. Before that, every folder event is startup noise — last
-      // session's patch.json still on disk, plus stray FSEvents from the folder
-      // prep — so absorb it silently (lastPatchText updated above), never surface
-      // it as an AI edit. This keeps a plain rerun quiet even when a watch event
-      // beats the first projection into the microtask gap after its rename.
-      if (projected) {
+    const p = path.join(mirrorDir(), INBOX);
+    let text = null;
+    try { text = await fsp.readFile(p, 'utf8'); } catch (_e) { /* absent = nothing waiting */ }
+    if (text != null) {
+      let complete = true;
+      try { JSON.parse(text); } catch (_e) { complete = false; }   // torn mid-write → wait for the completing event
+      if (complete) {
+        // Consume it: delete BEFORE handing off, so it fires exactly once and any duplicate
+        // event that follows finds nothing. (Our own delete names the inbox, so it wakes the
+        // watch — harmlessly: the next read is ENOENT.) The renderer validates, confirms with
+        // the user, applies, and writes last-apply-result.json.
+        await fsp.unlink(p).catch(() => {});
         const win = getWindow();
         if (win && !win.isDestroyed()) win.webContents.send('mirror:external', { text });
       }
     }
-  } catch (_e) { /* transient (mid-rename, etc.) */ }
-  reconciling = false;
-  if (pending) { pending = false; reconcile(); }
-}
-
-// Seed the self-write baseline from the patch.json already on disk BEFORE arming
-// the watch. Otherwise lastPatchText is null while last session's patch.json still
-// sits in the folder, so the first folder event — including a late FSEvent from
-// the startup writes — reconciles that stale file as an external AI edit and pops
-// the accept/reject prompt (on every rerun, or the moment the mirror is toggled
-// on). The renderer's own projection overwrites patch.json and re-seeds this; a
-// genuine edit while the app is running still differs and still prompts.
-async function seedBaseline() {
-  try { lastPatchText = await fsp.readFile(path.join(mirrorDir(), 'patch.json'), 'utf8'); } catch (_e) { /* no prior file */ }
+  } finally {
+    reconciling = false;
+    if (pending) { pending = false; reconcile(); }
+  }
 }
 
 // On quit, flip isLive in active.json (synchronously — the app is ending) so a
@@ -171,47 +173,43 @@ function initMirror(windowGetter) {
 
   ipcMain.handle('mirror:status', async () => ({ enabled: await isEnabled(), dir: mirrorDir() }));
   ipcMain.handle('mirror:setEnabled', async (_e, v) => {
-    if (v) { await enable(); await seedBaseline(); startWatch(); } else { await disable(); stopWatch(); }
+    if (v) { await enable(); startWatch(); } else { await disable(); stopWatch(); }
     return { enabled: !!v, dir: mirrorDir() };
   });
-  // SERIALISED, and it must be. ipcMain.on does not await an async handler, so two writes
-  // arriving close together interleave at their awaits: A can rename patch.json AFTER B, leaving
-  // the file holding A's text while lastPatchText holds B's. That silently breaks the self-write
-  // mute — and because the mute is content-based it then LATCHES: every later folder event
-  // reconciles the difference as an AI edit and pops the accept prompt. Folder events are
-  // constant (selection.json is rewritten on every module hover), so once it goes wrong it stays
-  // wrong. A promise chain keeps the file and the baseline in step.
+  // Serialised so same-file projection writes land in order (ipcMain.on does not await an async
+  // handler, so two writes arriving close together would otherwise interleave at their awaits and
+  // rename in the wrong order — patch.json could end up holding the OLDER projection). A promise
+  // chain keeps them sequential. (The old self-write mute this also protected is gone: the app
+  // never writes inbox.json, so nothing here can be mistaken for a handoff.)
   ipcMain.on('mirror:write', (_e, files) => {
     writeChain = writeChain.then(async () => {
       if (!(await isEnabled()) || !files) return;
       await ensureFolder();
       for (const name of Object.keys(files)) {
-        try {
-          await writeAtomic(name, files[name]);
-          // Mute our own echo, and mark that the app has now projected — from here
-          // on a differing patch.json is a genuine external edit worth surfacing.
-          if (name === 'patch.json') { lastPatchText = files[name]; projected = true; }
-        } catch (e) { console.warn('Wcoast mirror write failed:', name, e.message); }
+        if (name === INBOX) continue;   // the inbox is inbound-only; never let a projection clobber a pending handoff
+        try { await writeAtomic(name, files[name]); }
+        catch (e) { console.warn('Wcoast mirror write failed:', name, e.message); }
       }
     }).catch((e) => console.warn('Wcoast mirror write chain:', e.message));
   });
-  // The renderer reports the outcome of applying an external patch.json edit.
+  // The renderer reports the outcome of applying an inbox.json handoff.
   ipcMain.on('mirror:result', async (_e, result) => {
     const out = result && result.ok
-      ? { status: 'success', timestamp: new Date().toISOString(), applied: ['patch.json'] }
-      : { status: 'rejected', timestamp: new Date().toISOString(), filename: 'patch.json', error: (result && result.error) || 'unknown' };
+      ? { status: 'success', timestamp: new Date().toISOString(), applied: ['inbox.json'] }
+      : { status: 'rejected', timestamp: new Date().toISOString(), filename: 'inbox.json', error: (result && result.error) || 'unknown' };
     try { await writeAtomic('last-apply-result.json', JSON.stringify(out, null, 2)); } catch (e) { console.warn('Wcoast mirror result write:', e.message); }
   });
   ipcMain.handle('mirror:reveal', async () => { await ensureFolder(); await shell.openPath(mirrorDir()); return mirrorDir(); });
 
   // Prepare the folder at startup when enabled (default on): create it, clear any
-  // leftover .tmp from a crash, refresh the docs, and start watching for edits.
+  // leftover .tmp from a crash and any stale inbox.json, refresh the docs, and
+  // start watching for a handoff.
   (async () => {
     if (!(await isEnabled())) return;
     await ensureFolder();
     await cleanLeftoverTmp();
+    await clearInbox();
     await copyStaticDocs();
-    await seedBaseline();
     startWatch();
   })().catch((e) => console.warn('Wcoast mirror init:', e.message));
 

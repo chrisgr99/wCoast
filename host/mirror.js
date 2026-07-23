@@ -70,9 +70,9 @@ export function createMirror({ getPatch, getActive, catalogue, applyEdit }) {
     bridge.write(files);
   }
 
-  // Round-trip: an external write to patch.json arrives here. Apply it (with the
-  // app's confirm + validation), report the outcome, then re-project — which
-  // normalises the file on success or reverts it to the current patch on reject.
+  // Round-trip: a handoff (the AI's inbox.json, in patch.json's format) arrives
+  // here as text. Apply it (with the app's confirm + validation), report the
+  // outcome, then re-project so patch.json reflects the running patch again.
   // Guard against overlap and duplicate deliveries (a backgrounded window can be
   // handed the same edit twice): never run two applies at once, and skip an edit
   // whose text we are already handling.
