@@ -109,9 +109,10 @@
     .mon svg:not(.mon-arc) { width: 15px; height: 15px; display: block; }
     .mon-tick { position: absolute; left: 50%; top: 2.5px; width: 2px; height: 6px; margin-left: -1px; background: #dfeee3; border-radius: 1px; transform-origin: 50% 14.5px; pointer-events: none; }
     .mon-arc { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-    .mon-close { position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 50%; background: #0d0f0c; border: 1px solid #8a8d92; color: #8a8d92; font: 700 11px/1 sans-serif; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.1s; cursor: pointer; z-index: 1; }
+    /* Monitor close: upper-LEFT, same red Mac-dot look as a scope close (no minimize on monitors). */
+    .mon-close { position: absolute; top: -3px; left: -3px; width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; color: rgba(70,8,8,0.55); font: 700 9px/1 sans-serif; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.1s; cursor: pointer; z-index: 1; }
     .mon:hover .mon-close { opacity: 0.9; }
-    .mon-close:hover { opacity: 1; color: #ff5a5a; border-color: #ff5a5a; }
+    .mon-close:hover { opacity: 1; }
     .mon-live { border-color: #3ad16b; box-shadow: inset 0 0 0 2px #3ad16b, 0 4px 12px rgba(0,0,0,0.5); }   /* green: this monitor is feeding the enabled monitor bus */
     .mon-muted { border-color: #e22a2a; box-shadow: inset 0 0 0 2px #e22a2a, 0 4px 12px rgba(0,0,0,0.5); }   /* muted: red ring, thickened inward */
     .mon-muted::after { content: ''; position: absolute; left: 3px; right: 3px; top: calc(50% - 1.5px); height: 3px; background: #e22a2a; border-radius: 1px; transform: rotate(-45deg); pointer-events: none; }   /* red diagonal, upper-right to lower-left, as thick as the ring */

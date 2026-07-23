@@ -2210,12 +2210,12 @@ export class Rack {
         const before = this._probePos(existing);
         this._unhideScope(existing);          // reuse the terminal's own scope, settings and all (no-op if already shown)
         existing.displaced = false; this._updateScopeHomeBtn(existing);   // pulled from the terminal → re-placed, so home tracks where you drop it
-        this._carryScope(existing, { clientX: ev.clientX, clientY: ev.clientY }, carryMode || 'up', () => this._pushProbeMove(existing.uid, before, this._probePos(existing)));
+        this._depositProbe(existing, ev); this._pushProbeMove(existing.uid, before, this._probePos(existing));   // drop in place, no carry
         return;
       }
       if (sc) this._promoteScope(sc); else sc = this._createScope(key, portId, ev.clientX, ev.clientY, true);
       this._closeMenu();
-      this._carryScope(sc, { clientX: ev.clientX, clientY: ev.clientY }, carryMode || 'up', () => this._pushProbeCreate(sc.uid));
+      this._depositProbe(sc, ev); this._pushProbeCreate(sc.uid);   // drop in place at the click point, no carry
     };
     this._openMenu(ox, oy, [
       {
@@ -2223,15 +2223,16 @@ export class Rack {
         onDwell: () => {
           if (tempMon) return;
           const a = this._dwellAnchor || { x: ox, y: oy };
-          tempMon = this._createMonitor(key, portId, a.x, a.y, false);   // preview: now SEEN as well as heard — it fades into view like the scope
-          tempMon.el.style.zIndex = 3100;               // over the menu
-          tempMon.el.style.pointerEvents = 'none';      // a visual preview; the menu owns the pointer
-          tempMon.el.style.left = Math.round(a.x + 3 * (this.pxPerMm || 1)) + 'px';   // beside the pointer, like the scope preview
-          tempMon.el.style.top = Math.round(a.y - (tempMon.el.offsetHeight || 28) / 2) + 'px';
+          // Listen only: build the monitor for its audio tap + routing but keep it INVISIBLE, so
+          // hovering just plays the terminal — nothing appears. The object shows only on a click.
+          tempMon = this._createMonitor(key, portId, a.x, a.y, false);
+          tempMon.el.style.display = 'none';
           this._autoLevelMonitor(tempMon);
         },
         onLeave: () => { if (tempMon) { this._closeMonitor(tempMon); tempMon = null; } },
-        action: (ev) => { const nm = this._createMonitor(key, portId, ev.clientX, ev.clientY); this._carryMonitor(nm, { clientX: ev.clientX, clientY: ev.clientY }, 'up', () => this._pushProbeCreate(nm.uid)); },
+        // Deposit the monitor in place at the click point (no carry) — from here the menu closes and
+        // you drag it to reposition, instead of being dropped straight into a carry.
+        action: (ev) => { const nm = this._createMonitor(key, portId, ev.clientX, ev.clientY); this._depositProbe(nm, ev); this._pushProbeCreate(nm.uid); },
       },
       {
         label: 'Scope', icon: SCOPE_ICON,
@@ -2414,6 +2415,18 @@ export class Rack {
   //   'auto' — committed with the button held: if you DRAG it into place it drops on release;
   //            if you merely clicked (no drag) it keeps following and drops on the next click.
   // Escape (or clicking back on the origin terminal) cancels — the scope is removed.
+  // Drop a scope/monitor at a fixed spot (the click point) instead of carrying it — placed exactly
+  // where a carry would have started (centred on the pointer), then left there and draggable as usual.
+  _depositProbe(v, ev) {
+    if (this._scopes.has(v) && v.minimized) this._expandScope(v);
+    const h = v.el.offsetHeight || (this._scopes.has(v) ? 80 : 34);
+    v.el.style.left = Math.round(ev.clientX) + 'px';
+    v.el.style.top = Math.round(ev.clientY - h / 2) + 'px';
+    this._anchorViewer(v);   // commit this screen position to a terminal-relative offset, so reprojection keeps it here (not snapped home)
+    this._updateCallout(v);
+    this.onChange();
+  }
+
   _carryScope(sc, e, mode, onCommit) {
     if (sc.minimized) this._expandScope(sc);   // a scope being carried is always open
     const h = sc.el.offsetHeight || 80;
