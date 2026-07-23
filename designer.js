@@ -61,13 +61,14 @@ let resetScrollNext = true; // scroll the stage to the top on load / module chan
 let zoom = 1;               // view zoom multiplier on top of RENDER_SCALE (View menu / Cmd +/-)
 let pendingScrollFrac = null; // after a zoom re-render, restore this viewport-centre fraction
 
-MODULES.forEach((m) => {
-  m.overrides = {};             // live edits (loaded from disk at startup)
-  m.saved = {};                 // what's on disk, for revert + dirty check
-  m.workDesc = clone(m.desc);   // in-memory interface model; data-face edits mutate it
-  m.undo = [];                  // per-module undo/redo snapshot stacks
-  m.redo = [];
-});
+function initModule(m) {
+  m.overrides = m.overrides || {};   // live edits (loaded from disk at startup)
+  m.saved = m.saved || {};           // what's on disk, for revert + dirty check
+  m.workDesc = clone(m.desc);        // in-memory interface model; data-face edits mutate it
+  m.undo = []; m.redo = [];          // per-module undo/redo snapshot stacks
+  return m;
+}
+MODULES.forEach(initModule);
 
 // ---- undo / redo (per module) --------------------------------------------
 // Snapshot everything a mutation can touch: overrides + working descriptor always,
@@ -116,7 +117,7 @@ function zoomReset() { zoom = 1; pendingScrollFrac = null; resetScrollNext = tru
 // ---- menus (hamburger + right-click, matching the app) -------------------
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 function closeMenus() { menuRoot.replaceChildren(); document.removeEventListener('pointerdown', onDocDown, true); }
-function onDocDown(e) { if (!e.target.closest('.menu')) closeMenus(); }
+function onDocDown(e) { if (!e.target.closest || !e.target.closest('.menu')) closeMenus(); }
 function renderLevel(items) {
   const el = document.createElement('div'); el.className = 'menu';
   for (const it of items) {
@@ -146,10 +147,11 @@ function openMenu(x, y, items) {
   setTimeout(() => document.addEventListener('pointerdown', onDocDown, true), 0);
 }
 function mainMenu() {
-  const modules = MODULES.map((m, i) => ({ label: m.name + (m.editorOwned ? ' (draft)' : ''), checked: i === idx, action: () => selectModuleIndex(i) }));
+  const modules = MODULES.map((m, i) => ({ label: m.name + (m.editorOwned && !m.authoredOnDisk ? ' (draft)' : m.editorOwned ? '' : ' (locked)'), checked: i === idx, action: () => selectModuleIndex(i) }));
   const file = [
     { label: 'Open module', submenu: modules },
     { label: 'New module', action: newDraft },
+    { label: 'Duplicate this module…', action: openDuplicateDialog },
     { label: 'Module settings…', disabled: !MODULES[idx].editorOwned, action: openModuleSettings },
     { separator: true },
     { label: 'Save', disabled: !dirty(), action: save },
@@ -409,7 +411,7 @@ async function save() {
       if (!res.ok) throw new Error(data.error || res.statusText);
     }
     if (!data || !data.ok) throw new Error((data && data.error) || 'save failed');
-    if (m.editorOwned) { m.savedLayout = clone(m.base); m.savedDesc = clone(m.workDesc); m.dirtyDraft = false; status.textContent = `Saved ${m.name} → modules/${m.dir}/ (layout + descriptor + panels)`; }
+    if (m.editorOwned) { m.savedLayout = clone(m.base); m.savedDesc = clone(m.workDesc); m.dirtyDraft = false; m.authoredOnDisk = true; status.textContent = `Saved ${m.name} → modules/${m.dir}/ (layout + descriptor + panels)`; }
     else { m.saved = clone(m.overrides); status.textContent = `Saved ${m.name} — panel.svg + panel.dark.svg regenerated`; }
   } catch (e) {
     status.textContent = `Save failed: ${e.message}`;
@@ -882,6 +884,57 @@ function newDraft() {
   selectedId = null; resetScrollNext = true; closeFloats(); openPalette(); scheduleRender();
 }
 
+// Discover authored modules on disk (editor-generated) and add any not already listed as
+// editor-owned, so a saved/duplicated module reopens fully editable. Official built-ins are
+// the hardcoded, locked set above; discovery only adds authored ones.
+async function discoverAuthored() {
+  let list = [];
+  try { list = (window.wcoast && window.wcoast.listModules) ? await window.wcoast.listModules() : await (await fetch('/modules')).json(); } catch (_e) { return; }
+  const known = new Set(MODULES.map((m) => m.dir));
+  for (const entry of list) {
+    if (!entry.authored || known.has(entry.dir)) continue;
+    try {
+      const bust = '?v=' + Date.now();
+      const base = clone((await import(`/modules/${entry.dir}/panel.layout.js${bust}`)).default);
+      const desc = (await import(`/modules/${entry.dir}/descriptor.js${bust}`)).default;
+      MODULES.push(initModule({ name: desc.name || entry.dir, dir: entry.dir, base, desc, editorOwned: true, authoredOnDisk: true }));
+    } catch (e) { console.warn('panel editor: skipped authored module', entry.dir, e); }
+  }
+}
+
+// Duplicate the current module into a new, renamed, editor-owned copy you can extend.
+// The original is never touched; the behaviour (factory/DSP) is NOT copied — hence the warning.
+function sanitizeDir(name) { return (name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'module'; }
+function openDuplicateDialog() {
+  const src = MODULES[idx];
+  dialogRoot.innerHTML = `<div class="dlg-overlay"><div class="dlg">
+    <h2>Duplicate module</h2>
+    <div class="dlg-body">
+      <p>Make an editable copy of <b>${esc(src.name)}</b> to build on. The original stays locked.</p>
+      <p><b>Its behaviour is not copied</b> — you'll need to write the copy's factory (and any worklet) for its controls to actually do anything.</p>
+      <label class="insp-field" style="grid-template-columns:64px 1fr; margin-top:8px;"><span>name</span><input id="dupName" type="text" value="${esc(src.name)} copy"></label>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:16px;">
+      <button class="dlg-close" id="dupCreate">Create</button>
+      <button class="dlg-close" id="dupCancel">Cancel</button>
+    </div>
+  </div></div>`;
+  const close = () => dialogRoot.replaceChildren();
+  const nameIn = dialogRoot.querySelector('#dupName');
+  dialogRoot.querySelector('#dupCancel').addEventListener('click', close);
+  dialogRoot.querySelector('.dlg-overlay').addEventListener('pointerdown', (e) => { if (e.target.classList.contains('dlg-overlay')) close(); });
+  dialogRoot.querySelector('#dupCreate').addEventListener('click', () => {
+    const name = (nameIn.value || '').trim() || `${src.name} copy`;
+    let dir = sanitizeDir(name), n = 2; const dirs = new Set(MODULES.map((m) => m.dir));
+    while (dirs.has(dir)) dir = `${sanitizeDir(name)}-${n++}`;
+    const desc = clone(src.workDesc); desc.id = dir; desc.name = name; delete desc.worklets;
+    const m = initModule({ name, dir, base: clone(src.base), desc, editorOwned: true, dirtyDraft: true });
+    MODULES.push(m); idx = MODULES.length - 1;
+    selectedId = null; resetScrollNext = true; closeFloats(); openPalette(); scheduleRender();
+    close();
+  });
+}
+
 let idSeq = 0;
 function uniqueId(m, base) {
   const taken = new Set([...m.base.items.map((i) => i.id).filter(Boolean), ...(m.workDesc.ports || []).map((p) => p.id), ...(m.workDesc.params || []).map((p) => p.id)]);
@@ -948,7 +1001,7 @@ function refreshStatus() {
   if (m.editorOwned) {
     const np = (m.workDesc.params || []).length, npo = (m.workDesc.ports || []).length;
     const need = unconfiguredCount();
-    status.textContent = `${m.name} (draft) — ${npo} ports, ${np} params · ` + (lastWarnings.length === 0 ? 'validates ✓' : `${lastWarnings.length} binding issue(s)`) + (need ? ` · ${need} need setup` : '');
+    status.textContent = `${m.name}${m.authoredOnDisk ? '' : ' (draft)'} — ${npo} ports, ${np} params · ` + (lastWarnings.length === 0 ? 'validates ✓' : `${lastWarnings.length} binding issue(s)`) + (need ? ` · ${need} need setup` : '');
   } else {
     const n = Object.keys(m.overrides).length;
     status.textContent = `${m.name} — ${m.base.items.length} items` + (n ? `, ${n} moved${dirty() ? ' (unsaved)' : ''}` : '');
@@ -972,7 +1025,9 @@ function selectModuleById(id) {
 
 // ---- load saved overrides, then first render -----------------------------
 async function boot() {
+  await discoverAuthored();   // add authored modules on disk so they reopen editable
   await Promise.all(MODULES.map(async (m) => {
+    if (m.editorOwned) return;   // authored modules save flat, no overrides file
     try {
       const res = await fetch(`/modules/${m.dir}/panel.overrides.json`);
       if (res.ok) { const ov = await res.json(); m.overrides = ov; m.saved = clone(ov); }

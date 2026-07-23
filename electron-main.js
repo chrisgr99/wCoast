@@ -29,7 +29,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { initMirror } = require('./electron-mirror');
-const { savePanel } = require('./designer-save.js');   // shared with the dev server
+const { savePanel, listModules } = require('./designer-save.js');   // shared with the dev server
 
 // The source revision the running app was built from, computed once and handed to the renderer
 // (which stamps it into saved patches as `build`) so a bug report carrying a patch can be traced
@@ -91,6 +91,7 @@ function registerPatchIpc() {
   ipcMain.handle('open-panel-editor', (_e, opts) => openPanelEditor(opts || {}));
   // The panel editor's save: write a module's files and regenerate its panels on disk.
   ipcMain.handle('designer:save', (_e, msg) => savePanel(__dirname, msg));
+  ipcMain.handle('designer:list-modules', () => listModules(__dirname));
   // The source revision, for stamping into saved patches (null from a packaged, git-less build).
   ipcMain.handle('app:build', async () => buildInfo());
   ipcMain.handle('patch:open', async () => {

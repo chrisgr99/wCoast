@@ -13,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import saveMod from './designer-save.js';   // shared with the in-app IPC save
 
-const { savePanel } = saveMod;
+const { savePanel, listModules } = saveMod;
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PORT = 8784;
 const MIME = {
@@ -53,6 +53,7 @@ function handleStatic(req, res) {
 
 http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/save') return handleSave(req, res);
+  if (req.method === 'GET' && req.url.split('?')[0] === '/modules') return sendJson(res, 200, listModules(ROOT));
   if (req.method === 'GET') return handleStatic(req, res);
   res.writeHead(405); res.end('method not allowed');
 }).listen(PORT, () => console.log(`panel designer on http://localhost:${PORT}/designer.html`));
