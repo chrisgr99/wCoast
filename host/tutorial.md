@@ -56,7 +56,7 @@ Coming next: **Basic interaction**.
 
 > **Do this** — Move your pointer over the "Complex Oscillator" (the top-left module) without clicking, and watch the whole module brighten while the rest dims. Now move to band A of the "Quad Low Pass Gate" (the module in the lower right) — just that band lights. Point at other modules to see this in action.
 
-**Commands:** right-click a panel — or click the hamburger in the top-left corner — for the main menu: Engine, File, Edit, View, Rack and Help.
+**Commands:** right-click a panel — or click the hamburger in the top-left corner — for the main menu: a **Sound** row with **Master** and **Monitor** buttons at the top, then File, Edit, View, Rack and Help.
 
 > **Do this** — Right-click a panel, go to View, and set light or dark to your taste. Everything re-skins, including this card, and your choice sticks between sessions.
 
@@ -84,9 +84,9 @@ Coming next: **First sound**.
 
 > **Do this** — Left-click the **"Mixer / Output"** channel A input where your cable lands: it lifts off and follows the pointer. Left-click channel A again to plug it back in, and leave it connected there for what follows. (To remove a cable for good, you'd drop it on empty space instead.)
 
-**Sound:** nothing plays until the sound engine is on.
+**Sound:** nothing plays until you switch a bus on. The **Sound** row at the top of the menu has two buttons — **Master** (the mix you're building) and **Monitor** — both off when the app opens.
 
-> **Do this** — Right-click a panel to open the menu and hover over **Engine** — the oscillator sounds while your pointer rests there. Pull away from the menu and it stops. Reopen the menu and click **Engine** to leave it running. Then set a comfortable volume with the mixer's **Master** fader (drag it, or scroll it) — the first sound can come out louder or quieter than you'd like.
+> **Do this** — Right-click a panel to open the menu; in the **Sound** row at the top, hover the **Master** button — the oscillator sounds while your pointer rests on it, and stops when you move off. Click **Master** to switch it on and leave it running — pressing it again turns it off, so the button toggles the bus; the menu stays open. The **space bar** toggles the Master bus on and off too, without opening the menu. Then set a comfortable volume with the mixer's **Master** fader (drag it, or scroll it) — the first sound can come out louder or quieter than you'd like.
 
 **The chain:** with the oscillator now wired to the mixer, the two are one signal chain — and hovering lights a whole chain at once, so you can see what feeds what, which controls affect the signal you're on, and what they in turn affect.
 
@@ -109,7 +109,7 @@ Here it's trivial — one oscillator into one channel — but in a rack full of 
 Coming next: **Building a patch**.
 ## Building a patch
 
-**Your modules:** you already have a useful set of four — the "Complex Oscillator", "Quad Function Generator", "Quad Low Pass Gate", and "Mixer / Output" — enough to build real patches. Adding and removing modules comes later; for now, build with these. (The sound engine should still be running from **First sound**; if it's off, turn it on from the menu's **Engine** item.)
+**Your modules:** you already have a useful set of four — the "Complex Oscillator", "Quad Function Generator", "Quad Low Pass Gate", and "Mixer / Output" — enough to build real patches. Adding and removing modules comes later; for now, build with these. (The **Master** bus should still be on from **First sound**; if it's off, turn it on by clicking the button beside **Master** in the top row of the main menu.)
 
 > **Do this** — This section works mostly with the "Quad Low Pass Gate", the module at the lower right. If this card covers it, pull its bottom edge up until the whole module is visible.
 
@@ -161,11 +161,11 @@ Coming next: **Seeing and hearing**.
 
 > **Do this** — Right-click a few different outputs on the "Complex Oscillator" — the modulation oscillator's **Triangle**, the principal **Sine**, the **Final** — and hover **Monitor** on each to hear how they differ, without wiring anything. If you built the patch last section, try it on the "Quad Low Pass Gate" too: hover **Monitor** on its **Clk Out**, and on channel A's **Clk A** output, to hear the clock ticking.
 
-**Keep a monitor:** to listen without holding the pointer still, click **Monitor** instead of hovering — a monitor drops onto the rack and follows the pointer until you click again to set it down. It stays live and is saved with your patch, so you can leave several running side by side. Each is also its own control: hold the pointer over it and scroll to set its level, click it to mute and unmute — a green ring shows when it's on — and close it with its ×.
+**Keep a monitor:** to listen without holding the pointer still, click **Monitor** instead of hovering — a monitor drops onto the rack right where you clicked and stays there (drag its body to move it). It stays live and is saved with your patch, so you can leave several running side by side. Each is also its own control: hold the pointer over it and scroll to set its level, click it to mute and unmute — a green ring shows when it's on — and close it with the red close button at its upper-left.
 
-> **Do this** — Right-click a terminal, click **Monitor**, then drag the monitor to a spot near the terminal and click to set it down. Notice the callout: a ring appears around the terminal, joined to the monitor by a line, marking which signal it hears. Drop a couple more monitors on terminals — including ones with no cable — then hold the pointer over each and scroll to set its level, then click it to mute it and click again to bring it back.
+> **Do this** — Right-click a terminal and click **Monitor** — it drops right at that spot. Notice the callout: a ring appears around the terminal, joined to the monitor by a line, marking which signal it hears. Drop a couple more monitors on output terminals — including ones with no cable — then hold the pointer over each and scroll to set its level, then click it to mute it and click again to bring it back.
 
-**Master and monitor buses:** the "Mixer / Output" carries two output buses, side by side in its master section. **Master** is the mix you build from the six channels; **Monitor** is the sum of every monitor you've dropped — a second, independent sub-mix, like the monitor or aux bus on a real desk. Each bus has its own level fader and its own enable lamp beneath it, and the two are independent: play either, both, or neither. Dropping a monitor switches the Monitor bus on for you; turning it off silences all your monitors at once without removing them, and turning **Master** off leaves just the monitor sub-mix. Both buses are gated by the engine.
+**Master and monitor buses:** the "Mixer / Output" carries two output buses, side by side in its master section. **Master** is the mix you build from the six channels; **Monitor** is the sum of every monitor you've dropped — a second, independent sub-mix, like the monitor or aux bus on a real desk. Each bus has its own level fader and its own enable lamp beneath it, and the two are independent: play either, both, or neither. Dropping a monitor switches the Monitor bus on for you; turning it off silences all your monitors at once without removing them, and turning **Master** off leaves just the monitor sub-mix. The same two enables sit at the top of the main menu, in its **Sound** row.
 
 > **Do this** — With a monitor or two running, find the **Master** and **Monitor** faders in the mixer's master section, each with an enable lamp below it. Set the **Monitor** level against the **Master**, then toggle the two enables — **Master** off to hear only your monitors, **Monitor** off to silence them and keep just the mix.
 
@@ -173,9 +173,9 @@ Coming next: **Seeing and hearing**.
 
 > **Do this** — Right-click the "Complex Oscillator" principal **Square** output and hover **Scope** — a clean waveform, held steady. Try the modulation oscillator's **Triangle** and the "Quad Low Pass Gate" **Clk Out** too: each locks into a still trace, the slow clock included.
 
-**Keep a scope:** to hold a scope open, click it — on the **Scope** menu item, or on the peeked scope's face. It then follows the pointer until you click again to set it down. Like an audio monitor, a kept scope draws a callout — a ring around the terminal, joined by a line to the scope — stays live, and is saved with your patch. A running scope tracks its signal moment to moment, so anything you change upstream shows on screen at once.
+**Keep a scope:** to hold a scope open, click it — on the **Scope** menu item, or on the peeked scope's face. It drops in place right where you clicked and stays there (drag its body to move it). Like an audio monitor, a kept scope draws a callout — a ring around the terminal, joined by a line to the scope — stays live, and is saved with your patch. A running scope tracks its signal moment to moment, so anything you change upstream shows on screen at once.
 
-> **Do this** — Right-click the "Complex Oscillator" principal **Square** output, click **Scope**, drag it to a clear spot, and click to set it down. Turn the **Frequency** (Pitch) knob and watch the wavelength squeeze and stretch as the frequency rises and falls. Then keep a scope on the "Quad Low Pass Gate" **Clk Out** and turn its **Rate** up and down — the trigger pulses crowd together or spread apart.
+> **Do this** — Right-click the "Complex Oscillator" principal **Square** output and click **Scope** — it drops right there. Drag it to a clear spot if you like, then turn the **Frequency** (Pitch) knob and watch the wavelength squeeze and stretch as the frequency rises and falls. Then keep a scope on the "Quad Low Pass Gate" **Clk Out** and turn its **Rate** up and down — the trigger pulses crowd together or spread apart.
 
 **Move or remove a scope:** the callout ring has a small grab handle. Drag the ring off its terminal and release it over empty space, and the scope vanishes — the same gesture as pulling a cable off a terminal. Drop the ring on a different terminal instead, and the scope re-probes there, re-framing to show that signal.
 
