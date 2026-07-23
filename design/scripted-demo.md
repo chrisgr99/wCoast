@@ -152,7 +152,7 @@ carry several reels, each addressed by its `id`.
 Choosing and starting are two separate acts, because the author needs the start
 timed to when the screen recorder begins:
 
-- **Choose** — an unused wedge of the panel ("main") pie carries a demo launcher
+- **Choose** — an unused item of the panel ("main") menu carries a demo launcher
   (a clapperboard/film icon). Clicking it opens a list of the named demos; picking
   one **arms** it as the current demo (it does not start yet). This launcher wedge
   and its list are **hidden whenever a demo is running**, so they never appear in
@@ -242,7 +242,7 @@ Staged so each stage stands alone and is verifiable:
 3. **Caption box** — per-step narration in a legible, theme-aware box.
 4. **Demo library + loader** — the `demos/` folder, JSON loaded by name, the first
    reel authored as `demos/intro.json`.
-5. **Triggers and launcher** — the panel-pie launcher wedge (arm a reel) and the
+5. **Triggers and launcher** — the panel-menu launcher item (arm a reel) and the
    keyboard shortcut (start it, for record timing), the launcher hidden during
    playback, plus the `#demo=` URL and auto-run/loop.
 6. **Recording mode and polish** — global rate override, sound-on at reel start,

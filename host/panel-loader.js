@@ -758,7 +758,7 @@ function decoratePanel(parsed, descriptor, opts) {
     t.setAttribute('fill', opts.dark ? '#ffffff' : '#163a69');
     t.setAttribute('class', 'module-title');
     t.setAttribute('opacity', '0.9');
-    t.setAttribute('pointer-events', 'auto');   // the title is the delete/move handle (right-click for its pie)
+    t.setAttribute('pointer-events', 'auto');   // the title is the delete/move handle (right-click for its menu)
     t.textContent = name;
     svg.appendChild(t);
   }

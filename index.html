@@ -307,15 +307,6 @@
     .rack-cables { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 12; overflow: visible; }
     .rack-cable { fill: none; stroke-linecap: round; opacity: 0.95; }
     .rack-cable-temp { opacity: 0.95; }   /* the cord in hand looks like a real thick cable — no dash, no fade */
-    /* ---- radial pie menus (right-click) ---- */
-    .pie-overlay { position: fixed; inset: 0; z-index: 3000; cursor: none; }
-    .pie-svg { position: fixed; overflow: visible; filter: drop-shadow(0 2px 7px rgba(0,0,0,0.35)); }
-    .pie-bg { fill: var(--panel); }
-    .pie-line { fill: none; stroke: var(--ink-dim); stroke-width: 0.5; stroke-linecap: round; }
-    .pie-wedge path { fill: transparent; stroke: none; }
-    .pie-icon { position: fixed; transform: translate(-50%,-50%); pointer-events: none; color: var(--ink); line-height: 0; }
-    .pie-icon svg { width: 13px; height: 13px; display: block; fill: currentColor; }
-    .pie-cursor { position: fixed; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.5); background: #bfbfbf; pointer-events: none; }
   </style>
 </head>
 <body>

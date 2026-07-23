@@ -204,7 +204,7 @@ usually unrelated nets, so the trace runs over per-channel nodes (`_sectionKey`)
 and one channel's net never bleeds into its neighbours, even where two channels
 reconverge downstream (e.g. at a shared mixer). Emphasis is opacity only — no
 dimming of modules, no width change. Later: a toolbar toggle, and a right-button
-pie menu for one-gesture access.
+context menu for one-gesture access.
 
 ---
 
